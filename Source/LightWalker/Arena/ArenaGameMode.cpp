@@ -148,6 +148,7 @@ void AArenaGameMode::StartRun()
 void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArenaGameMode::*Next)())
 {
 	Phase = NewPhase;
+	PhaseStartTime = GetWorld()->GetTimeSeconds();
 	GetWorldTimerManager().ClearTimer(PhaseTimer);
 	if (Next)
 	{
@@ -368,7 +369,7 @@ void AArenaGameMode::AdvanceWave()
 
 void AArenaGameMode::RequestRestart()
 {
-	if (Phase == EArenaPhase::GameOver || Phase == EArenaPhase::Victory)
+	if (IsRunOver() && GetWorld()->GetTimeSeconds() - PhaseStartTime >= RestartLockout)
 	{
 		StartRun();
 	}

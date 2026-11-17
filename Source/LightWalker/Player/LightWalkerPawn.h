@@ -11,7 +11,10 @@ class USphereComponent;
 class UStaticMeshComponent;
 
 /**
- * Lightwalker, the player. Moves on the arena plane and fires lasers in the aimed direction.
+ * Lightwalker, the player. Moves on the arena plane and fires lasers.
+ *
+ * Fire direction, in priority order: the right stick, the mouse cursor while the mouse button is held,
+ * then the way Lightwalker is facing (last movement) while a fire button is held.
  *
  * Input arrives as screen-space 2D vectors (x = right, y = up) from ALightWalkerPlayerController.
  * With the top-down camera, screen up is world +X and screen right is world +Y.
@@ -28,6 +31,10 @@ public:
 
 	void SetMoveInput(const FVector2D& ScreenInput) { MoveInput = ScreenInput; }
 	void SetAimInput(const FVector2D& ScreenInput) { AimInput = ScreenInput; }
+	void SetFireHeld(bool bHeld) { bFireHeld = bHeld; }
+
+	/** Mouse aiming: fire towards a world point while active. */
+	void SetCursorAim(bool bActive, const FVector& WorldTarget = FVector::ZeroVector) { bCursorAim = bActive; CursorTarget = WorldTarget; }
 
 	/** World-space XY area the pawn's centre must stay inside. */
 	void SetPlayBounds(const FBox2D& Bounds) { PlayBounds = Bounds; }
@@ -100,6 +107,12 @@ private:
 
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	FVector2D AimInput = FVector2D::ZeroVector;
+	bool bFireHeld = false;
+	bool bCursorAim = false;
+	FVector CursorTarget = FVector::ZeroVector;
+
+	/** Last movement direction; starts facing screen up. */
+	FVector Heading = FVector::ForwardVector;
 	FBox2D PlayBounds = FBox2D(ForceInit);
 	float FireCooldown = 0.f;
 	float GraceRemaining = 0.f;

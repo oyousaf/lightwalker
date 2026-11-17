@@ -55,8 +55,10 @@ ADajjal::ADajjal()
 
 	EyePivot = CreateDefaultSubobject<USceneComponent>(TEXT("EyePivot"));
 	EyePivot->SetupAttachment(Visual);
-	EyePivot->SetRelativeLocation(FrontFacePoint(0.42f) + FVector(1.f, 0.f, 0.5f));
+	EyePivot->SetRelativeLocation(FrontFacePoint(0.36f) + FVector(1.f, 0.f, 0.5f));
 	EyePivot->SetRelativeRotation(FRotator(FrontFacePitch(), 0.f, 0.f));
+	// Scaled so the eye and its markings stay well inside the face's outline from every angle.
+	EyePivot->SetRelativeScale3D(FVector(0.6f));
 
 	// The eye: an almond of white, a gold iris and a black pupil, layered outwards from the face.
 	UStaticMeshComponent* EyeWhite = AddShape(TEXT("EyeWhite"), SphereMesh.Object, EyePivot,

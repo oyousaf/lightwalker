@@ -42,8 +42,11 @@ public:
 	void HandleEnemyKilled(AEnemyBase* Enemy);
 	void HandlePlayerTouched(ALightWalkerPawn* LightWalker);
 
-	/** Confirm pressed: starts a new run after a game over or a win. */
+	/** Confirm pressed: starts a new run after a game over or a win (ignored for a moment after it ends,
+	    so fire buttons still held from the last fight don't skip the end screen). */
 	void RequestRestart();
+
+	bool IsRunOver() const { return Phase == EArenaPhase::GameOver || Phase == EArenaPhase::Victory; }
 
 	EArenaPhase GetPhase() const { return Phase; }
 	int32 GetWaveNumber() const { return FMath::Min(WaveIndex + 1, GetWaveCount()); }
@@ -88,6 +91,10 @@ protected:
 	/** Time after a respawn when enemies can't hurt Lightwalker. 0 matches 2014. */
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules", meta = (Units = "s"))
 	float RespawnGrace = 1.f;
+
+	/** How long the end screens ignore the restart button. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules", meta = (Units = "s"))
+	float RestartLockout = 1.f;
 
 	/** Enemies never spawn inside this box around the centre, where Lightwalker starts. */
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Spawning")
@@ -139,6 +146,7 @@ private:
 #endif
 
 	EArenaPhase Phase = EArenaPhase::WaveIntro;
+	float PhaseStartTime = 0.f;
 	int32 WaveIndex = 0;
 	FTimerHandle PhaseTimer;
 };
