@@ -1,0 +1,73 @@
+#include "Player/Laser.h"
+
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Core/LWNeon.h"
+#include "Enemies/EnemyBase.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
+
+ALaser::ALaser()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	InitialLifeSpan = 5.f;
+
+	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
+	Collision->InitSphereRadius(18.f);
+	Collision->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	Collision->SetGenerateOverlapEvents(true);
+	RootComponent = Collision;
+
+	// The cylinder mesh runs along +Z; pitch it so its length runs along the actor's +X (direction of travel).
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	Beam = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Beam"));
+	Beam->SetupAttachment(Collision);
+	Beam->SetStaticMesh(CylinderMesh.Object);
+	Beam->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
+	Beam->SetRelativeScale3D(FVector(0.1f, 0.1f, 0.7f));
+	Beam->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Beam->SetCastShadow(false);
+}
+
+void ALaser::BeginPlay()
+{
+	Super::BeginPlay();
+
+	LWNeon::ApplyGlow(Beam, Color, GlowIntensity);
+	Collision->OnComponentBeginOverlap.AddDynamic(this, &ALaser::HandleOverlap);
+}
+
+void ALaser::Launch(const FVector& InDirection, const FBox2D& InBounds)
+{
+	Direction = InDirection.GetSafeNormal2D();
+	Bounds = InBounds;
+	SetActorRotation(Direction.Rotation());
+}
+
+void ALaser::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const FVector Location = GetActorLocation() + Direction * Speed * DeltaSeconds;
+	SetActorLocation(Location);
+
+	// Leaving the arena on any side ends the laser (the 2014 left-firing laser checked the wrong axis here).
+	if (Bounds.bIsValid && !Bounds.IsInside(FVector2D(Location.X, Location.Y)))
+	{
+		Destroy();
+	}
+}
+
+void ALaser::HandleOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	AEnemyBase* Enemy = Cast<AEnemyBase>(OtherActor);
+	if (bSpent || !Enemy || Enemy->IsDead())
+	{
+		return;
+	}
+
+	bSpent = true;
+	Enemy->Kill();
+	Destroy();
+}

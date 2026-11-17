@@ -2,7 +2,7 @@
   "FileVersion": 3,
   "EngineAssociation": "{69A2C0B2-409B-E058-C5CB-728F8D8D578C}",
   "Category": "",
-  "Description": "",
+  "Description": "Neon arena shooter remaking the 2014 Flash game Lightwalker",
   "Modules": [
     {
       "Name": "LightWalker",
@@ -21,6 +21,14 @@
       "SupportedTargetPlatforms": [
         "Win64"
       ]
+    },
+    {
+      "Name": "PythonScriptPlugin",
+      "Enabled": true
+    },
+    {
+      "Name": "EditorScriptingUtilities",
+      "Enabled": true
     }
   ],
   "TargetPlatforms": [],
