@@ -48,6 +48,13 @@ AShaytaan::AShaytaan()
 		AddGlowPart(Segment, BodyColor, FMath::Lerp(0.12f, 1.1f, Fade * Fade));
 	}
 
+	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Shaytaan.SM_Shaytaan"));
+	ModelSize = 95.f;
+	for (USceneComponent* Placeholder : { Body, HornLeft, HornRight, EyeLeft, EyeRight })
+	{
+		AddPlaceholder(Placeholder);
+	}
+
 	for (UStaticMeshComponent* Part : { Body, HornLeft, HornRight })
 	{
 		AddGlowPart(Part, BodyColor, 1.3f);

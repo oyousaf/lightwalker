@@ -4,7 +4,9 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Misc/PackageName.h"
 #include "Player/LightWalkerPawn.h"
 
 AEnemyBase::AEnemyBase()
@@ -19,6 +21,47 @@ AEnemyBase::AEnemyBase()
 
 	Visual = CreateDefaultSubobject<USceneComponent>(TEXT("Visual"));
 	Visual->SetupAttachment(Collision);
+
+	Model = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Model"));
+	Model->SetupAttachment(Visual);
+	Model->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Model->SetCastShadow(false);
+	Model->SetVisibility(false);
+}
+
+void AEnemyBase::TryUseModel()
+{
+	if (ModelPath.IsNull() || !FPackageName::DoesPackageExist(ModelPath.GetLongPackageName()))
+	{
+		return;
+	}
+
+	UStaticMesh* Mesh = Cast<UStaticMesh>(ModelPath.TryLoad());
+	if (!Mesh)
+	{
+		return;
+	}
+
+	// Fit the model: largest side = ModelSize, bounds centred on the pivot, front turned to +X.
+	const FBoxSphereBounds MeshBounds = Mesh->GetBounds();
+	const float Largest = FMath::Max(MeshBounds.BoxExtent.GetMax() * 2.f, KINDA_SMALL_NUMBER);
+	const float Scale = ModelSize / Largest;
+	const FRotator Rotation(0.f, ModelYaw, 0.f);
+
+	Model->SetStaticMesh(Mesh);
+	Model->SetRelativeScale3D(FVector(Scale));
+	Model->SetRelativeRotation(Rotation);
+	Model->SetRelativeLocation(-Rotation.RotateVector(MeshBounds.Origin * Scale));
+	Model->SetVisibility(true);
+
+	for (USceneComponent* Placeholder : Placeholders)
+	{
+		if (Placeholder)
+		{
+			Placeholder->SetVisibility(false, true);
+		}
+	}
+	bUsingModel = true;
 }
 
 UStaticMeshComponent* AEnemyBase::AddShape(FName Name, UStaticMesh* Mesh, USceneComponent* Parent,
@@ -59,6 +102,7 @@ void AEnemyBase::BeginPlay()
 
 	Collision->SetSphereRadius(Radius);
 	LookTime = FMath::FRandRange(0.f, 10.f);
+	TryUseModel();
 
 	for (const FEnemyGlowPart& Part : GlowParts)
 	{

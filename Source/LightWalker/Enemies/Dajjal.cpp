@@ -83,6 +83,11 @@ ADajjal::ADajjal()
 	}
 	AddGlowPart(Pyramid, PyramidColor, 0.2f, false, BaseSection);
 
+	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Dajjal.SM_Dajjal"));
+	ModelSize = 100.f;
+	AddPlaceholder(Pyramid);
+	AddPlaceholder(EyePivot);
+
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
 		UStaticMeshComponent* BaseEdge = AddRod(*FString::Printf(TEXT("BaseEdge%d"), Index), CylinderMesh.Object, Visual,
@@ -91,6 +96,8 @@ ADajjal::ADajjal()
 			Corner(Index), Apex, 3.f);
 		AddGlowPart(BaseEdge, MarkingColor, 6.f);
 		AddGlowPart(RidgeEdge, MarkingColor, 6.f);
+		AddPlaceholder(BaseEdge);
+		AddPlaceholder(RidgeEdge);
 	}
 	AddGlowPart(EyeWhite, EyeWhiteColor, 10.f);
 	AddGlowPart(Iris, PyramidColor, 14.f);

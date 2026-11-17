@@ -77,6 +77,9 @@ protected:
 	/** Adds a thin glowing rod from Start to End (relative to Parent). Constructor only. */
 	UStaticMeshComponent* AddRod(FName Name, UStaticMesh* CylinderMesh, USceneComponent* Parent, const FVector& Start, const FVector& End, float Thickness);
 
+	/** Marks a placeholder shape that is hidden once a real model (ModelPath) is in use. */
+	void AddPlaceholder(USceneComponent* Component) { Placeholders.Add(Component); }
+
 	/** Turns the Visual pivot smoothly to face a world direction on the arena plane. */
 	void TurnVisualTowards(const FVector& Direction, float DeltaSeconds, float TurnRate);
 
@@ -90,6 +93,29 @@ protected:
 	UPROPERTY()
 	TArray<FEnemyGlowPart> GlowParts;
 
+	/**
+	 * Optional imported model (see Tools/import_models.py). When the asset exists it replaces the placeholder shapes,
+	 * scaled so its largest side is ModelSize and centred on the Visual pivot; trails and other effects stay.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	FSoftObjectPath ModelPath;
+
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float ModelSize = 100.f;
+
+	/** Turns the model so its front faces +X (the way the enemy faces). glTF models face +Y once imported, hence -90. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float ModelYaw = -90.f;
+
+	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
+	TObjectPtr<UStaticMeshComponent> Model;
+
+	UPROPERTY()
+	TArray<TObjectPtr<USceneComponent>> Placeholders;
+
+	/** True once an imported model replaced the placeholders. */
+	bool bUsingModel = false;
+
 	/** Radius used for the laser overlap and the player contact check. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float Radius = 50.f;
@@ -102,6 +128,7 @@ protected:
 
 private:
 	void CheckPlayerContact();
+	void TryUseModel();
 
 	TWeakObjectPtr<ALightWalkerPawn> Player;
 	bool bActive = false;
