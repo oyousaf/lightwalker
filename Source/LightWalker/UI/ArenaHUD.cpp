@@ -64,7 +64,7 @@ void AArenaHUD::DrawHUD()
 		Banner = FString::Printf(TEXT("WAVE %d"), GameMode->GetWaveNumber());
 		if (GameMode->GetWaveNumber() == 1)
 		{
-			Detail = TEXT("Arrows or left stick to move    WASD or right stick to fire");
+			Detail = TEXT("WASD or arrows to move    Space or click to fire    Gamepad: twin sticks, RT to fire");
 		}
 		break;
 	case EArenaPhase::PlayerDown:
@@ -77,14 +77,21 @@ void AArenaHUD::DrawHUD()
 	case EArenaPhase::GameOver:
 		Banner = TEXT("GAME OVER");
 		BannerColor = Danger;
-		Detail = TEXT("Press Enter or Start to play again");
+		Detail = TEXT("Press Enter, A or Start to play again");
 		break;
 	case EArenaPhase::Victory:
 		Banner = TEXT("THE LIGHT PREVAILS");
-		Detail = FString::Printf(TEXT("Final score %d    Press Enter or Start to play again"), Run->GetScore());
+		Detail = FString::Printf(TEXT("Final score %d    Press Enter, A or Start to play again"), Run->GetScore());
 		break;
 	default:
 		break;
+	}
+
+	if (GetWorld()->IsPaused())
+	{
+		Banner = TEXT("PAUSED");
+		BannerColor = Primary;
+		Detail = TEXT("Press Esc, P or Start to resume");
 	}
 
 	const float BannerY = Canvas->ClipY * 0.4f;

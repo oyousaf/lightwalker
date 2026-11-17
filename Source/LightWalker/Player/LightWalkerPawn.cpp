@@ -94,19 +94,37 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 
 	FireCooldown = FMath::Max(0.f, FireCooldown - DeltaSeconds);
 
+	if (!Move.IsNearlyZero())
+	{
+		Heading = Move.GetSafeNormal();
+	}
+
+	FVector FireDirection = FVector::ZeroVector;
 	if (AimInput.Size() >= AimThreshold)
 	{
-		const FVector Aim = ScreenToWorld(AimInput).GetSafeNormal();
-		FaceDirection(Aim);
+		FireDirection = ScreenToWorld(AimInput).GetSafeNormal();
+	}
+	else if (bCursorAim)
+	{
+		FireDirection = (CursorTarget - GetActorLocation()).GetSafeNormal2D();
+	}
+	else if (bFireHeld)
+	{
+		FireDirection = Heading;
+	}
+
+	if (!FireDirection.IsNearlyZero())
+	{
+		FaceDirection(FireDirection);
 		if (FireCooldown <= 0.f)
 		{
-			Fire(Aim);
+			Fire(FireDirection);
 			FireCooldown = FireInterval;
 		}
 	}
-	else if (!Move.IsNearlyZero())
+	else
 	{
-		FaceDirection(Move);
+		FaceDirection(Heading);
 	}
 }
 

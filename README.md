@@ -6,11 +6,13 @@ The originals are in [legacy/](legacy/).
 
 ## Controls
 
-| | Keyboard | Gamepad |
+| | Keyboard and mouse | Gamepad |
 |---|---|---|
-| Move | Arrow keys | Left stick |
-| Fire | W A S D (two keys for diagonals) | Right stick |
-| Play again | Enter | A / Start |
+| Move | WASD or arrow keys | Left stick or d-pad |
+| Fire where you face | Space or Left Ctrl | RT, RB or A |
+| Aim and fire | Hold left mouse button (fires at the cursor) | Right stick |
+| Pause | Esc or P | Start |
+| Play again | Enter or Space | A or Start |
 
 ## Status
 

@@ -1,5 +1,6 @@
 #include "Enemies/Shaytaan.h"
 
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Player/LightWalkerPawn.h"
@@ -9,7 +10,6 @@ AShaytaan::AShaytaan()
 {
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 
 	Radius = 50.f;
 
@@ -35,18 +35,35 @@ AShaytaan::AShaytaan()
 	UStaticMeshComponent* EyeRight = AddShape(TEXT("EyeRight"), SphereMesh.Object, nullptr,
 		FVector(25.f, 11.f, 17.f), FRotator(0.f, 0.f, 25.f), FVector(0.07f, 0.15f, 0.06f));
 
-	// Pitch 70 points a +Z shape backwards and a little up.
-	UStaticMeshComponent* Tail = AddShape(TEXT("Tail"), CylinderMesh.Object, nullptr,
-		FVector(-48.f, 0.f, 0.f), FRotator(70.f, 0.f, 0.f), FVector(0.05f, 0.05f, 0.32f));
-	UStaticMeshComponent* TailTip = AddShape(TEXT("TailTip"), ConeMesh.Object, nullptr,
-		FVector(-70.f, 0.f, 8.f), FRotator(70.f, 0.f, 0.f), FVector(0.15f, 0.15f, 0.15f));
+	// Fading trail: blobs placed in world space each frame, each following the one ahead of it.
+	constexpr int32 TrailCount = 18;
+	for (int32 Index = 0; Index < TrailCount; ++Index)
+	{
+		const float Fade = 1.f - static_cast<float>(Index) / TrailCount;
+		UStaticMeshComponent* Segment = AddShape(*FString::Printf(TEXT("Trail%d"), Index), SphereMesh.Object, Collision,
+			FVector::ZeroVector, FRotator::ZeroRotator, FVector(FMath::Lerp(0.07f, 0.4f, Fade)));
+		Segment->SetUsingAbsoluteLocation(true);
+		Segment->SetUsingAbsoluteRotation(true);
+		TrailSegments.Add(Segment);
+		AddGlowPart(Segment, BodyColor, FMath::Lerp(0.12f, 1.1f, Fade * Fade));
+	}
 
-	for (UStaticMeshComponent* Part : { Body, HornLeft, HornRight, Tail, TailTip })
+	for (UStaticMeshComponent* Part : { Body, HornLeft, HornRight })
 	{
 		AddGlowPart(Part, BodyColor, 1.3f);
 	}
 	AddGlowPart(EyeLeft, EyeColor, 12.f);
 	AddGlowPart(EyeRight, EyeColor, 12.f);
+}
+
+void AShaytaan::BeginPlay()
+{
+	Super::BeginPlay();
+
+	for (UStaticMeshComponent* Segment : TrailSegments)
+	{
+		Segment->SetWorldLocation(GetActorLocation());
+	}
 }
 
 void AShaytaan::UpdateMovement(float DeltaSeconds)
@@ -82,4 +99,24 @@ void AShaytaan::UpdateLook(float DeltaSeconds)
 	// Hops faster as the pack speeds up.
 	const float Rate = BobRate * FMath::Max(1.f, MoveSpeed / 136.f);
 	Visual->SetRelativeLocation(FVector(0.f, 0.f, FMath::Abs(FMath::Sin(LookTime * Rate)) * BobHeight));
+
+	UpdateTrail(DeltaSeconds);
+}
+
+void AShaytaan::UpdateTrail(float DeltaSeconds)
+{
+	// Follow-the-leader chain: each blob stays at most TrailSpacing behind the one ahead, and drifts
+	// towards it over time so the trail shrinks back into the body when the devil stops.
+	FVector Leader = GetActorLocation();
+	for (UStaticMeshComponent* Segment : TrailSegments)
+	{
+		FVector Location = FMath::VInterpTo(Segment->GetComponentLocation(), Leader, DeltaSeconds, TrailRetractRate);
+		const FVector Offset = Location - Leader;
+		if (Offset.SizeSquared() > FMath::Square(TrailSpacing))
+		{
+			Location = Leader + Offset.GetSafeNormal() * TrailSpacing;
+		}
+		Segment->SetWorldLocation(Location);
+		Leader = Location;
+	}
 }
