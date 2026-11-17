@@ -1,0 +1,369 @@
+#include "Arena/ArenaGameMode.h"
+
+#include "Arena/Arena.h"
+#include "Core/LightWalkerGameInstance.h"
+#include "Enemies/Dajjal.h"
+#include "Enemies/Shaytaan.h"
+#include "EngineUtils.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "LightWalker.h"
+#include "Player/Laser.h"
+#include "Player/LightWalkerPawn.h"
+#include "Player/LightWalkerPlayerController.h"
+#include "TimerManager.h"
+#include "UI/ArenaHUD.h"
+
+namespace
+{
+	FArenaWave MakeWave(int32 Shaytaan, int32 Dajjal, float ShaytaanSpeed)
+	{
+		// 2014 speeds were pixels per 220 ms enemy tick (6, 8, 10, 15), scaled 5 units per pixel.
+		FArenaWave Wave;
+		Wave.ShaytaanCount = Shaytaan;
+		Wave.DajjalCount = Dajjal;
+		Wave.ShaytaanSpeed = ShaytaanSpeed;
+		Wave.SpeedSteps = { { 13, 227.f }, { 7, 341.f } };
+		Wave.DajjalSpeed = 100.f;
+		return Wave;
+	}
+}
+
+AArenaGameMode::AArenaGameMode()
+{
+	DefaultPawnClass = ALightWalkerPawn::StaticClass();
+	PlayerControllerClass = ALightWalkerPlayerController::StaticClass();
+	HUDClass = AArenaHUD::StaticClass();
+
+	ArenaClass = AArena::StaticClass();
+	ShaytaanClass = AShaytaan::StaticClass();
+	DajjalClass = ADajjal::StaticClass();
+
+	DefaultWaves = { MakeWave(15, 0, 136.f), MakeWave(30, 5, 182.f) };
+}
+
+const TArray<FArenaWave>& AArenaGameMode::GetWaves() const
+{
+	return (WaveSet && WaveSet->Waves.Num() > 0) ? WaveSet->Waves : DefaultWaves;
+}
+
+ULightWalkerGameInstance* AArenaGameMode::GetRun() const
+{
+	return GetGameInstance<ULightWalkerGameInstance>();
+}
+
+ALightWalkerPawn* AArenaGameMode::GetLightWalker() const
+{
+	return Cast<ALightWalkerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
+}
+
+void AArenaGameMode::RestartPlayer(AController* NewPlayer)
+{
+	if (!NewPlayer || NewPlayer->IsPendingKillPending())
+	{
+		return;
+	}
+
+	// The arena needs no PlayerStart: Lightwalker always begins in the centre.
+	const FVector Centre = Arena ? Arena->GetCentre() : FVector::ZeroVector;
+	RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, Centre + FVector(0.f, 0.f, PlaneHeight)));
+}
+
+void AArenaGameMode::StartPlay()
+{
+	UWorld* World = GetWorld();
+
+	for (TActorIterator<AArena> It(World); It; ++It)
+	{
+		Arena = *It;
+		break;
+	}
+	if (!Arena)
+	{
+		Arena = World->SpawnActor<AArena>(ArenaClass ? ArenaClass.Get() : AArena::StaticClass(), FTransform::Identity);
+	}
+
+	Super::StartPlay();
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (APlayerController* Controller = It->Get())
+		{
+			Controller->SetViewTarget(Arena);
+		}
+	}
+
+	if (!GetRun())
+	{
+		UE_LOG(LogLightWalker, Error, TEXT("Game instance class isn't LightWalkerGameInstance; check GameInstanceClass in DefaultEngine.ini."));
+		return;
+	}
+
+	StartRun();
+}
+
+void AArenaGameMode::StartRun()
+{
+	ClearField();
+	GetRun()->StartRun(StartingLives);
+	WaveIndex = 0;
+	BeginWaveIntro();
+}
+
+void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArenaGameMode::*Next)())
+{
+	Phase = NewPhase;
+	GetWorldTimerManager().ClearTimer(PhaseTimer);
+	if (Next)
+	{
+		GetWorldTimerManager().SetTimer(PhaseTimer, this, Next, FMath::Max(Duration, 0.01f), false);
+	}
+}
+
+void AArenaGameMode::BeginWaveIntro()
+{
+	const TArray<FArenaWave>& Waves = GetWaves();
+	if (!Waves.IsValidIndex(WaveIndex))
+	{
+		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+		return;
+	}
+
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->SetPlayBounds(Arena->GetPlayBounds(LightWalker->GetContactRadius()));
+		LightWalker->Revive(Arena->GetCentre(), 0.f);
+	}
+
+	SpawnWave(Waves[WaveIndex]);
+	SetPhase(EArenaPhase::WaveIntro, WaveIntroDuration, &AArenaGameMode::BeginFighting);
+}
+
+void AArenaGameMode::BeginFighting()
+{
+	SetEnemiesActive(true);
+	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
+}
+
+void AArenaGameMode::SpawnWave(const FArenaWave& Wave)
+{
+	UWorld* World = GetWorld();
+	ALightWalkerPawn* LightWalker = GetLightWalker();
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	auto SpawnEnemies = [&](TSubclassOf<AEnemyBase> Class, int32 Count, float Speed)
+	{
+		if (!Class)
+		{
+			return;
+		}
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			AEnemyBase* Enemy = World->SpawnActor<AEnemyBase>(Class, RandomEnemySpawn(), FRotator::ZeroRotator, Params);
+			if (Enemy)
+			{
+				Enemy->InitEnemy(LightWalker, Arena->GetPlayBounds(50.f), Speed);
+				Enemies.Add(Enemy);
+			}
+		}
+	};
+
+	SpawnEnemies(ShaytaanClass, Wave.ShaytaanCount, Wave.ShaytaanSpeed);
+	SpawnEnemies(DajjalClass, Wave.DajjalCount, Wave.DajjalSpeed);
+	ApplyChaserSpeed();
+}
+
+FVector AArenaGameMode::RandomEnemySpawn() const
+{
+	const FBox2D Bounds = Arena->GetPlayBounds(60.f);
+	const FVector Centre = Arena->GetCentre();
+
+	// Anywhere outside the safe zone. (The 2014 check needed both axes outside it, which left only the corners.)
+	FVector2D Point = Bounds.Min;
+	for (int32 Attempt = 0; Attempt < 50; ++Attempt)
+	{
+		Point = FVector2D(FMath::FRandRange(Bounds.Min.X, Bounds.Max.X), FMath::FRandRange(Bounds.Min.Y, Bounds.Max.Y));
+		const bool bOutsideSafeZone =
+			FMath::Abs(Point.X - Centre.X) > SafeZoneHalfExtent.X ||
+			FMath::Abs(Point.Y - Centre.Y) > SafeZoneHalfExtent.Y;
+		if (bOutsideSafeZone)
+		{
+			break;
+		}
+	}
+	return FVector(Point.X, Point.Y, Centre.Z + PlaneHeight);
+}
+
+void AArenaGameMode::ApplyChaserSpeed()
+{
+	const TArray<FArenaWave>& Waves = GetWaves();
+	if (!Waves.IsValidIndex(WaveIndex))
+	{
+		return;
+	}
+
+	const FArenaWave& Wave = Waves[WaveIndex];
+	const int32 Remaining = Enemies.Num();
+
+	float Speed = Wave.ShaytaanSpeed;
+	for (const FChaserSpeedStep& Step : Wave.SpeedSteps)
+	{
+		if (Remaining <= Step.RemainingAtMost)
+		{
+			Speed = FMath::Max(Speed, Step.Speed);
+		}
+	}
+
+	for (AEnemyBase* Enemy : Enemies)
+	{
+		if (Enemy && Enemy->IsA<AShaytaan>())
+		{
+			Enemy->SetMoveSpeed(Speed);
+		}
+	}
+}
+
+void AArenaGameMode::HandleEnemyKilled(AEnemyBase* Enemy)
+{
+	if (Enemies.Remove(Enemy) == 0)
+	{
+		return;
+	}
+
+	GetRun()->AddScore(PointsPerKill);
+	ApplyChaserSpeed();
+
+	const bool bWaveRunning = Phase == EArenaPhase::WaveIntro || Phase == EArenaPhase::Fighting || Phase == EArenaPhase::PlayerDown;
+	if (Enemies.Num() == 0 && bWaveRunning)
+	{
+		FinishWave();
+	}
+}
+
+void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
+{
+	if (Phase != EArenaPhase::Fighting || !LightWalker || !LightWalker->IsVulnerable())
+	{
+		return;
+	}
+
+	LightWalker->SetDowned(true);
+
+	if (GetRun()->LoseLife() <= 0)
+	{
+		SetEnemiesActive(false);
+		SetPhase(EArenaPhase::GameOver, 0.f, nullptr);
+		return;
+	}
+
+	SetPhase(EArenaPhase::PlayerDown, RespawnDelay, &AArenaGameMode::RespawnLightWalker);
+}
+
+void AArenaGameMode::RespawnLightWalker()
+{
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->Revive(FindRespawnPoint(), RespawnGrace);
+	}
+	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
+}
+
+FVector AArenaGameMode::FindRespawnPoint() const
+{
+	const FBox2D Bounds = Arena->GetPlayBounds(60.f);
+	const FVector Centre = Arena->GetCentre();
+
+	// Try random spots and keep the one furthest from any enemy, stopping early once one is clear enough.
+	// (In 2014, if no spot was clear Lightwalker reappeared wherever they had died.)
+	FVector2D Best(Centre.X, Centre.Y);
+	float BestClearance = -1.f;
+
+	for (int32 Attempt = 0; Attempt < RespawnAttempts; ++Attempt)
+	{
+		const FVector2D Point(FMath::FRandRange(Bounds.Min.X, Bounds.Max.X), FMath::FRandRange(Bounds.Min.Y, Bounds.Max.Y));
+
+		float Clearance = TNumericLimits<float>::Max();
+		for (const AEnemyBase* Enemy : Enemies)
+		{
+			if (Enemy)
+			{
+				const FVector Location = Enemy->GetActorLocation();
+				Clearance = FMath::Min(Clearance, FVector2D::Distance(Point, FVector2D(Location.X, Location.Y)));
+			}
+		}
+
+		if (Clearance > BestClearance)
+		{
+			Best = Point;
+			BestClearance = Clearance;
+		}
+		if (BestClearance >= RespawnClearance)
+		{
+			break;
+		}
+	}
+
+	return FVector(Best.X, Best.Y, Centre.Z + PlaneHeight);
+}
+
+void AArenaGameMode::FinishWave()
+{
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->SetDowned(true);
+	}
+	ClearField();
+	SetPhase(EArenaPhase::WaveCleared, WaveClearedDuration, &AArenaGameMode::AdvanceWave);
+}
+
+void AArenaGameMode::AdvanceWave()
+{
+	++WaveIndex;
+	if (GetWaves().IsValidIndex(WaveIndex))
+	{
+		BeginWaveIntro();
+	}
+	else
+	{
+		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+	}
+}
+
+void AArenaGameMode::RequestRestart()
+{
+	if (Phase == EArenaPhase::GameOver || Phase == EArenaPhase::Victory)
+	{
+		StartRun();
+	}
+}
+
+void AArenaGameMode::SetEnemiesActive(bool bActive)
+{
+	for (AEnemyBase* Enemy : Enemies)
+	{
+		if (Enemy)
+		{
+			Enemy->SetActive(bActive);
+		}
+	}
+}
+
+void AArenaGameMode::ClearField()
+{
+	for (AEnemyBase* Enemy : Enemies)
+	{
+		if (Enemy)
+		{
+			Enemy->Destroy();
+		}
+	}
+	Enemies.Reset();
+
+	for (TActorIterator<ALaser> It(GetWorld()); It; ++It)
+	{
+		It->Destroy();
+	}
+}
