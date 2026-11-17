@@ -130,6 +130,14 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AEnemyBase>> Enemies;
 
+#if !UE_BUILD_SHIPPING
+	/** Dev only: -LWShots=N takes N high-res screenshots three seconds apart, then quits. */
+	void TakeDevScreenshot();
+	int32 DevShotsRemaining = 0;
+	int32 DevShotIndex = 0;
+	FTimerHandle DevShotTimer;
+#endif
+
 	EArenaPhase Phase = EArenaPhase::WaveIntro;
 	int32 WaveIndex = 0;
 	FTimerHandle PhaseTimer;

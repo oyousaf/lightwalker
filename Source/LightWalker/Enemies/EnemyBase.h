@@ -5,11 +5,33 @@
 #include "EnemyBase.generated.h"
 
 class ALightWalkerPawn;
+class UMeshComponent;
+class USceneComponent;
 class USphereComponent;
 class UStaticMeshComponent;
 
+/** One glowing piece of an enemy's body, coloured when the enemy spawns. */
+USTRUCT()
+struct FEnemyGlowPart
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<UMeshComponent> Mesh;
+
+	FLinearColor Color = FLinearColor::White;
+	float Intensity = 1.f;
+
+	/** Material slot, for meshes with several sections. */
+	int32 Element = 0;
+
+	/** Unlit black instead of glowing (pupils and other dark details). */
+	bool bDark = false;
+};
+
 /**
- * A creature of darkness. Subclasses decide how it moves; the base handles looks, touching the player and dying.
+ * A creature of darkness. Subclasses build their look from parts on the Visual pivot and decide how they move;
+ * the base handles colouring, touching the player and dying.
  */
 UCLASS(Abstract)
 class LIGHTWALKER_API AEnemyBase : public AActor
@@ -40,30 +62,43 @@ protected:
 	/** Moves the enemy for this frame. Only called while active. */
 	virtual void UpdateMovement(float DeltaSeconds) {}
 
+	/** Animates the body every frame, including while inactive. */
+	virtual void UpdateLook(float DeltaSeconds) {}
+
 	ALightWalkerPawn* GetPlayer() const { return Player.Get(); }
+
+	/** Adds an engine basic shape (Sphere, Cube, Cone, Cylinder) to the Visual pivot. Constructor only. */
+	UStaticMeshComponent* AddShape(FName Name, UStaticMesh* Mesh, USceneComponent* Parent,
+		const FVector& Location, const FRotator& Rotation, const FVector& Scale);
+
+	/** Registers a mesh to be coloured in BeginPlay. */
+	void AddGlowPart(UMeshComponent* Mesh, const FLinearColor& InColor, float Intensity, bool bDark = false, int32 Element = 0);
+
+	/** Adds a thin glowing rod from Start to End (relative to Parent). Constructor only. */
+	UStaticMeshComponent* AddRod(FName Name, UStaticMesh* CylinderMesh, USceneComponent* Parent, const FVector& Start, const FVector& End, float Thickness);
+
+	/** Turns the Visual pivot smoothly to face a world direction on the arena plane. */
+	void TurnVisualTowards(const FVector& Direction, float DeltaSeconds, float TurnRate);
 
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USphereComponent> Collision;
 
+	/** Everything visible hangs off this, so the body can turn and bob without moving the collision. */
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
-	TObjectPtr<UStaticMeshComponent> Body;
+	TObjectPtr<USceneComponent> Visual;
+
+	UPROPERTY()
+	TArray<FEnemyGlowPart> GlowParts;
 
 	/** Radius used for the laser overlap and the player contact check. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float Radius = 50.f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	FLinearColor Color = FLinearColor::Red;
-
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	float GlowIntensity = 5.f;
-
-	/** Purely visual spin, degrees per second around Z. */
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	float SpinRate = 0.f;
-
 	FBox2D Bounds = FBox2D(ForceInit);
 	float MoveSpeed = 0.f;
+
+	/** Seconds since spawning, offset per enemy so they don't animate in lockstep. */
+	float LookTime = 0.f;
 
 private:
 	void CheckPlayerContact();

@@ -39,14 +39,14 @@ namespace
 		return Cached.Get();
 	}
 
-	UMaterialInstanceDynamic* Apply(UMeshComponent* Mesh, UMaterialInterface* Base, const FLinearColor& Color, float Intensity)
+	UMaterialInstanceDynamic* Apply(UMeshComponent* Mesh, UMaterialInterface* Base, const FLinearColor& Color, float Intensity, int32 ElementIndex = 0)
 	{
 		if (!Mesh || !Base)
 		{
 			return nullptr;
 		}
 
-		UMaterialInstanceDynamic* Instance = Mesh->CreateDynamicMaterialInstance(0, Base);
+		UMaterialInstanceDynamic* Instance = Mesh->CreateDynamicMaterialInstance(ElementIndex, Base);
 		if (Instance)
 		{
 			Instance->SetVectorParameterValue(ColorParam, Color);
@@ -56,9 +56,9 @@ namespace
 	}
 }
 
-UMaterialInstanceDynamic* LWNeon::ApplyGlow(UMeshComponent* Mesh, const FLinearColor& Color, float Intensity)
+UMaterialInstanceDynamic* LWNeon::ApplyGlow(UMeshComponent* Mesh, const FLinearColor& Color, float Intensity, int32 ElementIndex)
 {
-	return Apply(Mesh, LoadGlowMaterial(), Color, Intensity);
+	return Apply(Mesh, LoadGlowMaterial(), Color, Intensity, ElementIndex);
 }
 
 UMaterialInstanceDynamic* LWNeon::ApplySurface(UMeshComponent* Mesh, const FLinearColor& Color)
