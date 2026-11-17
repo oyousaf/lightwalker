@@ -28,7 +28,7 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 |---|---|
 | `Core/` | `ULightWalkerGameInstance` (run score, lives, best score, shared by every mode); `LWNeon` (applies the glow material) |
 | `Player/` | `ALightWalkerPawn`, `ALaser`, `ALightWalkerPlayerController` (builds Enhanced Input actions and bindings in code) |
-| `Enemies/` | `AEnemyBase`, `AShaytaan` (chaser), `ADajjal` (wanderer) |
+| `Enemies/` | `AEnemyBase` (parts on a turning, bobbing Visual pivot), `AShaytaan` (chaser: a little devil), `ADajjal` (wanderer: a gold pyramid whose Horus-style eye turns to watch the player) |
 | `Arena/` | `AArenaGameMode` (wave and life rules), `AArena` (floor, edges, camera, light, post-process), `UArenaWaveSet` (optional data asset for waves) |
 | `UI/` | `AArenaHUD`, a placeholder canvas HUD until CommonUI in milestone 2 |
 
@@ -51,6 +51,15 @@ Content setup (only needed if `M_Neon` or `L_Arena` is missing; editor closed):
 
 ```powershell
 & "D:\Games\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "D:\Documents\Unreal Projects\LightWalker\LightWalker.uproject" -run=pythonscript -script="D:\Documents\Unreal Projects\LightWalker\Tools\create_content.py" -unattended -nosplash
+```
+
+## Dev flags (non-shipping builds)
+
+- `-LWStartWave=N` starts the run on wave N.
+- `-LWShots=N` takes N high-res screenshots (2x) three seconds apart, into `Saved/Screenshots/WindowsEditor`, then quits. Use this to check visuals rather than capturing the desktop:
+
+```powershell
+& "D:\Games\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "D:\Documents\Unreal Projects\LightWalker\LightWalker.uproject" -game -windowed -ResX=1600 -ResY=900 -LWShots=2 -LWStartWave=2
 ```
 
 ## Environment

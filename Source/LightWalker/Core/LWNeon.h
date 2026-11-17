@@ -14,7 +14,7 @@ class UMaterialInstanceDynamic;
 namespace LWNeon
 {
 	/** Glowing surface: player, enemies, lasers, arena edges. */
-	LIGHTWALKER_API UMaterialInstanceDynamic* ApplyGlow(UMeshComponent* Mesh, const FLinearColor& Color, float Intensity);
+	LIGHTWALKER_API UMaterialInstanceDynamic* ApplyGlow(UMeshComponent* Mesh, const FLinearColor& Color, float Intensity, int32 ElementIndex = 0);
 
 	/** Ordinary lit surface (the arena floor), so it picks up light from the glowing objects. */
 	LIGHTWALKER_API UMaterialInstanceDynamic* ApplySurface(UMeshComponent* Mesh, const FLinearColor& Color);

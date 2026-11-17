@@ -118,6 +118,10 @@ void AArena::ApplyPostProcess()
 
 	Settings.bOverride_VignetteIntensity = true;
 	Settings.VignetteIntensity = 0.5f;
+
+	// Motion blur smears the spinning, overlapping glow shapes into blobs.
+	Settings.bOverride_MotionBlurAmount = true;
+	Settings.MotionBlurAmount = 0.f;
 }
 
 FBox2D AArena::GetPlayBounds(float Radius) const

@@ -5,9 +5,12 @@
 #include "Enemies/Dajjal.h"
 #include "Enemies/Shaytaan.h"
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "LightWalker.h"
 #include "Player/Laser.h"
 #include "Player/LightWalkerPawn.h"
@@ -101,13 +104,44 @@ void AArenaGameMode::StartPlay()
 	}
 
 	StartRun();
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Value(FCommandLine::Get(), TEXT("LWShots="), DevShotsRemaining) && DevShotsRemaining > 0)
+	{
+		GetWorldTimerManager().SetTimer(DevShotTimer, this, &AArenaGameMode::TakeDevScreenshot, 3.f, true, 8.f);
+	}
+#endif
 }
+
+#if !UE_BUILD_SHIPPING
+void AArenaGameMode::TakeDevScreenshot()
+{
+	if (DevShotsRemaining-- <= 0)
+	{
+		FPlatformMisc::RequestExit(false);
+		return;
+	}
+	if (APlayerController* Controller = GetWorld()->GetFirstPlayerController())
+	{
+		Controller->ConsoleCommand(FString::Printf(TEXT("HighResShot 2 filename=LWShot_%d"), ++DevShotIndex));
+	}
+}
+#endif
 
 void AArenaGameMode::StartRun()
 {
 	ClearField();
 	GetRun()->StartRun(StartingLives);
 	WaveIndex = 0;
+
+#if !UE_BUILD_SHIPPING
+	// Dev only: -LWStartWave=N skips straight to wave N.
+	int32 StartWave = 1;
+	if (FParse::Value(FCommandLine::Get(), TEXT("LWStartWave="), StartWave))
+	{
+		WaveIndex = FMath::Clamp(StartWave - 1, 0, FMath::Max(0, GetWaveCount() - 1));
+	}
+#endif
 	BeginWaveIntro();
 }
 
