@@ -24,7 +24,11 @@ MODELS = {
     "dajjal": "SM_Dajjal",
 }
 
+GLOW_MATERIAL = "/Game/Materials/M_ModelGlow"
+
 assets = unreal.EditorAssetLibrary
+asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+materials = unreal.MaterialEditingLibrary
 
 
 def find_source(name):
@@ -69,6 +73,28 @@ def import_model(name, mesh_name):
     if len(meshes) > 1:
         unreal.log_warning(f"[LW] {source} produced {len(meshes)} meshes; using the largest. Export a single merged mesh to avoid this.")
         meshes.sort(key=lambda path: assets.load_asset(path).get_bounds().sphere_radius, reverse=True)
+
+    # The arena is near black, so each slot moves to M_ModelGlow (create_content.py), which glows with the model's
+    # own base colour; the game sets the strength.
+    glow_parent = assets.load_asset(GLOW_MATERIAL)
+    mesh = assets.load_asset(meshes[0])
+    if glow_parent:
+        for slot_index, slot in enumerate(mesh.static_materials):
+            source_material = slot.material_interface
+            if not isinstance(source_material, unreal.MaterialInstance):
+                continue
+            glow = asset_tools.create_asset(f"MI_{name.capitalize()}_{slot_index}", folder,
+                                            unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            glow.set_editor_property("parent", glow_parent)
+            for source_name, target_name in (("BaseColorTexture", "BaseColor"), ("NormalTexture", "Normal")):
+                texture = materials.get_material_instance_texture_parameter_value(source_material, source_name)
+                if texture:
+                    materials.set_material_instance_texture_parameter_value(glow, target_name, texture)
+            materials.update_material_instance(glow)
+            mesh.set_material(slot_index, glow)
+        unreal.log(f"[LW] {name} uses {GLOW_MATERIAL}")
+    else:
+        unreal.log_warning(f"[LW] {GLOW_MATERIAL} is missing (run create_content.py); {name} keeps its glTF material")
 
     # The mesh moves up beside the folder under the fixed name the game looks for; its materials stay in the folder.
     source_mesh = meshes[0].split(".")[0]

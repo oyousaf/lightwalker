@@ -49,7 +49,7 @@ AShaytaan::AShaytaan()
 	}
 
 	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Shaytaan.SM_Shaytaan"));
-	ModelSize = 95.f;
+	ModelSize = 130.f;
 	for (USceneComponent* Placeholder : { Body, HornLeft, HornRight, EyeLeft, EyeRight })
 	{
 		AddPlaceholder(Placeholder);
@@ -105,7 +105,12 @@ void AShaytaan::UpdateLook(float DeltaSeconds)
 
 	// Hops faster as the pack speeds up.
 	const float Rate = BobRate * FMath::Max(1.f, MoveSpeed / 136.f);
-	Visual->SetRelativeLocation(FVector(0.f, 0.f, FMath::Abs(FMath::Sin(LookTime * Rate)) * BobHeight));
+	const float Stride = FMath::Sin(LookTime * Rate);
+	const float Hop = FMath::Abs(Stride);
+	Visual->SetRelativeLocation(FVector(0.f, 0.f, Hop * BobHeight));
+
+	// Waddle: lean onto one foot then the other with each hop, hunched forward, squashing a little on landing.
+	PoseModel(FRotator(-WaddleLean, 0.f, Stride * WaddleRock), FMath::Pow(1.f - Hop, 6.f) * LandingSquash);
 
 	UpdateTrail(DeltaSeconds);
 }
