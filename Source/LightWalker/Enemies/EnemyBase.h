@@ -107,6 +107,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	float ModelYaw = -90.f;
 
+	/** How brightly the model shows its own texture colours, so it reads in the dark arena (0 = lit by the scene only). */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float ModelGlow = 1.5f;
+
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
 	TObjectPtr<UStaticMeshComponent> Model;
 
@@ -115,6 +119,13 @@ protected:
 
 	/** True once an imported model replaced the placeholders. */
 	bool bUsingModel = false;
+
+	/**
+	 * Leans and squashes the imported model about the middle of its base, for walk cycles on a static mesh.
+	 * Tilt is in the enemy's own frame (roll leans sideways, pitch forwards); Squash scales height, and width
+	 * grows to keep the volume. Does nothing while the placeholders are showing.
+	 */
+	void PoseModel(const FRotator& Tilt, float Squash = 0.f);
 
 	/** Radius used for the laser overlap and the player contact check. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
@@ -131,6 +142,12 @@ private:
 	void TryUseModel();
 
 	TWeakObjectPtr<ALightWalkerPawn> Player;
+
+	/** The model's fitted pose, which PoseModel works from. */
+	float ModelScale = 1.f;
+	FVector ModelOffset = FVector::ZeroVector;
+	float ModelHalfHeight = 0.f;
+
 	bool bActive = false;
 	bool bDead = false;
 };

@@ -33,6 +33,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
 	float BobRate = 7.f;
 
+	/** Side-to-side rock of the imported model's waddle, in degrees each way. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
+	float WaddleRock = 9.f;
+
+	/** Forward hunch while chasing, in degrees. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
+	float WaddleLean = 8.f;
+
+	/** How much the model squashes as it lands each hop (0.1 = 10% shorter). */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
+	float LandingSquash = 0.1f;
+
 	/** Gap between trail blobs; the trail is as long as TrailSegments * TrailSpacing. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
 	float TrailSpacing = 5.5f;

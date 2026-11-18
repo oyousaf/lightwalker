@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/World.h"
 #include "Misc/PackageName.h"
 #include "Player/LightWalkerPawn.h"
@@ -48,11 +49,24 @@ void AEnemyBase::TryUseModel()
 	const float Scale = ModelSize / Largest;
 	const FRotator Rotation(0.f, ModelYaw, 0.f);
 
+	ModelScale = Scale;
+	ModelOffset = -Rotation.RotateVector(MeshBounds.Origin * Scale);
+	ModelHalfHeight = MeshBounds.BoxExtent.Z * Scale;
+
 	Model->SetStaticMesh(Mesh);
 	Model->SetRelativeScale3D(FVector(Scale));
 	Model->SetRelativeRotation(Rotation);
-	Model->SetRelativeLocation(-Rotation.RotateVector(MeshBounds.Origin * Scale));
+	Model->SetRelativeLocation(ModelOffset);
 	Model->SetVisibility(true);
+
+	// The arena is near black, so the model glows with its own colours (M_ModelGlow, set up by import_models.py).
+	for (int32 Slot = 0; Slot < Model->GetNumMaterials(); ++Slot)
+	{
+		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
+		{
+			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+		}
+	}
 
 	for (USceneComponent* Placeholder : Placeholders)
 	{
@@ -62,6 +76,26 @@ void AEnemyBase::TryUseModel()
 		}
 	}
 	bUsingModel = true;
+}
+
+void AEnemyBase::PoseModel(const FRotator& Tilt, float Squash)
+{
+	if (!bUsingModel)
+	{
+		return;
+	}
+
+	// Squash and tilt about the middle of the base so the feet stay planted.
+	const float Height = FMath::Max(1.f - Squash, 0.1f);
+	const float Width = 1.f / FMath::Sqrt(Height);
+	const FVector Base(0.f, 0.f, -ModelHalfHeight);
+	FVector Offset = ModelOffset - Base;
+	Offset *= FVector(Width, Width, Height);
+
+	const FQuat TiltQuat = Tilt.Quaternion();
+	Model->SetRelativeScale3D(FVector(Width, Width, Height) * ModelScale);
+	Model->SetRelativeRotation(TiltQuat * FRotator(0.f, ModelYaw, 0.f).Quaternion());
+	Model->SetRelativeLocation(Base + TiltQuat.RotateVector(Offset));
 }
 
 UStaticMeshComponent* AEnemyBase::AddShape(FName Name, UStaticMesh* Mesh, USceneComponent* Parent,
