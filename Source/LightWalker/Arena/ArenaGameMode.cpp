@@ -20,14 +20,13 @@
 
 namespace
 {
-	FArenaWave MakeWave(int32 Shaytaan, int32 Dajjal, float ShaytaanSpeed)
+	FArenaWave MakeWave(int32 Shaytaan, int32 Dajjal, float StartSpeed, float TopSpeed)
 	{
-		// 2014 speeds were pixels per 220 ms enemy tick (6, 8, 10, 15), scaled 5 units per pixel.
 		FArenaWave Wave;
 		Wave.ShaytaanCount = Shaytaan;
 		Wave.DajjalCount = Dajjal;
-		Wave.ShaytaanSpeed = ShaytaanSpeed;
-		Wave.SpeedSteps = { { 13, 227.f }, { 7, 341.f } };
+		Wave.ShaytaanSpeed = StartSpeed;
+		Wave.ShaytaanTopSpeed = TopSpeed;
 		Wave.DajjalSpeed = 100.f;
 		return Wave;
 	}
@@ -43,7 +42,8 @@ AArenaGameMode::AArenaGameMode()
 	ShaytaanClass = AShaytaan::StaticClass();
 	DajjalClass = ADajjal::StaticClass();
 
-	DefaultWaves = { MakeWave(15, 0, 136.f), MakeWave(30, 5, 182.f) };
+	// Each wave starts a little faster and tops out higher than the last. Lightwalker moves at 720.
+	DefaultWaves = { MakeWave(15, 0, 100.f, 180.f), MakeWave(30, 5, 150.f, 260.f) };
 }
 
 const TArray<FArenaWave>& AArenaGameMode::GetWaves() const
@@ -241,16 +241,12 @@ void AArenaGameMode::ApplyChaserSpeed()
 	}
 
 	const FArenaWave& Wave = Waves[WaveIndex];
-	const int32 Remaining = Enemies.Num();
 
-	float Speed = Wave.ShaytaanSpeed;
-	for (const FChaserSpeedStep& Step : Wave.SpeedSteps)
-	{
-		if (Remaining <= Step.RemainingAtMost)
-		{
-			Speed = FMath::Max(Speed, Step.Speed);
-		}
-	}
+	// 0 with the whole wave alive, 1 when only one enemy is left.
+	const int32 Total = Wave.GetEnemyCount();
+	const float Thinned = Total > 1 ? FMath::Clamp(float(Total - Enemies.Num()) / float(Total - 1), 0.f, 1.f) : 1.f;
+	const float Speed = FMath::Lerp(Wave.ShaytaanSpeed, FMath::Max(Wave.ShaytaanTopSpeed, Wave.ShaytaanSpeed),
+		FMath::Pow(Thinned, Wave.SpeedRampCurve));
 
 	for (AEnemyBase* Enemy : Enemies)
 	{

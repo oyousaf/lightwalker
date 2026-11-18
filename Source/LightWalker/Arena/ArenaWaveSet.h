@@ -4,19 +4,6 @@
 #include "Engine/DataAsset.h"
 #include "ArenaWaveSet.generated.h"
 
-/** Chasers switch to Speed once this many enemies (of any kind) or fewer are left in the wave. */
-USTRUCT(BlueprintType)
-struct FChaserSpeedStep
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0))
-	int32 RemainingAtMost = 0;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0, Units = "cm/s"))
-	float Speed = 0.f;
-};
-
 /** One wave of the arena. */
 USTRUCT(BlueprintType)
 struct FArenaWave
@@ -31,10 +18,18 @@ struct FArenaWave
 
 	/** Chaser speed at the start of the wave. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0, Units = "cm/s"))
-	float ShaytaanSpeed = 136.f;
+	float ShaytaanSpeed = 100.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave")
-	TArray<FChaserSpeedStep> SpeedSteps;
+	/**
+	 * Chasers speed up smoothly from ShaytaanSpeed to this as the wave thins out; the last enemy standing
+	 * moves at this speed. (2014 jumped in steps: 6, 8, 10, 15 px per 220 ms tick = 136, 182, 227, 341 cm/s.)
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0, Units = "cm/s"))
+	float ShaytaanTopSpeed = 180.f;
+
+	/** Shape of the ramp: 1 is even, higher keeps them slow for longer and saves the rush for the last few. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0.1))
+	float SpeedRampCurve = 1.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Wave", meta = (ClampMin = 0, Units = "cm/s"))
 	float DajjalSpeed = 100.f;
