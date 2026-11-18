@@ -18,9 +18,13 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 
 1. **Arena slice** (done in code): player, lasers, both enemy types, the two 2014 waves, score, three lives, respawn, HUD.
 2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, CommonUI menus, gamepad UX.
-3. **The Path.**
-4. **The Shield.**
-5. **Boss, endless mode, leaderboard, packaged Windows build.**
+3. **Hero and pickups** (agreed 2026-11-18):
+   - A realistic Lightwalker model holding a light weapon (lantern-staff or light gauntlet), designed to read from above, rigged (e.g. Mixamo) for run and aim.
+   - Timed power-ups dropped now and then by killed enemies: light orb (bigger light radius and bolts), spread shot, piercing beam, shield (blocks one hit).
+   - A rare **book of knowledge**: a plain glowing book with invented, non-scriptural writing (not modelled on the Quran, Bible or any real holy book). It gives a lasting upgrade for the rest of the run and shows a short line of general wisdom about light or knowledge.
+4. **The Path.**
+5. **The Shield.**
+6. **Boss, endless mode, leaderboard, packaged Windows build.**
 
 ## Code layout (`Source/LightWalker`)
 
