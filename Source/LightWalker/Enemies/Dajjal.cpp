@@ -85,6 +85,7 @@ ADajjal::ADajjal()
 
 	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Dajjal.SM_Dajjal"));
 	ModelSize = 100.f;
+	HitPoints = 3;
 	AddPlaceholder(Pyramid);
 	AddPlaceholder(EyePivot);
 

@@ -5,6 +5,7 @@
 #include "EnemyBase.generated.h"
 
 class ALightWalkerPawn;
+class UMaterialInstanceDynamic;
 class UMeshComponent;
 class USceneComponent;
 class USphereComponent;
@@ -52,7 +53,10 @@ public:
 	void SetMoveSpeed(float InMoveSpeed) { MoveSpeed = InMoveSpeed; }
 	float GetMoveSpeed() const { return MoveSpeed; }
 
-	/** Shot by a laser: tells the game mode, then removes itself. */
+	/** Shot by a laser: flashes and loses a hit point, and dies on the last one. */
+	void TakeHit();
+
+	/** Tells the game mode, then removes itself. */
 	void Kill();
 	bool IsDead() const { return bDead; }
 
@@ -127,6 +131,14 @@ protected:
 	 */
 	void PoseModel(const FRotator& Tilt, float Squash = 0.f);
 
+	/** Laser hits it takes to destroy. (2014: every enemy died to one shot.) */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker", meta = (ClampMin = 1))
+	int32 HitPoints = 1;
+
+	/** Seconds the hit flash and pop take to fade. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
+	float HitFlashTime = 0.18f;
+
 	/** Radius used for the laser overlap and the player contact check. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float Radius = 50.f;
@@ -147,6 +159,12 @@ private:
 	float ModelScale = 1.f;
 	FVector ModelOffset = FVector::ZeroVector;
 	float ModelHalfHeight = 0.f;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> ModelMaterials;
+
+	void UpdateHitFlash(float DeltaSeconds);
+	float HitFlash = 0.f;
 
 	bool bActive = false;
 	bool bDead = false;
