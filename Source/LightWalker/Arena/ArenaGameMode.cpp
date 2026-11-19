@@ -12,6 +12,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "LightWalker.h"
+#include "Pickups/Pickup.h"
 #include "Player/Laser.h"
 #include "Player/LightWalkerPawn.h"
 #include "Player/LightWalkerPlayerController.h"
@@ -30,6 +31,29 @@ namespace
 		Wave.DajjalSpeed = 100.f;
 		return Wave;
 	}
+
+	/**
+	 * Waves 1 and 2 are the 2014 levels. From there each wave adds chasers and wanderers and starts and tops out
+	 * a little faster. Waves 5 and 10 change the pace: fewer chasers, a crowd of wanderers. Wave 15 is the
+	 * hardest: 60 chasers, 14 wanderers, up to 480 cm/s (Lightwalker moves at 720).
+	 */
+	TArray<FArenaWave> MakeDefaultWaves()
+	{
+		TArray<FArenaWave> Waves = { MakeWave(15, 0, 100.f, 180.f), MakeWave(30, 5, 150.f, 260.f) };
+		for (int32 Number = 3; Number <= 15; ++Number)
+		{
+			const float Progress = float(Number - 2) / 13.f;
+			const bool bWandererWave = Number == 5 || Number == 10;
+			FArenaWave Wave = MakeWave(
+				FMath::RoundToInt(FMath::Lerp(32.f, 60.f, Progress) * (bWandererWave ? 0.6f : 1.f)),
+				FMath::RoundToInt(FMath::Lerp(6.f, 14.f, Progress) * (bWandererWave ? 1.8f : 1.f)),
+				FMath::Lerp(160.f, 300.f, Progress),
+				FMath::Lerp(280.f, 480.f, Progress));
+			Wave.DajjalSpeed = FMath::Lerp(105.f, 170.f, Progress);
+			Waves.Add(Wave);
+		}
+		return Waves;
+	}
 }
 
 AArenaGameMode::AArenaGameMode()
@@ -42,8 +66,8 @@ AArenaGameMode::AArenaGameMode()
 	ShaytaanClass = AShaytaan::StaticClass();
 	DajjalClass = ADajjal::StaticClass();
 
-	// Each wave starts a little faster and tops out higher than the last. Lightwalker moves at 720.
-	DefaultWaves = { MakeWave(15, 0, 100.f, 180.f), MakeWave(30, 5, 150.f, 260.f) };
+	DefaultWaves = MakeDefaultWaves();
+	PickupClass = APickup::StaticClass();
 }
 
 const TArray<FArenaWave>& AArenaGameMode::GetWaves() const
@@ -132,6 +156,10 @@ void AArenaGameMode::StartRun()
 {
 	ClearField();
 	GetRun()->StartRun(StartingLives);
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->ClearPowerUps();
+	}
 	WaveIndex = 0;
 
 #if !UE_BUILD_SHIPPING
@@ -171,6 +199,7 @@ void AArenaGameMode::BeginWaveIntro()
 		LightWalker->Revive(Arena->GetCentre(), 0.f);
 	}
 
+	bBookDroppedThisWave = false;
 	SpawnWave(Waves[WaveIndex]);
 	SetPhase(EArenaPhase::WaveIntro, WaveIntroDuration, &AArenaGameMode::BeginFighting);
 }
@@ -179,6 +208,23 @@ void AArenaGameMode::BeginFighting()
 {
 	SetEnemiesActive(true);
 	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
+
+#if !UE_BUILD_SHIPPING
+	// Dev only: -LWDrops also lays out one of each pickup around the centre, to check how they look.
+	if (FParse::Param(FCommandLine::Get(), TEXT("LWDrops")) && PickupClass)
+	{
+		for (int32 Index = 0; Index < static_cast<int32>(EPickupType::Count); ++Index)
+		{
+			const FVector Offset = FRotator(0.f, 360.f * Index / static_cast<int32>(EPickupType::Count), 0.f).RotateVector(FVector(260.f, 0.f, 0.f));
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, Arena->GetCentre() + Offset + FVector(0.f, 0.f, PlaneHeight), FRotator::ZeroRotator, Params))
+			{
+				Pickup->InitPickup(static_cast<EPickupType>(Index), GetLightWalker());
+			}
+		}
+	}
+#endif
 }
 
 void AArenaGameMode::SpawnWave(const FArenaWave& Wave)
@@ -264,8 +310,13 @@ void AArenaGameMode::HandleEnemyKilled(AEnemyBase* Enemy)
 		return;
 	}
 
-	GetRun()->AddScore(PointsPerKill);
+	const bool bDajjal = Enemy && Enemy->IsA<ADajjal>();
+	GetRun()->AddScore(bDajjal ? PointsPerDajjal : PointsPerKill);
 	ApplyChaserSpeed();
+	if (Enemy)
+	{
+		TryDropPickup(Enemy->GetActorLocation(), bDajjal);
+	}
 
 	const bool bWaveRunning = Phase == EArenaPhase::WaveIntro || Phase == EArenaPhase::Fighting || Phase == EArenaPhase::PlayerDown;
 	if (Enemies.Num() == 0 && bWaveRunning)
@@ -281,7 +332,13 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 		return;
 	}
 
+	if (LightWalker->TryBlockHit())
+	{
+		return;
+	}
+
 	LightWalker->SetDowned(true);
+	LightWalker->ClearPowerUps();
 
 	if (GetRun()->LoseLife() <= 0)
 	{
@@ -396,5 +453,53 @@ void AArenaGameMode::ClearField()
 	for (TActorIterator<ALaser> It(GetWorld()); It; ++It)
 	{
 		It->Destroy();
+	}
+	for (TActorIterator<APickup> It(GetWorld()); It; ++It)
+	{
+		It->Destroy();
+	}
+}
+
+void AArenaGameMode::TryDropPickup(const FVector& Location, bool bFromDajjal)
+{
+	if (!PickupClass || Phase != EArenaPhase::Fighting)
+	{
+		return;
+	}
+
+	float DropChance = bFromDajjal ? DajjalDropChance : ShaytaanDropChance;
+	float BookChance = bFromDajjal ? DajjalBookChance : ShaytaanBookChance;
+#if !UE_BUILD_SHIPPING
+	// Dev only: -LWDrops makes every kill drop something, and a book a quarter of the time.
+	static const bool bDevDrops = FParse::Param(FCommandLine::Get(), TEXT("LWDrops"));
+	if (bDevDrops)
+	{
+		DropChance = 1.f;
+		BookChance = 0.25f;
+		bBookDroppedThisWave = false;
+	}
+#endif
+
+	// The book is rare and only one can drop per wave.
+	EPickupType Type;
+	if (!bBookDroppedThisWave && FMath::FRand() < BookChance)
+	{
+		Type = EPickupType::Book;
+		bBookDroppedThisWave = true;
+	}
+	else if (FMath::FRand() < DropChance)
+	{
+		Type = static_cast<EPickupType>(FMath::RandRange(0, static_cast<int32>(EPickupType::Shield)));
+	}
+	else
+	{
+		return;
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, FVector(Location.X, Location.Y, Arena->GetCentre().Z + PlaneHeight), FRotator::ZeroRotator, Params))
+	{
+		Pickup->InitPickup(Type, GetLightWalker());
 	}
 }

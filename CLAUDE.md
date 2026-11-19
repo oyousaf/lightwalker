@@ -16,11 +16,11 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 
 ## Milestones (each one playable)
 
-1. **Arena slice** (done in code): player, lasers, both enemy types, the two 2014 waves, score, three lives, respawn, HUD.
+1. **Arena slice** (done in code): player, lasers, both enemy types, 15 waves (the two 2014 ones, then 13 that build on them), score, three lives, respawn, HUD. Dajjal take three shots.
 2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, CommonUI menus, gamepad UX.
-3. **Hero and pickups** (agreed 2026-11-18):
+3. **Hero and pickups** (agreed 2026-11-18; pickups and a basic-shape hero with a lantern-staff done in code 2026-11-19, the hero model still to make):
    - A realistic Lightwalker model holding a light weapon (lantern-staff or light gauntlet), designed to read from above, rigged (e.g. Mixamo) for run and aim.
-   - Timed power-ups dropped now and then by killed enemies: light orb (bigger light radius and bolts), spread shot, piercing beam, shield (blocks one hit).
+   - Timed power-ups dropped by killed enemies (dajjal 40%, shaytaan 3%): light orb (bigger light radius and bolts), spread shot, piercing beam, shield (blocks one hit).
    - A rare **book of knowledge**: a plain glowing book with invented, non-scriptural writing (not modelled on the Quran, Bible or any real holy book). It gives a lasting upgrade for the rest of the run and shows a short line of general wisdom about light or knowledge.
 4. **The Path.**
 5. **The Shield.**
@@ -30,7 +30,8 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 
 | Folder | Contents |
 |---|---|
-| `Core/` | `ULightWalkerGameInstance` (run score, lives, best score, shared by every mode); `LWNeon` (applies the glow material) |
+| `Core/` | `ULightWalkerGameInstance` (run score, lives, best score and book upgrades, shared by every mode); `LWNeon` (applies the glow material) |
+| `Pickups/` | `APickup` (power-ups and the book of knowledge; collected by walking over them, effects live on the pawn) |
 | `Player/` | `ALightWalkerPawn`, `ALaser`, `ALightWalkerPlayerController` (builds Enhanced Input actions and bindings in code) |
 | `Enemies/` | `AEnemyBase` (parts on a turning, bobbing Visual pivot), `AShaytaan` (chaser: a little devil), `ADajjal` (wanderer: a gold pyramid whose Horus-style eye turns to watch the player) |
 | `Arena/` | `AArenaGameMode` (wave and life rules), `AArena` (floor, edges, camera, light, post-process), `UArenaWaveSet` (optional data asset for waves) |
@@ -60,6 +61,7 @@ Content setup (only needed if `M_Neon` or `L_Arena` is missing; editor closed):
 ## Dev flags (non-shipping builds)
 
 - `-LWStartWave=N` starts the run on wave N.
+- `-LWDrops` makes every kill drop a pickup (a book a quarter of the time) and lays one of each around the centre when a wave starts.
 - `-LWShots=N` takes N high-res screenshots (2x) three seconds apart, into `Saved/Screenshots/WindowsEditor`, then quits. Use this to check visuals rather than capturing the desktop:
 
 ```powershell

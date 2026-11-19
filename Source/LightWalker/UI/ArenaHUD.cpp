@@ -6,6 +6,8 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/World.h"
+#include "Pickups/Pickup.h"
+#include "Player/LightWalkerPawn.h"
 
 namespace
 {
@@ -30,7 +32,7 @@ void AArenaHUD::DrawLine(const FString& Text, const FLinearColor& Color, float X
 		X -= Width;
 	}
 
-	DrawText(Text, FLinearColor(0.f, 0.f, 0.f, 0.6f), X + 2.f * Scale, Y + 2.f * Scale, Font, Scale);
+	DrawText(Text, FLinearColor(0.f, 0.f, 0.f, 0.6f * Color.A), X + 2.f * Scale, Y + 2.f * Scale, Font, Scale);
 	DrawText(Text, Color, X, Y, Font, Scale);
 }
 
@@ -53,6 +55,42 @@ void AArenaHUD::DrawHUD()
 	DrawLine(FString::Printf(TEXT("BEST  %06d"), Run->GetBestScore()), Muted, Margin, Margin + 42.f * Scale, 1.1f * Scale, EAlign::Left);
 	DrawLine(FString::Printf(TEXT("WAVE %d/%d"), GameMode->GetWaveNumber(), GameMode->GetWaveCount()), Primary, CentreX, Margin, 1.6f * Scale, EAlign::Centre);
 	DrawLine(FString::Printf(TEXT("LIVES  %d"), Run->GetLives()), Primary, Canvas->ClipX - Margin, Margin, 1.6f * Scale, EAlign::Right);
+
+	if (const ALightWalkerPawn* LightWalker = Cast<ALightWalkerPawn>(GetOwningPawn()))
+	{
+		// Active power-ups, bottom left, with seconds left.
+		float Y = Canvas->ClipY - Margin - 36.f * Scale;
+		if (LightWalker->HasShield())
+		{
+			DrawLine(LWPickups::GetName(EPickupType::Shield), LWPickups::GetColor(EPickupType::Shield), Margin, Y, 1.2f * Scale, EAlign::Left);
+			Y -= 38.f * Scale;
+		}
+		for (const EPickupType Type : { EPickupType::PiercingBeam, EPickupType::SpreadShot, EPickupType::LightOrb })
+		{
+			const float Left = LightWalker->GetPowerUpTimeLeft(Type);
+			if (Left > 0.f)
+			{
+				DrawLine(FString::Printf(TEXT("%s  %d"), *LWPickups::GetName(Type), FMath::CeilToInt(Left)), LWPickups::GetColor(Type),
+					Margin, Y, 1.2f * Scale, EAlign::Left);
+				Y -= 38.f * Scale;
+			}
+		}
+
+		// The latest pickup, under the wave counter, fading out. Book wisdom stays up longer.
+		const bool bBook = LightWalker->GetPickupTitle().StartsWith(LWPickups::GetName(EPickupType::Book));
+		const float ShowTime = bBook ? 6.f : 2.5f;
+		const float Age = LightWalker->GetPickupMessageAge();
+		if (Age < ShowTime && !LightWalker->GetPickupTitle().IsEmpty())
+		{
+			const float Alpha = FMath::Clamp((ShowTime - Age) / 0.6f, 0.f, 1.f);
+			FLinearColor TitleColor = bBook ? LWPickups::GetColor(EPickupType::Book) : Primary;
+			FLinearColor DetailColor = bBook ? FLinearColor(1.f, 0.95f, 0.8f) : Muted;
+			TitleColor.A = DetailColor.A = Alpha;
+			const float MessageY = Canvas->ClipY * 0.18f;
+			DrawLine(LightWalker->GetPickupTitle(), TitleColor, CentreX, MessageY, 1.5f * Scale, EAlign::Centre);
+			DrawLine(LightWalker->GetPickupDetail(), DetailColor, CentreX, MessageY + 46.f * Scale, (bBook ? 1.3f : 1.1f) * Scale, EAlign::Centre);
+		}
+	}
 
 	FString Banner;
 	FString Detail;

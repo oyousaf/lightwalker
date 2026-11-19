@@ -67,7 +67,33 @@ void ALaser::HandleOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
 		return;
 	}
 
+	if (bPiercing)
+	{
+		bool bAlreadyHit = false;
+		HitActors.Add(Enemy, &bAlreadyHit);
+		if (!bAlreadyHit)
+		{
+			Enemy->TakeHit();
+		}
+		return;
+	}
+
 	bSpent = true;
 	Enemy->TakeHit();
 	Destroy();
+}
+
+void ALaser::SetPower(float Size, float SpeedScale, bool bInPiercing, const FLinearColor& InColor)
+{
+	Speed *= SpeedScale;
+	bPiercing = bInPiercing;
+	Color = InColor;
+
+	Collision->SetSphereRadius(Collision->GetUnscaledSphereRadius() * Size);
+	FVector BeamScale = Beam->GetRelativeScale3D();
+	BeamScale.X *= Size;
+	BeamScale.Y *= Size;
+	BeamScale.Z *= bPiercing ? 1.6f : FMath::Max(1.f, Size * 0.8f);
+	Beam->SetRelativeScale3D(BeamScale);
+	LWNeon::ApplyGlow(Beam, Color, GlowIntensity);
 }
