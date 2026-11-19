@@ -158,10 +158,11 @@ void ALightWalkerPawn::UpdateModelStride(bool bMoving, float DeltaSeconds)
 	}
 
 	// A static mesh can't walk, so it bobs with each stride and leans into the run, easing in and out.
+	// While gliding the stride fades out and only a smooth lean is left.
 	StrideBlend = FMath::FInterpTo(StrideBlend, bMoving ? 1.f : 0.f, DeltaSeconds, 8.f);
-	StrideTime += DeltaSeconds * 11.f * StrideBlend;
-	const float Stride = FMath::Sin(StrideTime);
-	const FQuat Lean = FRotator(-7.f * StrideBlend, 0.f, Stride * 3.f * StrideBlend).Quaternion();
+	StrideTime += DeltaSeconds * 11.f * StrideBlend * (1.f - GlideBlend);
+	const float Stride = FMath::Sin(StrideTime) * (1.f - GlideBlend);
+	const FQuat Lean = FRotator(-FMath::Lerp(7.f, 11.f, GlideBlend) * StrideBlend, 0.f, Stride * 3.f * StrideBlend).Quaternion();
 	const FVector Feet(0.f, 0.f, -ContactRadius);
 
 	Model->SetRelativeRotation(Lean * FRotator(0.f, ModelYaw, 0.f).Quaternion());
@@ -260,6 +261,11 @@ void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
 	Glow->SetIntensity(30.f * OrbScale);
 	Lantern->SetRelativeScale3D(FVector(0.26f * FMath::Sqrt(OrbScale)));
 
+	// The light orb lifts Lightwalker off the ground: rise, hover gently, and settle back when it runs out.
+	GlideBlend = FMath::FInterpTo(GlideBlend, OrbScale > 1.f ? 1.f : 0.f, DeltaSeconds, 3.f);
+	GlideTime += DeltaSeconds;
+	HeadingPivot->SetRelativeLocation(FVector(0.f, 0.f, GlideBlend * (GlideHeight + FMath::Sin(GlideTime * 2.5f) * 5.f)));
+
 	ShieldPivot->AddLocalRotation(FRotator(0.f, 160.f * DeltaSeconds, 0.f));
 }
 
@@ -308,7 +314,7 @@ void ALightWalkerPawn::CollectPickup(EPickupType Type)
 	{
 	case EPickupType::LightOrb:
 		PowerTime[static_cast<int32>(Type)] = LightOrbDuration;
-		ShowPickupMessage(Title, TEXT("Bigger light, bigger bolts, faster firing"));
+		ShowPickupMessage(Title, TEXT("Glide on the light: bigger light, bigger bolts, faster firing"));
 		break;
 	case EPickupType::SpreadShot:
 		PowerTime[static_cast<int32>(Type)] = SpreadShotDuration;
@@ -367,6 +373,8 @@ void ALightWalkerPawn::ClearPowerUps()
 	{
 		Time = 0.f;
 	}
+	GlideBlend = 0.f;
+	HeadingPivot->SetRelativeLocation(FVector::ZeroVector);
 	bShield = false;
 	for (UStaticMeshComponent* Mote : ShieldMotes)
 	{
