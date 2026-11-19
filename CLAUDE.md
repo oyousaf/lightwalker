@@ -61,6 +61,7 @@ Content setup (only needed if `M_Neon` or `L_Arena` is missing; editor closed):
 ## Dev flags (non-shipping builds)
 
 - `-LWStartWave=N` starts the run on wave N.
+- `-LWEarlyShot` takes the first `-LWShots` screenshot 1.5 s in, during the wave intro, before enemies move (good for checking models).
 - `-LWDrops` makes every kill drop a pickup (a book a quarter of the time) and lays one of each around the centre when a wave starts.
 - `-LWShots=N` takes N high-res screenshots (2x) three seconds apart, into `Saved/Screenshots/WindowsEditor`, then quits. Use this to check visuals rather than capturing the desktop:
 
