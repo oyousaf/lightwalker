@@ -7,7 +7,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 
-/** A bolt of light fired by Lightwalker. Flies straight, kills the first enemy it touches. */
+/** A bolt of light fired by Lightwalker. Flies straight and hits the first enemy it touches (or all of them, piercing). */
 UCLASS()
 class LIGHTWALKER_API ALaser : public AActor
 {
@@ -20,6 +20,12 @@ public:
 
 	/** Sets the direction of travel and the area it is destroyed on leaving. */
 	void Launch(const FVector& InDirection, const FBox2D& InBounds);
+
+	/**
+	 * Power-up tweaks, applied straight after spawning: Size scales the bolt and its hit radius, SpeedScale its speed.
+	 * A piercing bolt hits every enemy in its path once instead of stopping at the first.
+	 */
+	void SetPower(float Size, float SpeedScale, bool bInPiercing, const FLinearColor& InColor);
 
 protected:
 	virtual void BeginPlay() override;
@@ -48,4 +54,8 @@ private:
 	FVector Direction = FVector::ForwardVector;
 	FBox2D Bounds = FBox2D(ForceInit);
 	bool bSpent = false;
+	bool bPiercing = false;
+
+	/** Enemies a piercing bolt has already hit. */
+	TSet<TWeakObjectPtr<AActor>> HitActors;
 };

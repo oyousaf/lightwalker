@@ -3,11 +3,23 @@
 #include "Components/PointLightComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/LightWalkerGameInstance.h"
 #include "Core/LWNeon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Player/Laser.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	constexpr int32 ShieldMoteCount = 8;
+	constexpr float ShieldRadius = 70.f;
+
+	// Where the lantern hangs, relative to the heading pivot: out in front, on the right hand side.
+	const FVector LanternOffset(52.f, 26.f, 14.f);
+
+	const FLinearColor PiercingColor(1.f, 0.85f, 0.4f);
+}
 
 ALightWalkerPawn::ALightWalkerPawn()
 {
@@ -21,33 +33,48 @@ ALightWalkerPawn::ALightWalkerPawn()
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
-
-	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
-	Body->SetupAttachment(Collision);
-	Body->SetStaticMesh(SphereMesh.Object);
-	Body->SetRelativeScale3D(FVector(0.8f));
-	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Body->SetCastShadow(false);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 
 	HeadingPivot = CreateDefaultSubobject<USceneComponent>(TEXT("HeadingPivot"));
 	HeadingPivot->SetupAttachment(Collision);
 
-	// The cone mesh points up +Z; pitch it down so it points along the pivot's +X.
-	Pointer = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Pointer"));
-	Pointer->SetupAttachment(HeadingPivot);
-	Pointer->SetStaticMesh(ConeMesh.Object);
-	Pointer->SetRelativeLocation(FVector(58.f, 0.f, 0.f));
-	Pointer->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
-	Pointer->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.3f));
-	Pointer->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Pointer->SetCastShadow(false);
+	auto MakePart = [this](const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent, const FVector& Location,
+		const FRotator& Rotation, const FVector& Scale)
+	{
+		UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(Name);
+		Part->SetupAttachment(Parent);
+		Part->SetStaticMesh(Mesh);
+		Part->SetRelativeLocation(Location);
+		Part->SetRelativeRotation(Rotation);
+		Part->SetRelativeScale3D(Scale);
+		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Part->SetCastShadow(false);
+		return Part;
+	};
+
+	// Basic shapes are 100 units across, centred on their pivot; the cone and cylinder run along +Z.
+	Body = MakePart(TEXT("Body"), ConeMesh.Object, HeadingPivot, FVector(-4.f, 0.f, -8.f), FRotator::ZeroRotator, FVector(0.72f, 0.62f, 0.85f));
+	Head = MakePart(TEXT("Head"), SphereMesh.Object, HeadingPivot, FVector(0.f, 0.f, 42.f), FRotator::ZeroRotator, FVector(0.34f));
+	Staff = MakePart(TEXT("Staff"), CylinderMesh.Object, HeadingPivot, FVector(14.f, 26.f, 10.f), FRotator(-80.f, 0.f, 0.f), FVector(0.05f, 0.05f, 0.85f));
+	Lantern = MakePart(TEXT("Lantern"), SphereMesh.Object, HeadingPivot, LanternOffset, FRotator::ZeroRotator, FVector(0.26f));
+
+	ShieldPivot = CreateDefaultSubobject<USceneComponent>(TEXT("ShieldPivot"));
+	ShieldPivot->SetupAttachment(Collision);
+	for (int32 Index = 0; Index < ShieldMoteCount; ++Index)
+	{
+		const FVector Location = FRotator(0.f, 360.f * Index / ShieldMoteCount, 0.f).RotateVector(FVector(ShieldRadius, 0.f, 10.f));
+		UStaticMeshComponent* Mote = MakePart(*FString::Printf(TEXT("ShieldMote%d"), Index), SphereMesh.Object, ShieldPivot,
+			Location, FRotator::ZeroRotator, FVector(0.11f));
+		Mote->SetVisibility(false);
+		ShieldMotes.Add(Mote);
+	}
 
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
-	Glow->SetupAttachment(Collision);
-	Glow->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
+	Glow->SetupAttachment(HeadingPivot);
+	Glow->SetRelativeLocation(LanternOffset + FVector(0.f, 0.f, 26.f));
 	Glow->SetIntensityUnits(ELightUnits::Candelas);
 	Glow->SetIntensity(30.f);
-	Glow->SetAttenuationRadius(700.f);
+	Glow->SetAttenuationRadius(LightRadius);
 	Glow->SetLightColor(Color);
 	Glow->SetCastShadows(false);
 
@@ -59,14 +86,27 @@ void ALightWalkerPawn::BeginPlay()
 {
 	Super::BeginPlay();
 
-	LWNeon::ApplyGlow(Body, Color, GlowIntensity);
-	LWNeon::ApplyGlow(Pointer, Color, GlowIntensity);
+	LWNeon::ApplyGlow(Body, Color, GlowIntensity * 0.35f);
+	LWNeon::ApplyGlow(Head, Color, GlowIntensity * 0.6f);
+	LWNeon::ApplyGlow(Staff, FLinearColor(0.75f, 0.9f, 1.f), GlowIntensity * 0.5f);
+	LWNeon::ApplyGlow(Lantern, FLinearColor(0.85f, 1.f, 1.f), GlowIntensity * 3.f);
+	for (UStaticMeshComponent* Mote : ShieldMotes)
+	{
+		LWNeon::ApplyGlow(Mote, LWPickups::GetColor(EPickupType::Shield), 10.f);
+	}
 	Glow->SetLightColor(Color);
+}
+
+ULightWalkerGameInstance* ALightWalkerPawn::GetRun() const
+{
+	return GetGameInstance<ULightWalkerGameInstance>();
 }
 
 void ALightWalkerPawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	PickupMessageAge += DeltaSeconds;
 
 	if (bDowned)
 	{
@@ -80,10 +120,14 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 		SetBodyVisible(GraceRemaining <= 0.f || bBlinkOn);
 	}
 
+	UpdatePowerUps(DeltaSeconds);
+
+	const FRunUpgrades Upgrades = GetRun() ? GetRun()->GetUpgrades() : FRunUpgrades();
+
 	const FVector Move = ScreenToWorld(MoveInput.GetClampedToMaxSize(1.f));
 	if (!Move.IsNearlyZero())
 	{
-		FVector Location = GetActorLocation() + Move * MoveSpeed * DeltaSeconds;
+		FVector Location = GetActorLocation() + Move * MoveSpeed * Upgrades.MoveSpeed * DeltaSeconds;
 		if (PlayBounds.bIsValid)
 		{
 			Location.X = FMath::Clamp(Location.X, PlayBounds.Min.X, PlayBounds.Max.X);
@@ -119,13 +163,32 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 		if (FireCooldown <= 0.f)
 		{
 			Fire(FireDirection);
-			FireCooldown = FireInterval;
+			const float Rate = Upgrades.FireRate * (GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f ? LightOrbFireRate : 1.f);
+			FireCooldown = FireInterval / Rate;
 		}
 	}
 	else
 	{
 		FaceDirection(Heading);
 	}
+}
+
+void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
+{
+	for (float& Time : PowerTime)
+	{
+		Time = FMath::Max(0.f, Time - DeltaSeconds);
+	}
+
+	// The light grows with the light orb and with book upgrades, and eases back when the orb runs out.
+	const float RunScale = GetRun() ? GetRun()->GetUpgrades().LightRadius : 1.f;
+	const float OrbScale = GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f ? LightOrbScale : 1.f;
+	const float TargetRadius = LightRadius * RunScale * OrbScale;
+	Glow->SetAttenuationRadius(FMath::FInterpTo(Glow->AttenuationRadius, TargetRadius, DeltaSeconds, 4.f));
+	Glow->SetIntensity(30.f * OrbScale);
+	Lantern->SetRelativeScale3D(FVector(0.26f * FMath::Sqrt(OrbScale)));
+
+	ShieldPivot->AddLocalRotation(FRotator(0.f, 160.f * DeltaSeconds, 0.f));
 }
 
 void ALightWalkerPawn::Fire(const FVector& Direction)
@@ -141,11 +204,108 @@ void ALightWalkerPawn::Fire(const FVector& Direction)
 	Params.Instigator = this;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	const FVector Start = GetActorLocation() + Direction * (ContactRadius + 10.f);
-	if (ALaser* Laser = World->SpawnActor<ALaser>(LaserClass, Start, Direction.Rotation(), Params))
+	const bool bOrb = GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f;
+	const bool bPiercing = GetPowerUpTimeLeft(EPickupType::PiercingBeam) > 0.f;
+	const bool bSpread = GetPowerUpTimeLeft(EPickupType::SpreadShot) > 0.f;
+	const float BoltSpeed = GetRun() ? GetRun()->GetUpgrades().BoltSpeed : 1.f;
+	const bool bPowered = bOrb || bPiercing || BoltSpeed > 1.f;
+
+	// Bolts leave from the lantern, pulled in line with the centre so close-range shots still land.
+	const FVector Lantern2D = HeadingPivot->GetComponentTransform().TransformPosition(FVector(LanternOffset.X, LanternOffset.Y * 0.4f, 0.f));
+	const FVector Start(Lantern2D.X, Lantern2D.Y, GetActorLocation().Z);
+
+	for (const float Yaw : bSpread ? TArray<float>{ -SpreadAngle, 0.f, SpreadAngle } : TArray<float>{ 0.f })
 	{
-		Laser->Launch(Direction, PlayBounds);
+		const FVector BoltDirection = FRotator(0.f, Yaw, 0.f).RotateVector(Direction);
+		if (ALaser* Laser = World->SpawnActor<ALaser>(LaserClass, Start, BoltDirection.Rotation(), Params))
+		{
+			Laser->Launch(BoltDirection, PlayBounds);
+			if (bPowered)
+			{
+				Laser->SetPower(bOrb ? LightOrbScale : 1.f, BoltSpeed, bPiercing,
+					bPiercing ? PiercingColor : FLinearColor(0.75f, 0.95f, 1.f));
+			}
+		}
 	}
+}
+
+void ALightWalkerPawn::CollectPickup(EPickupType Type)
+{
+	const FString Title = LWPickups::GetName(Type);
+	switch (Type)
+	{
+	case EPickupType::LightOrb:
+		PowerTime[static_cast<int32>(Type)] = LightOrbDuration;
+		ShowPickupMessage(Title, TEXT("Bigger light, bigger bolts, faster firing"));
+		break;
+	case EPickupType::SpreadShot:
+		PowerTime[static_cast<int32>(Type)] = SpreadShotDuration;
+		ShowPickupMessage(Title, TEXT("Three bolts at once"));
+		break;
+	case EPickupType::PiercingBeam:
+		PowerTime[static_cast<int32>(Type)] = PiercingBeamDuration;
+		ShowPickupMessage(Title, TEXT("Bolts pass through everything"));
+		break;
+	case EPickupType::Shield:
+		bShield = true;
+		for (UStaticMeshComponent* Mote : ShieldMotes)
+		{
+			Mote->SetVisibility(true);
+		}
+		ShowPickupMessage(Title, TEXT("Blocks the next hit"));
+		break;
+	case EPickupType::Book:
+		if (ULightWalkerGameInstance* Run = GetRun())
+		{
+			const FBookReading Reading = Run->ReadBook();
+			ShowPickupMessage(FString::Printf(TEXT("%s:  %s"), *Title, *Reading.Upgrade), FString::Printf(TEXT("\"%s\""), *Reading.Wisdom));
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void ALightWalkerPawn::ShowPickupMessage(const FString& Title, const FString& Detail)
+{
+	PickupTitle = Title;
+	PickupDetail = Detail;
+	PickupMessageAge = 0.f;
+}
+
+bool ALightWalkerPawn::TryBlockHit()
+{
+	if (!bShield)
+	{
+		return false;
+	}
+
+	bShield = false;
+	for (UStaticMeshComponent* Mote : ShieldMotes)
+	{
+		Mote->SetVisibility(false);
+	}
+	GraceRemaining = FMath::Max(GraceRemaining, ShieldGrace);
+	return true;
+}
+
+void ALightWalkerPawn::ClearPowerUps()
+{
+	for (float& Time : PowerTime)
+	{
+		Time = 0.f;
+	}
+	bShield = false;
+	for (UStaticMeshComponent* Mote : ShieldMotes)
+	{
+		Mote->SetVisibility(false);
+	}
+}
+
+float ALightWalkerPawn::GetPowerUpTimeLeft(EPickupType Type) const
+{
+	const int32 Index = static_cast<int32>(Type);
+	return Index >= 0 && Index < UE_ARRAY_COUNT(PowerTime) ? PowerTime[Index] : 0.f;
 }
 
 void ALightWalkerPawn::FaceDirection(const FVector& Direction)
@@ -155,15 +315,14 @@ void ALightWalkerPawn::FaceDirection(const FVector& Direction)
 
 void ALightWalkerPawn::SetBodyVisible(bool bVisible)
 {
-	Body->SetVisibility(bVisible);
-	Pointer->SetVisibility(bVisible);
+	HeadingPivot->SetVisibility(bVisible, true);
+	Glow->SetVisibility(!bDowned);
 }
 
 void ALightWalkerPawn::SetDowned(bool bInDowned)
 {
 	bDowned = bInDowned;
 	SetActorHiddenInGame(bDowned);
-	Glow->SetVisibility(!bDowned);
 	if (bDowned)
 	{
 		GraceRemaining = 0.f;
