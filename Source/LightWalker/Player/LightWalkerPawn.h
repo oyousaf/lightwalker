@@ -106,6 +106,27 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> ShieldMotes;
 
+	/**
+	 * Optional imported hero model (see Tools/import_models.py). When it exists it replaces the placeholder figure,
+	 * scaled to ModelHeight and turned to face the heading; the lantern light and shield stay.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	FSoftObjectPath ModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_Lightwalker.SM_Lightwalker"));
+
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float ModelHeight = 125.f;
+
+	/** Turns the model's front to +X. glTF models face +Y once imported, hence -90. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float ModelYaw = -90.f;
+
+	/** How brightly the model shows its own texture colours in the dark arena. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float ModelGlow = 1.2f;
+
+	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
+	TObjectPtr<UStaticMeshComponent> Model;
+
 	/** 2014: 6 px per frame at 24 fps, scaled 5 units per pixel. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Movement")
 	float MoveSpeed = 720.f;
@@ -165,6 +186,13 @@ protected:
 private:
 	void Fire(const FVector& Direction);
 	void UpdatePowerUps(float DeltaSeconds);
+	void TryUseModel();
+	void UpdateModelStride(bool bMoving, float DeltaSeconds);
+
+	FVector ModelOffset = FVector::ZeroVector;
+	bool bUsingModel = false;
+	float StrideTime = 0.f;
+	float StrideBlend = 0.f;
 	void ShowPickupMessage(const FString& Title, const FString& Detail);
 	class ULightWalkerGameInstance* GetRun() const;
 

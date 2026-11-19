@@ -7,6 +7,8 @@
 #include "Core/LWNeon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/PackageName.h"
 #include "Player/Laser.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -69,6 +71,12 @@ ALightWalkerPawn::ALightWalkerPawn()
 		ShieldMotes.Add(Mote);
 	}
 
+	Model = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Model"));
+	Model->SetupAttachment(HeadingPivot);
+	Model->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Model->SetCastShadow(false);
+	Model->SetVisibility(false);
+
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(HeadingPivot);
 	Glow->SetRelativeLocation(LanternOffset + FVector(0.f, 0.f, 26.f));
@@ -95,6 +103,66 @@ void ALightWalkerPawn::BeginPlay()
 		LWNeon::ApplyGlow(Mote, LWPickups::GetColor(EPickupType::Shield), 10.f);
 	}
 	Glow->SetLightColor(Color);
+
+	TryUseModel();
+}
+
+void ALightWalkerPawn::TryUseModel()
+{
+	if (ModelPath.IsNull() || !FPackageName::DoesPackageExist(ModelPath.GetLongPackageName()))
+	{
+		return;
+	}
+	UStaticMesh* Mesh = Cast<UStaticMesh>(ModelPath.TryLoad());
+	if (!Mesh)
+	{
+		return;
+	}
+
+	// Scale by height (the staff can make the model wider than it is tall) and centre it on the pivot.
+	const FBoxSphereBounds Bounds = Mesh->GetBounds();
+	const float Scale = ModelHeight / FMath::Max(Bounds.BoxExtent.Z * 2.f, KINDA_SMALL_NUMBER);
+	const FRotator Rotation(0.f, ModelYaw, 0.f);
+	ModelOffset = -Rotation.RotateVector(Bounds.Origin * Scale) + FVector(0.f, 0.f, ModelHeight * 0.5f - ContactRadius);
+
+	Model->SetStaticMesh(Mesh);
+	Model->SetRelativeScale3D(FVector(Scale));
+	Model->SetRelativeRotation(Rotation);
+	Model->SetRelativeLocation(ModelOffset);
+	Model->SetVisibility(true);
+	for (int32 Slot = 0; Slot < Model->GetNumMaterials(); ++Slot)
+	{
+		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
+		{
+			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+		}
+	}
+
+	// The model brings its own robe, staff and lantern; the light stays where the placeholder lantern was.
+	// Hidden in game rather than invisible, so the respawn blink (which toggles visibility) leaves them hidden.
+	for (UStaticMeshComponent* Placeholder : { Body.Get(), Head.Get(), Staff.Get(), Lantern.Get() })
+	{
+		Placeholder->SetHiddenInGame(true);
+	}
+	bUsingModel = true;
+}
+
+void ALightWalkerPawn::UpdateModelStride(bool bMoving, float DeltaSeconds)
+{
+	if (!bUsingModel)
+	{
+		return;
+	}
+
+	// A static mesh can't walk, so it bobs with each stride and leans into the run, easing in and out.
+	StrideBlend = FMath::FInterpTo(StrideBlend, bMoving ? 1.f : 0.f, DeltaSeconds, 8.f);
+	StrideTime += DeltaSeconds * 11.f * StrideBlend;
+	const float Stride = FMath::Sin(StrideTime);
+	const FQuat Lean = FRotator(-7.f * StrideBlend, 0.f, Stride * 3.f * StrideBlend).Quaternion();
+	const FVector Feet(0.f, 0.f, -ContactRadius);
+
+	Model->SetRelativeRotation(Lean * FRotator(0.f, ModelYaw, 0.f).Quaternion());
+	Model->SetRelativeLocation(Feet + Lean.RotateVector(ModelOffset - Feet) + FVector(0.f, 0.f, FMath::Abs(Stride) * 5.f * StrideBlend));
 }
 
 ULightWalkerGameInstance* ALightWalkerPawn::GetRun() const
@@ -137,6 +205,7 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 	}
 
 	FireCooldown = FMath::Max(0.f, FireCooldown - DeltaSeconds);
+	UpdateModelStride(!Move.IsNearlyZero(), DeltaSeconds);
 
 	if (!Move.IsNearlyZero())
 	{
