@@ -68,6 +68,6 @@ void ALaser::HandleOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
 	}
 
 	bSpent = true;
-	Enemy->Kill();
+	Enemy->TakeHit();
 	Destroy();
 }

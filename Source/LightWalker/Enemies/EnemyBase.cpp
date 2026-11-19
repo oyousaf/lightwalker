@@ -65,6 +65,7 @@ void AEnemyBase::TryUseModel()
 		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
 		{
 			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+			ModelMaterials.Add(Material);
 		}
 	}
 
@@ -176,6 +177,7 @@ void AEnemyBase::Tick(float DeltaSeconds)
 
 	LookTime += DeltaSeconds;
 	UpdateLook(DeltaSeconds);
+	UpdateHitFlash(DeltaSeconds);
 
 	if (!bActive || bDead)
 	{
@@ -203,6 +205,37 @@ void AEnemyBase::CheckPlayerContact()
 		{
 			GameMode->HandlePlayerTouched(LightWalker);
 		}
+	}
+}
+
+void AEnemyBase::TakeHit()
+{
+	if (bDead)
+	{
+		return;
+	}
+
+	if (--HitPoints <= 0)
+	{
+		Kill();
+		return;
+	}
+	HitFlash = 1.f;
+}
+
+void AEnemyBase::UpdateHitFlash(float DeltaSeconds)
+{
+	if (HitFlash <= 0.f)
+	{
+		return;
+	}
+
+	// A white-hot flash and a quick swell that both fade out, so a hit that doesn't kill still lands.
+	HitFlash = FMath::Max(HitFlash - DeltaSeconds / FMath::Max(HitFlashTime, KINDA_SMALL_NUMBER), 0.f);
+	Visual->SetRelativeScale3D(FVector(1.f + 0.15f * HitFlash));
+	for (UMaterialInstanceDynamic* Material : ModelMaterials)
+	{
+		Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (1.f + 4.f * HitFlash));
 	}
 }
 
