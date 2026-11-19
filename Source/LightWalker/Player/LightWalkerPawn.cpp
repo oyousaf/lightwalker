@@ -145,6 +145,9 @@ void ALightWalkerPawn::TryUseModel()
 		Placeholder->SetHiddenInGame(true);
 	}
 	bUsingModel = true;
+
+	// The lantern burns warm white, as in the concept, so the robe keeps its teal and gold instead of turning cyan.
+	Glow->SetLightColor(LanternLightColor);
 }
 
 void ALightWalkerPawn::UpdateModelStride(bool bMoving, float DeltaSeconds)

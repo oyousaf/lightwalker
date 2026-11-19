@@ -132,7 +132,7 @@ void AArenaGameMode::StartPlay()
 #if !UE_BUILD_SHIPPING
 	if (FParse::Value(FCommandLine::Get(), TEXT("LWShots="), DevShotsRemaining) && DevShotsRemaining > 0)
 	{
-		GetWorldTimerManager().SetTimer(DevShotTimer, this, &AArenaGameMode::TakeDevScreenshot, 3.f, true, 8.f);
+		GetWorldTimerManager().SetTimer(DevShotTimer, this, &AArenaGameMode::TakeDevScreenshot, 3.f, true, FParse::Param(FCommandLine::Get(), TEXT("LWEarlyShot")) ? 1.5f : 8.f);
 	}
 #endif
 }

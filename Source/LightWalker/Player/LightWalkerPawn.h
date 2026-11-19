@@ -114,7 +114,7 @@ protected:
 	FSoftObjectPath ModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_Lightwalker.SM_Lightwalker"));
 
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
-	float ModelHeight = 125.f;
+	float ModelHeight = 165.f;
 
 	/** Turns the model's front to +X. glTF models face +Y once imported, hence -90. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
@@ -122,7 +122,11 @@ protected:
 
 	/** How brightly the model shows its own texture colours in the dark arena. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
-	float ModelGlow = 1.2f;
+	float ModelGlow = 1.6f;
+
+	/** Light colour once the model is in (the placeholder uses Color). */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	FLinearColor LanternLightColor = FLinearColor(1.f, 0.9f, 0.72f);
 
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
 	TObjectPtr<UStaticMeshComponent> Model;
