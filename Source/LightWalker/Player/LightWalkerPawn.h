@@ -179,6 +179,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Power-ups")
 	float LightOrbFireRate = 1.3f;
 
+	/** Light orb: how high Lightwalker glides above the ground. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Power-ups")
+	float GlideHeight = 22.f;
+
 	/** Spread shot: angle between the bolts of the fan. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Power-ups", meta = (Units = "deg"))
 	float SpreadAngle = 14.f;
@@ -197,6 +201,10 @@ private:
 	bool bUsingModel = false;
 	float StrideTime = 0.f;
 	float StrideBlend = 0.f;
+
+	/** 0 walking, 1 fully gliding (light orb). */
+	float GlideBlend = 0.f;
+	float GlideTime = 0.f;
 	void ShowPickupMessage(const FString& Title, const FString& Detail);
 	class ULightWalkerGameInstance* GetRun() const;
 
