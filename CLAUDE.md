@@ -17,7 +17,7 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 ## Milestones (each one playable)
 
 1. **Arena slice** (done in code): player, lasers, both enemy types, 15 waves (the two 2014 ones, then 13 that build on them), score, three lives, respawn, HUD. Dajjal take three shots.
-2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, menus, gamepad UX. Menus done 2026-11-20: intro ("Powered by Unreal Engine 5", text only until the official logo is added per Epic's branding guidelines), main menu with Lightwalker in the dark arena, pause and settings. Still to do: control rebinding, and wiring the saved volumes and vibration once audio and rumble exist.
+2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, menus, gamepad UX. Menus done 2026-11-20: intro (the official Unreal emblem from the engine's own `Engine/Content/Slate/Starship/Common/UELogo.svg`, unaltered, over "Powered by Unreal Engine 5"), main menu with Lightwalker in the dark arena, pause and settings. Still to do: control rebinding, and wiring the saved volumes and vibration once audio and rumble exist.
 3. **Hero and pickups** (agreed 2026-11-18; pickups, the hero model and the light-orb glide done 2026-11-19; rigging and a run animation still to do, with the long robe as a cloth layer):
    - A realistic Lightwalker model holding a light weapon (lantern-staff or light gauntlet), designed to read from above, rigged (e.g. Mixamo) for run and aim.
    - Timed power-ups dropped by killed enemies (dajjal 40%, shaytaan 3%): light orb (bigger light radius and bolts), spread shot, piercing beam, shield (blocks one hit).
