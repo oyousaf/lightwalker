@@ -15,7 +15,9 @@ struct FInputActionValue;
  * holding the left mouse button fires towards the cursor.
  * Gamepad: left stick or d-pad moves, right stick aims and fires (twin-stick). RT, RB or A fires the way
  * Lightwalker faces. Start pauses.
- * Enter, Space or A restarts after a game over or a win; Esc, P or Start pauses.
+ * Enter, Space or A restarts after a game over or a win; Esc, P or Start pauses. Esc or B goes back in menus.
+ *
+ * Also owns the menus (intro, main, pause, settings) and switches between menu and gameplay input.
  */
 UCLASS()
 class LIGHTWALKER_API ALightWalkerPlayerController : public APlayerController
@@ -26,6 +28,20 @@ public:
 	ALightWalkerPlayerController();
 
 	virtual void PlayerTick(float DeltaTime) override;
+
+	/** Launch: the intro screen, then the main menu. */
+	void ShowIntro();
+	void ShowMainMenu();
+
+	/** Menu actions (called by the menu widgets). */
+	void StartGameFromMenu();
+	void CycleHero();
+	FString GetHeroName() const;
+	void OpenSettings();
+	void SetMenuPaused(bool bPaused);
+	void RestartRun();
+	void QuitToMenu();
+	void QuitGame();
 
 protected:
 	virtual void BeginPlay() override;
@@ -44,6 +60,30 @@ private:
 	void HandleMouseFireReleased(const FInputActionValue& Value);
 	void HandleConfirm(const FInputActionValue& Value);
 	void HandlePause(const FInputActionValue& Value);
+	void HandleBack(const FInputActionValue& Value);
+
+	/** Shows one menu (hiding the others) with UI input and the arrow cursor; null goes back to gameplay input. */
+	void ShowMenu(class ULWMenuWidget* Menu);
+	void CloseSettings();
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWIntroScreen> IntroScreen;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWMainMenu> MainMenu;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWPauseMenu> PauseMenu;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWSettingsMenu> SettingsMenu;
+
+	/** The menu Settings returns to. */
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWMenuWidget> SettingsReturn;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> BackAction;
 
 	/** Where the cursor points on the arena plane at the pawn's height. */
 	bool GetCursorOnPlane(float PlaneZ, FVector& OutPoint) const;

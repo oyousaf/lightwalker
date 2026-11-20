@@ -17,7 +17,7 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 ## Milestones (each one playable)
 
 1. **Arena slice** (done in code): player, lasers, both enemy types, 15 waves (the two 2014 ones, then 13 that build on them), score, three lives, respawn, HUD. Dajjal take three shots.
-2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, CommonUI menus, gamepad UX.
+2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, menus, gamepad UX. Menus done 2026-11-20: intro ("Powered by Unreal Engine 5", text only until the official logo is added per Epic's branding guidelines), main menu with Lightwalker in the dark arena, pause and settings. Still to do: control rebinding, and wiring the saved volumes and vibration once audio and rumble exist.
 3. **Hero and pickups** (agreed 2026-11-18; pickups, the hero model and the light-orb glide done 2026-11-19; rigging and a run animation still to do, with the long robe as a cloth layer):
    - A realistic Lightwalker model holding a light weapon (lantern-staff or light gauntlet), designed to read from above, rigged (e.g. Mixamo) for run and aim.
    - Timed power-ups dropped by killed enemies (dajjal 40%, shaytaan 3%): light orb (bigger light radius and bolts), spread shot, piercing beam, shield (blocks one hit).
@@ -30,12 +30,12 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 
 | Folder | Contents |
 |---|---|
-| `Core/` | `ULightWalkerGameInstance` (run score, lives, best score and book upgrades, shared by every mode); `LWNeon` (applies the glow material) |
+| `Core/` | `ULightWalkerGameInstance` (run score, lives, best score and book upgrades, shared by every mode); `ULightWalkerUserSettings` (saved graphics, display, volumes, vibration, hero choice); `LWNeon` (applies the glow material) |
 | `Pickups/` | `APickup` (power-ups and the book of knowledge; collected by walking over them, effects live on the pawn) |
 | `Player/` | `ALightWalkerPawn`, `ALaser`, `ALightWalkerPlayerController` (builds Enhanced Input actions and bindings in code) |
 | `Enemies/` | `AEnemyBase` (parts on a turning, bobbing Visual pivot), `AShaytaan` (chaser: a little devil), `ADajjal` (wanderer: a gold pyramid whose Horus-style eye turns to watch the player) |
 | `Arena/` | `AArenaGameMode` (wave and life rules), `AArena` (floor, edges, camera, light, post-process), `UArenaWaveSet` (optional data asset for waves) |
-| `UI/` | `AArenaHUD`, a placeholder canvas HUD until CommonUI in milestone 2 |
+| `UI/` | `AArenaHUD` (canvas HUD during play); `LWMenuWidgets` (intro, main, pause and settings menus, UMG widgets built in code, owned by the player controller) |
 
 Conventions:
 - Gameplay lives in C++. Blueprints only for editor-side wiring (assigning meshes, effects, sounds to C++ properties).
@@ -60,7 +60,8 @@ Content setup (only needed if `M_Neon` or `L_Arena` is missing; editor closed):
 
 ## Dev flags (non-shipping builds)
 
-- `-LWStartWave=N` starts the run on wave N.
+- `-LWStartWave=N` skips the intro and menu and starts the run on wave N.
+- `-LWMenu` skips the intro and opens on the main menu (with `-LWShots`, the screenshot includes the menu UI).
 - `-LWEarlyShot` takes the first `-LWShots` screenshot 1.5 s in, during the wave intro, before enemies move (good for checking models).
 - `-LWDrops` makes every kill drop a pickup (a book a quarter of the time) and lays one of each around the centre when a wave starts.
 - `-LWShots=N` takes N high-res screenshots (2x) three seconds apart, into `Saved/Screenshots/WindowsEditor`, then quits. Use this to check visuals rather than capturing the desktop:

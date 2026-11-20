@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
@@ -27,7 +28,7 @@ namespace
 
 AArena::AArena()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
@@ -47,7 +48,7 @@ AArena::AArena()
 	Moonlight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("Moonlight"));
 	Moonlight->SetupAttachment(RootComponent);
 	Moonlight->SetRelativeRotation(FRotator(-60.f, 30.f, 0.f));
-	Moonlight->SetIntensity(1.5f);
+	Moonlight->SetIntensity(MoonlightIntensity);
 	Moonlight->SetLightColor(FLinearColor(0.45f, 0.5f, 1.f));
 	Moonlight->SetCastShadows(false);
 
@@ -68,10 +69,12 @@ void AArena::BeginPlay()
 	Super::BeginPlay();
 
 	LWNeon::ApplySurface(Floor, FloorColor);
+	EdgeMaterials.Reset();
 	for (UStaticMeshComponent* Edge : { EdgeTop.Get(), EdgeBottom.Get(), EdgeLeft.Get(), EdgeRight.Get() })
 	{
-		LWNeon::ApplyGlow(Edge, EdgeColor, EdgeGlowIntensity);
+		EdgeMaterials.Add(LWNeon::ApplyGlow(Edge, EdgeColor, EdgeGlowIntensity));
 	}
+	ApplyCamera();
 }
 
 void AArena::Layout()
@@ -96,10 +99,52 @@ void AArena::Layout()
 	EdgeLeft->SetRelativeLocation(FVector(0.f, -HalfExtent.Y - EdgeThickness * 0.5f, EdgeZ));
 	EdgeLeft->SetRelativeScale3D(FVector(SpanX, Thin, Tall));
 
-	const FRotator CameraRotation(CameraPitch, 0.f, 0.f);
-	Camera->SetRelativeRotation(CameraRotation);
-	Camera->SetRelativeLocation(-CameraRotation.Vector() * CameraDistance);
-	Camera->SetFieldOfView(CameraFieldOfView);
+	ApplyCamera();
+}
+
+void AArena::ApplyCamera()
+{
+	const float Alpha = FMath::SmoothStep(0.f, 1.f, MenuBlend);
+
+	const float Pitch = FMath::Lerp(CameraPitch, MenuCameraPitch, Alpha);
+	const FVector GameLocation = -FRotator(CameraPitch, 0.f, 0.f).Vector() * CameraDistance;
+	const FVector MenuLocation = MenuCameraTarget - FRotator(MenuCameraPitch, 0.f, 0.f).Vector() * MenuCameraDistance;
+
+	Camera->SetRelativeRotation(FRotator(Pitch, 0.f, 0.f));
+	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha));
+	Camera->SetFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha));
+
+	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out.
+	Moonlight->SetIntensity(FMath::Lerp(MoonlightIntensity, MoonlightIntensity * 0.08f, Alpha));
+	for (UMaterialInstanceDynamic* Material : EdgeMaterials)
+	{
+		if (Material)
+		{
+			Material->SetScalarParameterValue(FName(TEXT("Intensity")), FMath::Lerp(EdgeGlowIntensity, 0.f, Alpha));
+		}
+	}
+}
+
+void AArena::SetMenuView(bool bMenu, bool bInstant)
+{
+	MenuBlendTarget = bMenu ? 1.f : 0.f;
+	if (bInstant)
+	{
+		MenuBlend = MenuBlendTarget;
+		ApplyCamera();
+	}
+}
+
+void AArena::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (MenuBlend != MenuBlendTarget)
+	{
+		const float Step = DeltaSeconds / FMath::Max(CameraBlendTime, KINDA_SMALL_NUMBER);
+		MenuBlend = MenuBlendTarget > MenuBlend ? FMath::Min(MenuBlend + Step, MenuBlendTarget) : FMath::Max(MenuBlend - Step, MenuBlendTarget);
+		ApplyCamera();
+	}
 }
 
 void AArena::ApplyPostProcess()

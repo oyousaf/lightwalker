@@ -4,6 +4,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LightWalkerGameInstance.h"
+#include "Core/LightWalkerUserSettings.h"
 #include "Core/LWNeon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -104,19 +105,48 @@ void ALightWalkerPawn::BeginPlay()
 	}
 	Glow->SetLightColor(Color);
 
-	TryUseModel();
+	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+	SetHero(Settings ? Settings->HeroIndex : 0);
 }
 
-void ALightWalkerPawn::TryUseModel()
+bool ALightWalkerPawn::HasHeroModel(int32 Index) const
 {
-	if (ModelPath.IsNull() || !FPackageName::DoesPackageExist(ModelPath.GetLongPackageName()))
+	const FSoftObjectPath& Path = Index == 1 ? FemaleModelPath : ModelPath;
+	return !Path.IsNull() && FPackageName::DoesPackageExist(Path.GetLongPackageName());
+}
+
+void ALightWalkerPawn::SetHero(int32 Index)
+{
+	// Fall back to the other hero if this one hasn't been made yet, so there's always a model when one exists.
+	if (!UseModel(Index == 1 ? FemaleModelPath : ModelPath) && !bUsingModel)
 	{
-		return;
+		UseModel(Index == 1 ? ModelPath : FemaleModelPath);
 	}
-	UStaticMesh* Mesh = Cast<UStaticMesh>(ModelPath.TryLoad());
+}
+
+void ALightWalkerPawn::SetFrozen(bool bInFrozen)
+{
+	bFrozen = bInFrozen;
+	MoveInput = AimInput = FVector2D::ZeroVector;
+	bFireHeld = bCursorAim = false;
+	if (bFrozen)
+	{
+		// Face the menu camera, which looks along +X.
+		Heading = FVector::BackwardVector;
+		FaceDirection(Heading);
+	}
+}
+
+bool ALightWalkerPawn::UseModel(const FSoftObjectPath& Path)
+{
+	if (Path.IsNull() || !FPackageName::DoesPackageExist(Path.GetLongPackageName()))
+	{
+		return false;
+	}
+	UStaticMesh* Mesh = Cast<UStaticMesh>(Path.TryLoad());
 	if (!Mesh)
 	{
-		return;
+		return false;
 	}
 
 	// Scale by height (the staff can make the model wider than it is tall) and centre it on the pivot.
@@ -125,6 +155,8 @@ void ALightWalkerPawn::TryUseModel()
 	const FRotator Rotation(0.f, ModelYaw, 0.f);
 	ModelOffset = -Rotation.RotateVector(Bounds.Origin * Scale) + FVector(0.f, 0.f, ModelHeight * 0.5f - ContactRadius);
 
+	// Drop the previous hero's material instances, or they'd carry its textures onto the new mesh.
+	Model->EmptyOverrideMaterials();
 	Model->SetStaticMesh(Mesh);
 	Model->SetRelativeScale3D(FVector(Scale));
 	Model->SetRelativeRotation(Rotation);
@@ -148,6 +180,7 @@ void ALightWalkerPawn::TryUseModel()
 
 	// The lantern burns warm white, as in the concept, so the robe keeps its teal and gold instead of turning cyan.
 	Glow->SetLightColor(LanternLightColor);
+	return true;
 }
 
 void ALightWalkerPawn::UpdateModelStride(bool bMoving, float DeltaSeconds)
@@ -193,6 +226,12 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 	}
 
 	UpdatePowerUps(DeltaSeconds);
+
+	if (bFrozen)
+	{
+		UpdateModelStride(false, DeltaSeconds);
+		return;
+	}
 
 	const FRunUpgrades Upgrades = GetRun() ? GetRun()->GetUpgrades() : FRunUpgrades();
 

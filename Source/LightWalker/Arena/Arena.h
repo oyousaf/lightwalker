@@ -31,8 +31,30 @@ public:
 	FVector GetCentre() const { return GetActorLocation(); }
 	FVector2D GetHalfExtent() const { return HalfExtent; }
 
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** Moves the camera between the low menu close-up of Lightwalker and the top-down game view. */
+	void SetMenuView(bool bMenu, bool bInstant = false);
+
 protected:
 	virtual void BeginPlay() override;
+
+	/** Menu close-up: the point the camera looks at (relative to the centre; -Y puts Lightwalker right of centre). */
+	UPROPERTY(EditAnywhere, Category = "Arena|Menu Camera")
+	FVector MenuCameraTarget = FVector(180.f, -170.f, 60.f);
+
+	UPROPERTY(EditAnywhere, Category = "Arena|Menu Camera", meta = (ClampMin = -90, ClampMax = 0))
+	float MenuCameraPitch = -20.f;
+
+	UPROPERTY(EditAnywhere, Category = "Arena|Menu Camera")
+	float MenuCameraDistance = 820.f;
+
+	UPROPERTY(EditAnywhere, Category = "Arena|Menu Camera")
+	float MenuCameraFieldOfView = 45.f;
+
+	/** Seconds for the sweep between the menu and game views. */
+	UPROPERTY(EditAnywhere, Category = "Arena|Menu Camera", meta = (Units = "s"))
+	float CameraBlendTime = 1.8f;
 
 	UPROPERTY(VisibleAnywhere, Category = "Arena")
 	TObjectPtr<UStaticMeshComponent> Floor;
@@ -81,6 +103,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Arena|Look")
 	float EdgeGlowIntensity = 4.f;
 
+	UPROPERTY(EditAnywhere, Category = "Arena|Look")
+	float MoonlightIntensity = 1.5f;
+
 	/** Fixed exposure, so the dark arena doesn't brighten itself up. 0 means emissive 1 shows as roughly full brightness. */
 	UPROPERTY(EditAnywhere, Category = "Arena|Look")
 	float ExposureCompensation = 0.f;
@@ -91,4 +116,12 @@ protected:
 private:
 	void Layout();
 	void ApplyPostProcess();
+	void ApplyCamera();
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UMaterialInstanceDynamic>> EdgeMaterials;
+
+	/** 0 = game view, 1 = menu view. */
+	float MenuBlend = 0.f;
+	float MenuBlendTarget = 0.f;
 };

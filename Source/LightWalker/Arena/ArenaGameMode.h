@@ -16,6 +16,8 @@ class ULightWalkerGameInstance;
 UENUM(BlueprintType)
 enum class EArenaPhase : uint8
 {
+	/** Title and main menu: Lightwalker stands in the arena, enemies lurk at the edge of the light. */
+	Menu,
 	/** Enemies are placed but frozen; the wave banner is up. */
 	WaveIntro,
 	Fighting,
@@ -48,6 +50,15 @@ public:
 	void RequestRestart();
 
 	bool IsRunOver() const { return Phase == EArenaPhase::GameOver || Phase == EArenaPhase::Victory; }
+
+	/** Play pressed: the camera sweeps up to the game view and wave 1 begins. */
+	void StartFromMenu();
+
+	/** Back to the main menu from a run. */
+	void ReturnToMenu();
+
+	/** Starts the run again from wave 1 (pause menu). */
+	void RestartRun() { StartRun(); }
 
 	EArenaPhase GetPhase() const { return Phase; }
 	int32 GetWaveNumber() const { return FMath::Min(WaveIndex + 1, GetWaveCount()); }
@@ -139,6 +150,8 @@ private:
 	ALightWalkerPawn* GetLightWalker() const;
 
 	void StartRun();
+	void EnterMenu(bool bInstantCamera);
+	void SpawnLurkers();
 	void BeginWaveIntro();
 	void BeginFighting();
 	void SpawnWave(const FArenaWave& Wave);
@@ -169,7 +182,7 @@ private:
 	FTimerHandle DevShotTimer;
 #endif
 
-	EArenaPhase Phase = EArenaPhase::WaveIntro;
+	EArenaPhase Phase = EArenaPhase::Menu;
 	float PhaseStartTime = 0.f;
 	int32 WaveIndex = 0;
 	FTimerHandle PhaseTimer;

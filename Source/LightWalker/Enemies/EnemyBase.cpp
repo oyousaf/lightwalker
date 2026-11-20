@@ -208,6 +208,15 @@ void AEnemyBase::CheckPlayerContact()
 	}
 }
 
+void AEnemyBase::SetModelGlow(float Glow)
+{
+	ModelGlow = Glow;
+	for (UMaterialInstanceDynamic* Material : ModelMaterials)
+	{
+		Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+	}
+}
+
 void AEnemyBase::TakeHit()
 {
 	if (bDead)

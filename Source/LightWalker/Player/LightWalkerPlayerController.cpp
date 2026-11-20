@@ -8,7 +8,10 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
+#include "Core/LightWalkerUserSettings.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPawn.h"
+#include "UI/LWMenuWidgets.h"
 
 namespace
 {
@@ -89,6 +92,7 @@ void ALightWalkerPlayerController::BuildInput()
 	MouseFireAction = MakeAction(TEXT("IA_MouseFire"), EInputActionValueType::Boolean);
 	ConfirmAction = MakeAction(TEXT("IA_Confirm"), EInputActionValueType::Boolean, true);
 	PauseAction = MakeAction(TEXT("IA_Pause"), EInputActionValueType::Boolean, true);
+	BackAction = MakeAction(TEXT("IA_Back"), EInputActionValueType::Boolean, true);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Arena"));
 
@@ -107,6 +111,7 @@ void ALightWalkerPlayerController::BuildInput()
 
 	MapKeys(MappingContext, ConfirmAction, { EKeys::Enter, EKeys::SpaceBar, EKeys::Gamepad_FaceButton_Bottom });
 	MapKeys(MappingContext, PauseAction, { EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Right });
+	MapKeys(MappingContext, BackAction, { EKeys::BackSpace, EKeys::Gamepad_FaceButton_Right });
 }
 
 void ALightWalkerPlayerController::SetupInputComponent()
@@ -125,6 +130,7 @@ void ALightWalkerPlayerController::SetupInputComponent()
 	Input->BindAction(MouseFireAction, ETriggerEvent::Completed, this, &ALightWalkerPlayerController::HandleMouseFireReleased);
 	Input->BindAction(ConfirmAction, ETriggerEvent::Started, this, &ALightWalkerPlayerController::HandleConfirm);
 	Input->BindAction(PauseAction, ETriggerEvent::Started, this, &ALightWalkerPlayerController::HandlePause);
+	Input->BindAction(BackAction, ETriggerEvent::Started, this, &ALightWalkerPlayerController::HandleBack);
 }
 
 void ALightWalkerPlayerController::BeginPlay()
@@ -262,13 +268,199 @@ void ALightWalkerPlayerController::HandlePause(const FInputActionValue& Value)
 		return;
 	}
 
-	// Start doubles as "play again" on the end screens; everywhere else it pauses.
-	if (GameMode->IsRunOver())
+	if (IntroScreen && IntroScreen->IsInViewport())
 	{
+		IntroScreen->Skip();
+	}
+	else if (SettingsMenu && SettingsMenu->IsInViewport())
+	{
+		CloseSettings();
+	}
+	else if (GameMode->GetPhase() == EArenaPhase::Menu)
+	{
+		// Nothing to pause on the main menu.
+	}
+	else if (GameMode->IsRunOver())
+	{
+		// Start doubles as "play again" on the end screens.
 		GameMode->RequestRestart();
 	}
 	else
 	{
-		SetPause(!IsPaused());
+		SetMenuPaused(!IsPaused());
 	}
+}
+
+void ALightWalkerPlayerController::HandleBack(const FInputActionValue& Value)
+{
+	if (SettingsMenu && SettingsMenu->IsInViewport())
+	{
+		CloseSettings();
+	}
+	else if (IsPaused())
+	{
+		SetMenuPaused(false);
+	}
+}
+
+void ALightWalkerPlayerController::ShowMenu(ULWMenuWidget* Menu)
+{
+	for (ULWMenuWidget* Other : { (ULWMenuWidget*)IntroScreen.Get(), (ULWMenuWidget*)MainMenu.Get(), (ULWMenuWidget*)PauseMenu.Get(), (ULWMenuWidget*)SettingsMenu.Get() })
+	{
+		if (Other && Other != Menu && Other->IsInViewport())
+		{
+			Other->RemoveFromParent();
+		}
+	}
+
+	if (!Menu)
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::LockInFullscreen);
+		SetInputMode(InputMode);
+		CurrentMouseCursor = EMouseCursor::Crosshairs;
+		return;
+	}
+
+	if (!Menu->IsInViewport())
+	{
+		Menu->AddToViewport(10);
+	}
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(Menu->TakeWidget());
+	InputMode.SetHideCursorDuringCapture(false);
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
+	CurrentMouseCursor = EMouseCursor::Default;
+
+	// Clear held inputs so nothing carries from the menu into play (or back).
+	if (ALightWalkerPawn* LightWalker = GetPawn<ALightWalkerPawn>())
+	{
+		LightWalker->SetMoveInput(FVector2D::ZeroVector);
+		LightWalker->SetAimInput(FVector2D::ZeroVector);
+		LightWalker->SetFireHeld(false);
+	}
+	bMouseFireHeld = false;
+
+	if (Menu != IntroScreen)
+	{
+		Menu->FocusButton();
+	}
+}
+
+void ALightWalkerPlayerController::ShowIntro()
+{
+	if (!IntroScreen)
+	{
+		IntroScreen = CreateWidget<ULWIntroScreen>(this, ULWIntroScreen::StaticClass());
+		IntroScreen->OnFinished = [this]() { ShowMainMenu(); };
+	}
+	ShowMenu(IntroScreen);
+	IntroScreen->SetKeyboardFocus();
+	IntroScreen->SetUserFocus(this);
+}
+
+void ALightWalkerPlayerController::ShowMainMenu()
+{
+	if (!MainMenu)
+	{
+		MainMenu = CreateWidget<ULWMainMenu>(this, ULWMainMenu::StaticClass());
+	}
+	ShowMenu(MainMenu);
+}
+
+void ALightWalkerPlayerController::StartGameFromMenu()
+{
+	ShowMenu(nullptr);
+	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	{
+		GameMode->StartFromMenu();
+	}
+}
+
+void ALightWalkerPlayerController::CycleHero()
+{
+	if (ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get())
+	{
+		Settings->HeroIndex = (Settings->HeroIndex + 1) % 2;
+		Settings->SaveSettings();
+		if (ALightWalkerPawn* LightWalker = GetPawn<ALightWalkerPawn>())
+		{
+			LightWalker->SetHero(Settings->HeroIndex);
+		}
+	}
+}
+
+FString ALightWalkerPlayerController::GetHeroName() const
+{
+	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+	const int32 Index = Settings ? Settings->HeroIndex : 0;
+	const ALightWalkerPawn* LightWalker = GetPawn<ALightWalkerPawn>();
+	if (Index == 1)
+	{
+		return LightWalker && LightWalker->HasHeroModel(1) ? TEXT("FEMALE") : TEXT("FEMALE (COMING SOON)");
+	}
+	return TEXT("MALE");
+}
+
+void ALightWalkerPlayerController::OpenSettings()
+{
+	if (!SettingsMenu)
+	{
+		SettingsMenu = CreateWidget<ULWSettingsMenu>(this, ULWSettingsMenu::StaticClass());
+		SettingsMenu->OnBack = [this]() { CloseSettings(); };
+	}
+	SettingsReturn = (PauseMenu && PauseMenu->IsInViewport()) ? (ULWMenuWidget*)PauseMenu.Get() : (ULWMenuWidget*)MainMenu.Get();
+	ShowMenu(SettingsMenu);
+}
+
+void ALightWalkerPlayerController::CloseSettings()
+{
+	if (ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get())
+	{
+		Settings->SaveSettings();
+	}
+	ShowMenu(SettingsReturn ? SettingsReturn.Get() : (ULWMenuWidget*)MainMenu.Get());
+}
+
+void ALightWalkerPlayerController::SetMenuPaused(bool bPaused)
+{
+	SetPause(bPaused);
+	if (bPaused)
+	{
+		if (!PauseMenu)
+		{
+			PauseMenu = CreateWidget<ULWPauseMenu>(this, ULWPauseMenu::StaticClass());
+		}
+		ShowMenu(PauseMenu);
+	}
+	else
+	{
+		ShowMenu(nullptr);
+	}
+}
+
+void ALightWalkerPlayerController::RestartRun()
+{
+	SetMenuPaused(false);
+	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	{
+		GameMode->RestartRun();
+	}
+}
+
+void ALightWalkerPlayerController::QuitToMenu()
+{
+	SetPause(false);
+	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	{
+		GameMode->ReturnToMenu();
+	}
+	ShowMainMenu();
+}
+
+void ALightWalkerPlayerController::QuitGame()
+{
+	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
 }

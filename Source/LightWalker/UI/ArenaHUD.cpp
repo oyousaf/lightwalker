@@ -42,7 +42,7 @@ void AArenaHUD::DrawHUD()
 
 	const AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
 	const ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>();
-	if (!Canvas || !GameMode || !Run)
+	if (!Canvas || !GameMode || !Run || GameMode->GetPhase() == EArenaPhase::Menu)
 	{
 		return;
 	}
@@ -125,11 +125,10 @@ void AArenaHUD::DrawHUD()
 		break;
 	}
 
+	// The pause menu covers the screen while paused.
 	if (GetWorld()->IsPaused())
 	{
-		Banner = TEXT("PAUSED");
-		BannerColor = Primary;
-		Detail = TEXT("Press Esc, P or Start to resume");
+		return;
 	}
 
 	const float BannerY = Canvas->ClipY * 0.4f;
