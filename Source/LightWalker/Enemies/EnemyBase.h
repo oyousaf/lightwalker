@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/LWSound.h"
 #include "GameFramework/Actor.h"
 #include "EnemyBase.generated.h"
 
@@ -123,6 +124,9 @@ protected:
 
 	UPROPERTY()
 	TArray<TObjectPtr<USceneComponent>> Placeholders;
+
+	/** Played when shot dead (set by each enemy type). */
+	ELWSound DeathSound = ELWSound::ShaytaanDeath;
 
 	/** True once an imported model replaced the placeholders. */
 	bool bUsingModel = false;

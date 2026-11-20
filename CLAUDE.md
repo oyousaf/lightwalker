@@ -31,7 +31,7 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 
 | Folder | Contents |
 |---|---|
-| `Core/` | `ULightWalkerGameInstance` (run score, lives, best score and book upgrades, shared by every mode); `ULightWalkerUserSettings` (saved graphics, display, volumes, vibration, hero choice); `ULWMusicSubsystem` (menu intro and loop, combat stems layered by wave, stings); `LWNeon` (applies the glow material) |
+| `Core/` | `ULightWalkerGameInstance` (run score, lives, best score and book upgrades, shared by every mode); `ULightWalkerUserSettings` (saved graphics, display, volumes, vibration, hero choice); `ULWMusicSubsystem` (menu intro and loop, combat stems layered by wave, stings); `ULWSoundSubsystem` (sound effects with per-sound level, pitch variety and throttling); `LWNeon` (applies the glow material) |
 | `Pickups/` | `APickup` (power-ups and the book of knowledge; collected by walking over them, effects live on the pawn) |
 | `Player/` | `ALightWalkerPawn`, `ALaser`, `ALightWalkerPlayerController` (builds Enhanced Input actions and bindings in code) |
 | `Enemies/` | `AEnemyBase` (parts on a turning, bobbing Visual pivot), `AShaytaan` (chaser: a little devil), `ADajjal` (wanderer: a gold pyramid whose Horus-style eye turns to watch the player) |
@@ -48,6 +48,8 @@ Conventions:
 ## Music
 
 Two original themes, written as MIDI by `Tools/music/compose_*_theme.py`: a 16-bit platformer-style menu theme and a UK drill combat theme in six stems that layer in by wave. `Tools/music/render_music.py` renders placeholder WAVs into each theme's `SourceArt/Music/<Theme>/Export/` with FluidSynth and the GeneralUser GS SoundFont (both kept outside the repo in `D:\AI\Tools\audio`; the SoundFont's licence allows commercial use). `Tools/import_audio.py` imports them to `/Game/Audio/Music/`. Omar may rebuild either theme in FL Studio using the `SESSION.md` beside it: exporting over a placeholder of the same name and re-running the import swaps it in with no code changes.
+
+Sound effects are synthesised from scratch by `Tools/sfx/make_sfx.py` (one function per sound) into `SourceArt/Audio/SFX/`, then imported by the same `Tools/import_audio.py` to `/Game/Audio/SFX/`.
 
 ## Building
 

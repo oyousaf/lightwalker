@@ -2,6 +2,7 @@
 
 #include "Arena/Arena.h"
 #include "Core/LWMusicSubsystem.h"
+#include "Core/LWSound.h"
 #include "Core/LightWalkerGameInstance.h"
 #include "Enemies/Dajjal.h"
 #include "Enemies/Shaytaan.h"
@@ -321,6 +322,7 @@ void AArenaGameMode::BeginFighting()
 {
 	SetEnemiesActive(true);
 	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
+	ULWSoundSubsystem::Play(this, ELWSound::WaveStart);
 
 #if !UE_BUILD_SHIPPING
 	// Dev only: -LWDrops also lays out one of each pickup around the centre, to check how they look.
@@ -447,8 +449,11 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 
 	if (LightWalker->TryBlockHit())
 	{
+		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
 		return;
 	}
+
+	ULWSoundSubsystem::Play(this, ELWSound::LifeLost);
 
 	LightWalker->SetDowned(true);
 	LightWalker->ClearPowerUps();
@@ -476,6 +481,7 @@ void AArenaGameMode::RespawnLightWalker()
 	if (ALightWalkerPawn* LightWalker = GetLightWalker())
 	{
 		LightWalker->Revive(FindRespawnPoint(), RespawnGrace);
+		ULWSoundSubsystem::Play(this, ELWSound::Respawn);
 	}
 	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
 }

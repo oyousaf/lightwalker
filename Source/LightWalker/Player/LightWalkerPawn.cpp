@@ -6,6 +6,7 @@
 #include "Core/LightWalkerGameInstance.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Core/LWNeon.h"
+#include "Core/LWSound.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -287,9 +288,16 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 
 void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
 {
+	bool bExpired = false;
 	for (float& Time : PowerTime)
 	{
+		const bool bWasActive = Time > 0.f;
 		Time = FMath::Max(0.f, Time - DeltaSeconds);
+		bExpired |= bWasActive && Time <= 0.f;
+	}
+	if (bExpired)
+	{
+		ULWSoundSubsystem::Play(this, ELWSound::PowerDown);
 	}
 
 	// The light grows with the light orb and with book upgrades, and eases back when the orb runs out.
@@ -324,6 +332,7 @@ void ALightWalkerPawn::Fire(const FVector& Direction)
 	const bool bOrb = GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f;
 	const bool bPiercing = GetPowerUpTimeLeft(EPickupType::PiercingBeam) > 0.f;
 	const bool bSpread = GetPowerUpTimeLeft(EPickupType::SpreadShot) > 0.f;
+	ULWSoundSubsystem::Play(this, bPiercing ? ELWSound::ShotPiercing : bSpread ? ELWSound::ShotSpread : ELWSound::Shot);
 	const float BoltSpeed = GetRun() ? GetRun()->GetUpgrades().BoltSpeed : 1.f;
 	const bool bPowered = bOrb || bPiercing || BoltSpeed > 1.f;
 
@@ -352,18 +361,23 @@ void ALightWalkerPawn::CollectPickup(EPickupType Type)
 	switch (Type)
 	{
 	case EPickupType::LightOrb:
+		ULWSoundSubsystem::Play(this, ELWSound::PowerUp);
+		ULWSoundSubsystem::Play(this, ELWSound::Glide);
 		PowerTime[static_cast<int32>(Type)] = LightOrbDuration;
 		ShowPickupMessage(Title, TEXT("Glide on the light: bigger light, bigger bolts, faster firing"));
 		break;
 	case EPickupType::SpreadShot:
+		ULWSoundSubsystem::Play(this, ELWSound::PowerUp);
 		PowerTime[static_cast<int32>(Type)] = SpreadShotDuration;
 		ShowPickupMessage(Title, TEXT("Three bolts at once"));
 		break;
 	case EPickupType::PiercingBeam:
+		ULWSoundSubsystem::Play(this, ELWSound::PowerUp);
 		PowerTime[static_cast<int32>(Type)] = PiercingBeamDuration;
 		ShowPickupMessage(Title, TEXT("Bolts pass through everything"));
 		break;
 	case EPickupType::Shield:
+		ULWSoundSubsystem::Play(this, ELWSound::PowerUp);
 		bShield = true;
 		for (UStaticMeshComponent* Mote : ShieldMotes)
 		{
@@ -372,6 +386,7 @@ void ALightWalkerPawn::CollectPickup(EPickupType Type)
 		ShowPickupMessage(Title, TEXT("Blocks the next hit"));
 		break;
 	case EPickupType::Book:
+		ULWSoundSubsystem::Play(this, ELWSound::Book);
 		if (ULightWalkerGameInstance* Run = GetRun())
 		{
 			const FBookReading Reading = Run->ReadBook();

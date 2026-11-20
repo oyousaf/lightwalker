@@ -13,6 +13,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Core/LWSound.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPlayerController.h"
@@ -111,7 +112,11 @@ UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TF
 	}
 
 	ULWClickRelay* Relay = NewObject<ULWClickRelay>(this);
-	Relay->Callback = MoveTemp(OnClick);
+	Relay->Callback = [this, Click = MoveTemp(OnClick)]()
+	{
+		ULWSoundSubsystem::Play(this, ELWSound::UISelect);
+		Click();
+	};
 	Button->OnClicked.AddDynamic(Relay, &ULWClickRelay::HandleClicked);
 	Relays.Add(Relay);
 
@@ -220,6 +225,7 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
 	// One highlight at a time: hovering with the mouse moves focus, so mouse and gamepad never disagree.
+	UWidget* Focused = nullptr;
 	for (const FFocusable& Item : Focusables)
 	{
 		UWidget* Widget = Item.Widget.Get();
@@ -233,6 +239,10 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 		}
 
 		const bool bActive = Widget->HasKeyboardFocus() || Widget->HasAnyUserFocus();
+		if (bActive)
+		{
+			Focused = Widget;
+		}
 		if (UButton* Button = Item.Button.Get())
 		{
 			Button->SetBackgroundColor(bActive ? MenuActiveFill : MenuIdleFill);
@@ -241,6 +251,15 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 		{
 			Label->SetColorAndOpacity(FSlateColor(bActive ? MenuWarm : MenuMuted));
 		}
+	}
+
+	if (Focused && LastFocused.IsValid() && Focused != LastFocused.Get())
+	{
+		ULWSoundSubsystem::Play(this, ELWSound::UIMove);
+	}
+	if (Focused)
+	{
+		LastFocused = Focused;
 	}
 }
 

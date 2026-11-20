@@ -79,6 +79,7 @@ private:
 		TWeakObjectPtr<UTextBlock> Label;
 	};
 	TArray<FFocusable> Focusables;
+	TWeakObjectPtr<UWidget> LastFocused;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> Relays;
