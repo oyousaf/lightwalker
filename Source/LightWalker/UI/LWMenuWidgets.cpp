@@ -8,9 +8,6 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
-#include "Components/Image.h"
-#include "Brushes/SlateImageBrush.h"
-#include "Misc/Paths.h"
 #include "Components/SizeBox.h"
 #include "Components/Slider.h"
 #include "Components/TextBlock.h"
@@ -252,9 +249,9 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 namespace
 {
-	// Seconds: the engine credit fades in and out, then the title does, then the menu takes over.
-	constexpr float EngineIn = 0.4f, EngineHold = 2.2f, EngineOut = 2.9f;
-	constexpr float TitleIn = 3.3f, TitleHold = 5.3f, TitleOut = 6.1f;
+	// Seconds. The engine credit is Epic's animated logo, played as a startup movie before this (DefaultGame.ini),
+	// so the intro is just the title rising out of black, then the menu takes over.
+	constexpr float TitleIn = 0.3f, TitleHold = 2.6f, TitleOut = 3.4f;
 
 	float FadeWindow(float Time, float In, float Hold, float Out, float FadeTime = 0.6f)
 	{
@@ -277,30 +274,11 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 	Backdrop = Black;
 
 	UVerticalBox* Centre = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1400.f);
-
-	// The official Unreal Engine emblem, as shipped with the engine (Engine/Content/Slate is staged with
-	// packaged games), shown unaltered: original colours and proportions, with clear space around it.
-	UImage* Logo = WidgetTree->ConstructWidget<UImage>();
-	Logo->SetBrush(FSlateVectorImageBrush(FPaths::EngineContentDir() / TEXT("Slate/Starship/Common/UELogo.svg"), FVector2f(180.f, 180.f)));
-	Logo->SetRenderOpacity(0.f);
-	if (UVerticalBoxSlot* LogoSlot = Centre->AddChildToVerticalBox(Logo))
-	{
-		LogoSlot->SetHorizontalAlignment(HAlign_Center);
-		LogoSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 36.f));
-	}
-	EngineLogo = Logo;
-
-	EngineLine = MakeText(TEXT("POWERED BY"), 22, Muted, 400);
-	EngineName = MakeText(TEXT("UNREAL ENGINE 5"), 54, FLinearColor::White, 250);
 	Title = MakeText(TEXT("LIGHTWALKER"), 110, Glow, 300);
-	for (UTextBlock* Text : { EngineLine.Get(), EngineName.Get(), Title.Get() })
+	Title->SetRenderOpacity(0.f);
+	if (UVerticalBoxSlot* PanelSlot = Centre->AddChildToVerticalBox(Title))
 	{
-		Text->SetRenderOpacity(0.f);
-		if (UVerticalBoxSlot* PanelSlot = Centre->AddChildToVerticalBox(Text))
-		{
-			PanelSlot->SetHorizontalAlignment(HAlign_Center);
-			PanelSlot->SetPadding(FMargin(0.f, 4.f));
-		}
+		PanelSlot->SetHorizontalAlignment(HAlign_Center);
 	}
 }
 
@@ -309,17 +287,9 @@ void ULWIntroScreen::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
 	Time += InDeltaTime;
-	const float Engine = FadeWindow(Time, EngineIn, EngineHold, EngineOut);
-	EngineLogo->SetRenderOpacity(Engine);
-	EngineLine->SetRenderOpacity(Engine);
-	EngineName->SetRenderOpacity(Engine);
-	EngineLogo->SetVisibility(Time < EngineOut ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 
 	// The title shows over the arena: the black backdrop lifts as it fades in.
 	Title->SetRenderOpacity(FadeWindow(Time, TitleIn, TitleHold, TitleOut, 1.f));
-	Title->SetVisibility(Time >= TitleIn ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-	EngineLine->SetVisibility(Time < EngineOut ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-	EngineName->SetVisibility(Time < EngineOut ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	Backdrop->SetRenderOpacity(1.f - FMath::Clamp((Time - TitleIn) / 2.f, 0.f, 1.f));
 
 	if (Time >= TitleOut)
@@ -454,6 +424,18 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		Refresh();
 	});
 
+	FrameRateButton = AddButton(Column, TEXT("FRAME RATE"), [this]()
+	{
+		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
+		{
+			const TArray<float> Options = ULightWalkerUserSettings::GetFrameRateOptions();
+			const int32 Current = Options.IndexOfByPredicate([S](float Rate) { return FMath::IsNearlyEqual(Rate, S->GetFrameRateLimit()); });
+			S->SetFrameRateLimit(Options[(Current + 1) % Options.Num()]);
+			S->ApplyNonResolutionSettings();
+			Refresh();
+		}
+	});
+
 	VSyncButton = AddButton(Column, TEXT("V-SYNC"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
@@ -503,6 +485,8 @@ void ULWSettingsMenu::Refresh()
 	SetButtonLabel(QualityButton, FString::Printf(TEXT("GRAPHICS: %s"), *QualityName(S->GetOverallScalabilityLevel())));
 	SetButtonLabel(WindowButton, FString::Printf(TEXT("DISPLAY: %s"), *WindowName(S->GetFullscreenMode())));
 	SetButtonLabel(ResolutionButton, FString::Printf(TEXT("RESOLUTION: %d x %d"), Resolution.X, Resolution.Y));
+	const float FrameRate = S->GetFrameRateLimit();
+	SetButtonLabel(FrameRateButton, FrameRate > 0.f ? FString::Printf(TEXT("FRAME RATE: %d FPS"), FMath::RoundToInt(FrameRate)) : FString(TEXT("FRAME RATE: UNLIMITED")));
 	SetButtonLabel(VSyncButton, FString::Printf(TEXT("V-SYNC: %s"), S->IsVSyncEnabled() ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(VibrationButton, FString::Printf(TEXT("VIBRATION: %s"), S->bVibration ? TEXT("ON") : TEXT("OFF")));
 }
