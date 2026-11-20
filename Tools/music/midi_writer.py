@@ -35,8 +35,11 @@ def var_len(value):
     return bytes(out)
 
 
-def track_chunk(name, events, channel):
+def track_chunk(name, events, channel, program=None):
+    """program: a General MIDI instrument (0-127), or on the drum channel a kit (e.g. 25 = TR-808 in GS banks)."""
     messages = []
+    if program is not None:
+        messages.append((0, 0, bytes([0xC0 | channel, program])))
     for tick, length, pitch, velocity in events:
         messages.append((tick, 1, bytes([0x90 | channel, pitch, velocity])))
         messages.append((tick + max(length, 1), 0, bytes([0x80 | channel, pitch, 0])))
