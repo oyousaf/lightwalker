@@ -20,11 +20,11 @@
 
 namespace
 {
-	const FLinearColor Glow(0.55f, 0.95f, 1.f);
-	const FLinearColor Muted(0.5f, 0.62f, 0.75f);
-	const FLinearColor Warm(1.f, 0.88f, 0.6f);
-	const FLinearColor IdleFill(0.f, 0.02f, 0.05f, 0.45f);
-	const FLinearColor ActiveFill(0.1f, 0.75f, 0.8f, 0.35f);
+	const FLinearColor MenuGlow(0.55f, 0.95f, 1.f);
+	const FLinearColor MenuMuted(0.5f, 0.62f, 0.75f);
+	const FLinearColor MenuWarm(1.f, 0.88f, 0.6f);
+	const FLinearColor MenuIdleFill(0.f, 0.02f, 0.05f, 0.45f);
+	const FLinearColor MenuActiveFill(0.1f, 0.75f, 0.8f, 0.35f);
 
 	FButtonStyle MakeButtonStyle()
 	{
@@ -101,9 +101,9 @@ UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TF
 {
 	UButton* Button = WidgetTree->ConstructWidget<UButton>();
 	Button->SetStyle(MakeButtonStyle());
-	Button->SetBackgroundColor(IdleFill);
+	Button->SetBackgroundColor(MenuIdleFill);
 
-	UTextBlock* Text = MakeText(Label, 22, Muted, 120);
+	UTextBlock* Text = MakeText(Label, 22, MenuMuted, 120);
 	if (UButtonSlot* PanelSlot = Cast<UButtonSlot>(Button->AddChild(Text)))
 	{
 		PanelSlot->SetPadding(FMargin(28.f, 12.f));
@@ -130,7 +130,7 @@ void ULWMenuWidget::AddSlider(UPanelWidget* Parent, const FString& Label, float 
 {
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
 
-	UTextBlock* Text = MakeText(Label, 20, Muted, 120);
+	UTextBlock* Text = MakeText(Label, 20, MenuMuted, 120);
 	Text->SetJustification(ETextJustify::Left);
 	if (UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(Text))
 	{
@@ -143,7 +143,7 @@ void ULWMenuWidget::AddSlider(UPanelWidget* Parent, const FString& Label, float 
 	Slider->SetValue(Value);
 	Slider->SetStepSize(0.05f);
 	Slider->SetSliderBarColor(FLinearColor(0.2f, 0.3f, 0.4f));
-	Slider->SetSliderHandleColor(Glow);
+	Slider->SetSliderHandleColor(MenuGlow);
 	USizeBox* SliderBox = WidgetTree->ConstructWidget<USizeBox>();
 	SliderBox->SetWidthOverride(300.f);
 	SliderBox->AddChild(Slider);
@@ -235,11 +235,11 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 		const bool bActive = Widget->HasKeyboardFocus() || Widget->HasAnyUserFocus();
 		if (UButton* Button = Item.Button.Get())
 		{
-			Button->SetBackgroundColor(bActive ? ActiveFill : IdleFill);
+			Button->SetBackgroundColor(bActive ? MenuActiveFill : MenuIdleFill);
 		}
 		if (UTextBlock* Label = Item.Label.Get())
 		{
-			Label->SetColorAndOpacity(FSlateColor(bActive ? Warm : Muted));
+			Label->SetColorAndOpacity(FSlateColor(bActive ? MenuWarm : MenuMuted));
 		}
 	}
 }
@@ -274,7 +274,7 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 	Backdrop = Black;
 
 	UVerticalBox* Centre = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1400.f);
-	Title = MakeText(TEXT("LIGHTWALKER"), 110, Glow, 300);
+	Title = MakeText(TEXT("LIGHTWALKER"), 110, MenuGlow, 300);
 	Title->SetRenderOpacity(0.f);
 	if (UVerticalBoxSlot* PanelSlot = Centre->AddChildToVerticalBox(Title))
 	{
@@ -328,8 +328,8 @@ FReply ULWIntroScreen::NativeOnMouseButtonDown(const FGeometry& InGeometry, cons
 void ULWMainMenu::Build(UCanvasPanel* Root)
 {
 	UVerticalBox* Header = AddColumn(Root, FVector2D(0.5f, 0.f), FVector2D(0.5f, 0.f), 1400.f, FVector2D(0.f, 70.f));
-	Header->AddChildToVerticalBox(MakeText(TEXT("LIGHTWALKER"), 96, Glow, 300));
-	Header->AddChildToVerticalBox(MakeText(TEXT("CARRY THE LIGHT"), 20, Muted, 600));
+	Header->AddChildToVerticalBox(MakeText(TEXT("LIGHTWALKER"), 96, MenuGlow, 300));
+	Header->AddChildToVerticalBox(MakeText(TEXT("CARRY THE LIGHT"), 20, MenuMuted, 600));
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
@@ -346,7 +346,7 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	RefreshHeroLabel();
 
 	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -36.f));
-	Footer->AddChildToVerticalBox(MakeText(TEXT("ENTER / A  SELECT       ESC / B  BACK"), 16, Muted, 200));
+	Footer->AddChildToVerticalBox(MakeText(TEXT("ENTER / A  SELECT       ESC / B  BACK"), 16, MenuMuted, 200));
 }
 
 void ULWMainMenu::RefreshHeroLabel()
@@ -363,7 +363,7 @@ void ULWPauseMenu::Build(UCanvasPanel* Root)
 	AddVeil(Root, 0.6f);
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 440.f);
-	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeText(TEXT("PAUSED"), 56, Glow, 300)))
+	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeText(TEXT("PAUSED"), 56, MenuGlow, 300)))
 	{
 		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 24.f));
 	}
@@ -382,7 +382,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 
 	ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 680.f);
-	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeText(TEXT("SETTINGS"), 48, Glow, 300)))
+	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeText(TEXT("SETTINGS"), 48, MenuGlow, 300)))
 	{
 		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 18.f));
 	}

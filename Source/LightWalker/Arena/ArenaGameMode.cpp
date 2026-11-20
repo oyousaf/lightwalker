@@ -1,6 +1,7 @@
 #include "Arena/ArenaGameMode.h"
 
 #include "Arena/Arena.h"
+#include "Core/LWMusicSubsystem.h"
 #include "Core/LightWalkerGameInstance.h"
 #include "Enemies/Dajjal.h"
 #include "Enemies/Shaytaan.h"
@@ -202,6 +203,10 @@ void AArenaGameMode::EnterMenu(bool bInstantCamera)
 
 	SpawnLurkers();
 	SetPhase(EArenaPhase::Menu, 0.f, nullptr);
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->PlayMenu();
+	}
 }
 
 void AArenaGameMode::SpawnLurkers()
@@ -260,6 +265,10 @@ void AArenaGameMode::StartRun()
 		LightWalker->ClearPowerUps();
 		LightWalker->SetFrozen(false);
 	}
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->PlayCombat();
+	}
 	WaveIndex = 0;
 
 #if !UE_BUILD_SHIPPING
@@ -301,6 +310,10 @@ void AArenaGameMode::BeginWaveIntro()
 
 	bBookDroppedThisWave = false;
 	SpawnWave(Waves[WaveIndex]);
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->SetCombatWave(WaveIndex + 1);
+	}
 	SetPhase(EArenaPhase::WaveIntro, WaveIntroDuration, &AArenaGameMode::BeginFighting);
 }
 
@@ -444,9 +457,17 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 	{
 		SetEnemiesActive(false);
 		SetPhase(EArenaPhase::GameOver, 0.f, nullptr);
+		if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+		{
+			Music->PlaySting(ELWSting::GameOver);
+		}
 		return;
 	}
 
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->DuckCombat(RespawnDelay);
+	}
 	SetPhase(EArenaPhase::PlayerDown, RespawnDelay, &AArenaGameMode::RespawnLightWalker);
 }
 
@@ -504,6 +525,10 @@ void AArenaGameMode::FinishWave()
 		LightWalker->SetDowned(true);
 	}
 	ClearField();
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->PlaySting(ELWSting::WaveCleared);
+	}
 	SetPhase(EArenaPhase::WaveCleared, WaveClearedDuration, &AArenaGameMode::AdvanceWave);
 }
 
@@ -517,6 +542,10 @@ void AArenaGameMode::AdvanceWave()
 	else
 	{
 		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+		if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+		{
+			Music->StopAll(3.f);
+		}
 	}
 }
 
