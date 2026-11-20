@@ -1,0 +1,81 @@
+# Combat theme (UK drill): FL Studio session sheet
+
+A dark UK drill instrumental for the waves.
+
+- **Tempo:** 142 BPM in half-time. The snare lands on beat 3, so it feels heavy rather than fast.
+- **Key:** C# minor, harmonic (the G# chord is major, which gives it that eerie pull).
+- **Chords:** C#m | A | F#m | G#, repeating.
+- **Length:** a 32-bar loop, about 54 s, in sections A, A′, B, B′. The B sections lift the melody and strings an octave.
+- **Rough preview:** `CombatTheme_Preview.wav` uses crude built-in synths. It's only there to judge the groove and melody.
+
+The MIDI comes from `Tools/music/compose_combat_theme.py`. If you change the notes there and re-run it, the files update.
+
+## How the game uses it
+
+Each part is a separate stem. All the stems are exactly the same length, so they stay in sync, and the game layers them up as the waves get harder:
+
+| Waves | Stems playing |
+|---|---|
+| 1–3 | 1 Strings, 2 Melody |
+| 4–7 | + 3 808 |
+| 8–11 | + 4 Drums |
+| 12–15 | + 5 Counter, 6 HatRolls |
+
+Each stem needs to sound right on its own and with the others. Keep the reverb and delay tails inside each stem's own channel.
+
+## 1. Set up
+
+1. Start a new FL Studio project and set the tempo to **142**.
+2. Go to **File → Import → MIDI file** and choose `CombatTheme_AllParts.mid`, keeping tracks separate.
+   - Drums and HatRolls both use the drum channel. Put them on **two separate FPC channels**, because they're separate stems. You can also drag `4_Drums.mid` and `6_HatRolls.mid` in one at a time.
+3. Replace each channel's default instrument with the one in the table below, then browse its presets by ear.
+
+## 2. Instruments
+
+| Stem | Plugin | Sound to aim for |
+|---|---|---|
+| **1 Strings** | Harmless or Sakura (strings or dark pad) | Eerie, sustained and low, with a slow attack. In drill these sit in the background like a horror film score. |
+| **2 Melody** | FL Keys (piano), or a Sytrus or Harmor bell | A dark plucked piano or bell. This is the hook, so it should be clear but cold. |
+| **3 808** | FLEX (808 presets), or a sampler with an 808 from the **Drums** pack | A long, distorted 808. **Turn on Porta** (the portamento switch in the channel settings) so the overlapping notes slide. That glide is the signature drill sound. Slide time about 60–90 ms. Keep it mono. |
+| **4 Drums** | FPC with a drill or trap kit from the **Drums** pack | A hard, dry kick, a crisp snare, and tight hats with **short decay**. The notes follow the General MIDI layout, which FPC's default pads match: 36 kick, 37 rim, 38 snare, 42 hat, 46 open hat, 49 crash. |
+| **5 Counter** | Sytrus or Harmor (glassy bell or music box) | High and sparse. It answers the melody. |
+| **6 HatRolls** | A second FPC with the same hats as the Drums stem | The triplet rolls and stutters on top. Pan them slightly off centre to separate them from the main hats. |
+
+## 3. Effects and mix
+
+- **808:**
+  - Fruity Blood Overdrive or Fruity Fast Dist for grit.
+  - Fruity Limiter on the channel to keep it steady.
+  - Cut everything above about 4 kHz if it gets buzzy.
+- **Melody:**
+  - Fruity Reeverb 2, large and dark, about 25%.
+  - Fruity Delay 3, 1/4 note, about 15%.
+- **Strings:** heavy reverb and a low-pass around 6 kHz. They should sit behind everything.
+- **Drums:** no reverb on the kick or 808. A touch of room on the snare.
+- **Sidechain the 808 to the kick** (Fruity Limiter in compressor mode, or Fruity Peak Controller) so they don't fight.
+- **Master:**
+  - Fruity Limiter, ceiling **−1 dB**.
+  - Check each stem solo as well as together.
+
+## 4. Export (what the game needs)
+
+Export as WAV, **48 kHz, 24-bit**, bars 1 to the end of bar 32, cut exactly on the bar lines. Use **Tail: "Wrap remainder"** so each stem loops seamlessly. Save to `SourceArt/Music/CombatTheme/Export/`.
+
+To export every stem at once:
+1. Route each instrument to its own mixer track.
+2. In the export window, tick **"Split mixer tracks"**.
+3. Rename the results:
+   - `Combat_1_Strings.wav`
+   - `Combat_2_Melody.wav`
+   - `Combat_3_808.wav`
+   - `Combat_4_Drums.wav`
+   - `Combat_5_Counter.wav`
+   - `Combat_6_HatRolls.wav`
+
+**Stings** (one-shots, no loop, let the tails ring out):
+- `Sting_WaveCleared.mid`: a rising bell arpeggio that resolves on E major. Use the Melody's bell or piano sound. Export it as `Sting_WaveCleared.wav`.
+- `Sting_GameOver.mid`: a slow fall onto a low C#, with an 808 drop beneath it. Use the piano and 808. Export it as `Sting_GameOver.wav`.
+
+Save the FL project as `SourceArt/Music/CombatTheme/CombatTheme.flp`.
+
+Then tell Claude. The game layers the stems by wave, plays the stings, and runs everything through the Music volume slider.
