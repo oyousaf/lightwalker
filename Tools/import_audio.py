@@ -1,10 +1,11 @@
 """
-Imports the music WAVs into the project, where ULWMusicSubsystem looks for them:
+Imports the music and sound effect WAVs into the project, where ULWMusicSubsystem and LWSound look for them:
 
   SourceArt/Music/MenuTheme/Export/*.wav    ->  /Game/Audio/Music/Menu/
   SourceArt/Music/CombatTheme/Export/*.wav  ->  /Game/Audio/Music/Combat/
+  SourceArt/Audio/SFX/*.wav                 ->  /Game/Audio/SFX/
 
-Loops and stems are marked as looping; stings play once. Re-running replaces the previous import, so dropping an
+Music loops and stems are marked as looping; stings and sound effects play once. Re-running replaces the previous import, so dropping an
 FL Studio export over a placeholder of the same name and running this again swaps it in.
 
 Run headless with the editor closed:
@@ -17,15 +18,17 @@ import os
 import unreal
 
 PROJECT_DIR = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir())
+# Folder -> (destination, whether its sounds are music that may loop)
 SOURCES = {
-    os.path.join(PROJECT_DIR, "SourceArt", "Music", "MenuTheme", "Export"): "/Game/Audio/Music/Menu",
-    os.path.join(PROJECT_DIR, "SourceArt", "Music", "CombatTheme", "Export"): "/Game/Audio/Music/Combat",
+    os.path.join(PROJECT_DIR, "SourceArt", "Music", "MenuTheme", "Export"): ("/Game/Audio/Music/Menu", True),
+    os.path.join(PROJECT_DIR, "SourceArt", "Music", "CombatTheme", "Export"): ("/Game/Audio/Music/Combat", True),
+    os.path.join(PROJECT_DIR, "SourceArt", "Audio", "SFX"): ("/Game/Audio/SFX", False),
 }
 
 assets = unreal.EditorAssetLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 
-for folder, destination in SOURCES.items():
+for folder, (destination, is_music) in SOURCES.items():
     files = sorted(glob.glob(os.path.join(folder, "*.wav")))
     if not files:
         unreal.log_warning(f"[LW] No WAVs in {folder}")
@@ -52,9 +55,10 @@ for folder, destination in SOURCES.items():
         if not isinstance(sound, unreal.SoundWave):
             unreal.log_error(f"[LW] {asset_path} didn't import as a sound")
             continue
-        looping = not task.destination_name.startswith("Sting_") and not task.destination_name.endswith("_Intro")
+        looping = is_music and not task.destination_name.startswith("Sting_") and not task.destination_name.endswith("_Intro")
         sound.set_editor_property("looping", looping)
-        # Silent stems must keep playing (not be virtualised and restarted), or they'd drift out of sync.
-        sound.set_editor_property("virtualization_mode", unreal.VirtualizationMode.PLAY_WHEN_SILENT)
+        if is_music:
+            # Silent stems must keep playing (not be virtualised and restarted), or they'd drift out of sync.
+            sound.set_editor_property("virtualization_mode", unreal.VirtualizationMode.PLAY_WHEN_SILENT)
         assets.save_asset(asset_path, only_if_is_dirty=False)
         unreal.log(f"[LW] {asset_path} ({sound.get_editor_property('duration'):.2f} s{', looping' if looping else ''})")

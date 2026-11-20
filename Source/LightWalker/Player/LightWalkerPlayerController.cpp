@@ -8,6 +8,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
+#include "Core/LWSound.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPawn.h"
@@ -372,6 +373,7 @@ void ALightWalkerPlayerController::ShowMainMenu()
 
 void ALightWalkerPlayerController::StartGameFromMenu()
 {
+	ULWSoundSubsystem::Play(this, ELWSound::UIPlay);
 	ShowMenu(nullptr);
 	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
 	{
