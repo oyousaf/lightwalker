@@ -53,6 +53,9 @@ public:
 	void SetMoveSpeed(float InMoveSpeed) { MoveSpeed = InMoveSpeed; }
 	float GetMoveSpeed() const { return MoveSpeed; }
 
+	/** Changes how brightly the imported model glows (lurkers in the menu are dimmed). */
+	void SetModelGlow(float Glow);
+
 	/** Shot by a laser: flashes and loses a hit point, and dies on the last one. */
 	void TakeHit();
 

@@ -127,7 +127,34 @@ void AArenaGameMode::StartPlay()
 		return;
 	}
 
-	StartRun();
+	// Launch into the intro and main menu. Dev runs that ask for a wave skip straight to it.
+	bool bSkipMenu = false;
+#if !UE_BUILD_SHIPPING
+	int32 RequestedWave = 0;
+	bSkipMenu = FParse::Value(FCommandLine::Get(), TEXT("LWStartWave="), RequestedWave);
+#endif
+	if (bSkipMenu)
+	{
+		StartRun();
+	}
+	else
+	{
+		EnterMenu(true);
+		if (ALightWalkerPlayerController* Controller = Cast<ALightWalkerPlayerController>(World->GetFirstPlayerController()))
+		{
+#if !UE_BUILD_SHIPPING
+			// -LWMenu skips the intro (for screenshots of the menu).
+			if (FParse::Param(FCommandLine::Get(), TEXT("LWMenu")))
+			{
+				Controller->ShowMainMenu();
+			}
+			else
+#endif
+			{
+				Controller->ShowIntro();
+			}
+		}
+	}
 
 #if !UE_BUILD_SHIPPING
 	if (FParse::Value(FCommandLine::Get(), TEXT("LWShots="), DevShotsRemaining) && DevShotsRemaining > 0)
@@ -147,18 +174,91 @@ void AArenaGameMode::TakeDevScreenshot()
 	}
 	if (APlayerController* Controller = GetWorld()->GetFirstPlayerController())
 	{
-		Controller->ConsoleCommand(FString::Printf(TEXT("HighResShot 2 filename=LWShot_%d"), ++DevShotIndex));
+		// HighResShot renders the scene only; the menu needs a normal screenshot with the UI.
+		if (Phase == EArenaPhase::Menu)
+		{
+			FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("LWShot_%d"), ++DevShotIndex), true, false);
+		}
+		else
+		{
+			Controller->ConsoleCommand(FString::Printf(TEXT("HighResShot 2 filename=LWShot_%d"), ++DevShotIndex));
+		}
 	}
 }
 #endif
+
+void AArenaGameMode::EnterMenu(bool bInstantCamera)
+{
+	GetWorldTimerManager().ClearTimer(PhaseTimer);
+	ClearField();
+	Arena->SetMenuView(true, bInstantCamera);
+
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->ClearPowerUps();
+		LightWalker->Revive(Arena->GetCentre(), 0.f);
+		LightWalker->SetFrozen(true);
+	}
+
+	SpawnLurkers();
+	SetPhase(EArenaPhase::Menu, 0.f, nullptr);
+}
+
+void AArenaGameMode::SpawnLurkers()
+{
+	// Shapes in the dark beyond Lightwalker's light, all turned to watch him. They never move or attack.
+	UWorld* World = GetWorld();
+	ALightWalkerPawn* LightWalker = GetLightWalker();
+	const FVector Centre = Arena->GetCentre() + FVector(0.f, 0.f, PlaneHeight);
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	auto Lurk = [&](TSubclassOf<AEnemyBase> Class, float Yaw, float Distance, float Glow)
+	{
+		const FVector Location = Centre + FRotator(0.f, Yaw, 0.f).RotateVector(FVector(Distance, 0.f, 0.f));
+		if (AEnemyBase* Enemy = Class ? World->SpawnActor<AEnemyBase>(Class, Location, FRotator::ZeroRotator, Params) : nullptr)
+		{
+			Enemy->InitEnemy(LightWalker, Arena->GetPlayBounds(50.f), 0.f);
+			Enemy->SetModelGlow(Glow);
+			Enemies.Add(Enemy);
+		}
+	};
+
+	// Camera looks along +X, so these sit behind and beside Lightwalker, at the edge of the light.
+	// Staggered in depth so they read as a crowd closing in rather than a line-up.
+	static const FVector2D Spots[] = {
+		{ -40.f, 1000.f }, { -24.f, 760.f }, { -8.f, 900.f }, { 6.f, 1000.f }, { 20.f, 760.f },
+		{ 40.f, 640.f }, { 56.f, 900.f }, { -30.f, 1180.f }, { 30.f, 1180.f } };
+	for (const FVector2D& Spot : Spots)
+	{
+		Lurk(ShaytaanClass, Spot.X + FMath::FRandRange(-3.f, 3.f), Spot.Y + FMath::FRandRange(-30.f, 30.f), 0.08f);
+	}
+}
+
+void AArenaGameMode::StartFromMenu()
+{
+	if (Phase != EArenaPhase::Menu)
+	{
+		return;
+	}
+	Arena->SetMenuView(false);
+	StartRun();
+}
+
+void AArenaGameMode::ReturnToMenu()
+{
+	EnterMenu(false);
+}
 
 void AArenaGameMode::StartRun()
 {
 	ClearField();
 	GetRun()->StartRun(StartingLives);
+	Arena->SetMenuView(false);
 	if (ALightWalkerPawn* LightWalker = GetLightWalker())
 	{
 		LightWalker->ClearPowerUps();
+		LightWalker->SetFrozen(false);
 	}
 	WaveIndex = 0;
 

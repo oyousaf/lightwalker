@@ -51,6 +51,13 @@ public:
 	bool IsVulnerable() const { return !bDowned && GraceRemaining <= 0.f; }
 	float GetContactRadius() const { return ContactRadius; }
 
+	/** Menu pose: stands still facing the camera and ignores input. */
+	void SetFrozen(bool bInFrozen);
+
+	/** 0 = male, 1 = female. Keeps the current look if that hero's model hasn't been imported. */
+	void SetHero(int32 Index);
+	bool HasHeroModel(int32 Index) const;
+
 	/** Walked over a pickup: starts a power-up, raises the shield, or reads the book. */
 	void CollectPickup(EPickupType Type);
 
@@ -112,6 +119,10 @@ protected:
 	 */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	FSoftObjectPath ModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_Lightwalker.SM_Lightwalker"));
+
+	/** The female hero (SourceArt/Models/lightwalker_female.glb). */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	FSoftObjectPath FemaleModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_LightwalkerFemale.SM_LightwalkerFemale"));
 
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	float ModelHeight = 165.f;
@@ -194,7 +205,8 @@ protected:
 private:
 	void Fire(const FVector& Direction);
 	void UpdatePowerUps(float DeltaSeconds);
-	void TryUseModel();
+	bool UseModel(const FSoftObjectPath& Path);
+	bool bFrozen = false;
 	void UpdateModelStride(bool bMoving, float DeltaSeconds);
 
 	FVector ModelOffset = FVector::ZeroVector;

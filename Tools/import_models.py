@@ -4,6 +4,7 @@ Imports the AI-generated models from SourceArt/Models into the project.
   SourceArt/Models/shaytaan.glb     ->  /Game/Enemies/SM_Shaytaan  (plus its materials and textures)
   SourceArt/Models/dajjal.glb       ->  /Game/Enemies/SM_Dajjal
   SourceArt/Models/lightwalker.glb  ->  /Game/Hero/SM_Lightwalker
+  SourceArt/Models/lightwalker_female.glb  ->  /Game/Hero/SM_LightwalkerFemale
 
 .glb, .gltf and .fbx all work. Re-running replaces the previous import. A model that is missing is skipped,
 and the game keeps its placeholder shapes.
@@ -25,6 +26,7 @@ MODELS = {
     "shaytaan": ("/Game/Enemies", "SM_Shaytaan"),
     "dajjal": ("/Game/Enemies", "SM_Dajjal"),
     "lightwalker": ("/Game/Hero", "SM_Lightwalker"),
+    "lightwalker_female": ("/Game/Hero", "SM_LightwalkerFemale"),
 }
 
 GLOW_MATERIAL = "/Game/Materials/M_ModelGlow"
