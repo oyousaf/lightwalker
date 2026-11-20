@@ -104,6 +104,9 @@ protected:
 
 private:
 	UPROPERTY(Transient)
+	TObjectPtr<UWidget> EngineLogo;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> EngineLine;
 
 	UPROPERTY(Transient)
