@@ -13,12 +13,13 @@ Output: SourceArt/Music/MenuTheme/*.mid
 """
 
 import os
-import struct
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+from midi_writer import BAR, PPQ, STEP, note, track_chunk, write  # noqa: E402
+from midi_writer import CLAP, CRASH, HAT, KICK, OPEN_HAT, SNARE, TOM_HIGH, TOM_LOW, TOM_MID  # noqa: E402
 
 TEMPO_BPM = 132
-PPQ = 480
-STEP = PPQ // 4          # one 16th note
-BAR = STEP * 16
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "SourceArt", "Music", "MenuTheme")
 
@@ -65,12 +66,6 @@ LEAD_B = [
     [("G#5", 0, 2), ("B5", 2, 2), ("E6", 4, 2), ("G#6", 6, 2), ("B6", 8, 4), ("G#6", 12, 2), ("E6", 14, 2)],
 ]
 
-NOTE_INDEX = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
-
-
-def note(name):
-    pitch, octave = name[:-1], int(name[-1])
-    return 12 * (octave + 1) + NOTE_INDEX[pitch]
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -133,9 +128,6 @@ def arp():
     return events
 
 
-KICK, SNARE, CLAP, HAT, OPEN_HAT, CRASH, TOM_LOW, TOM_MID, TOM_HIGH = 36, 38, 39, 42, 46, 49, 45, 47, 50
-
-
 def drums():
     events = []
     section_starts = {len(INTRO), len(INTRO) + 8, len(INTRO) + 16}
@@ -181,52 +173,7 @@ def drums():
     return events
 
 
-# ---------------------------------------------------------------------------------------------------------------
-# Minimal Standard MIDI File writer (type 1, no dependencies)
-
-def var_len(value):
-    out = bytearray([value & 0x7F])
-    value >>= 7
-    while value:
-        out.insert(0, (value & 0x7F) | 0x80)
-        value >>= 7
-    return bytes(out)
-
-
-def track_chunk(name, events, channel):
-    messages = []
-    for tick, length, pitch, velocity in events:
-        messages.append((tick, 1, bytes([0x90 | channel, pitch, velocity])))
-        messages.append((tick + max(length, 1), 0, bytes([0x80 | channel, pitch, 0])))
-    messages.sort(key=lambda m: (m[0], m[1]))
-
-    data = bytearray()
-    data += var_len(0) + b"\xFF\x03" + var_len(len(name)) + name.encode()
-    last = 0
-    for tick, _, message in messages:
-        data += var_len(tick - last) + message
-        last = tick
-    data += var_len(0) + b"\xFF\x2F\x00"
-    return b"MTrk" + struct.pack(">I", len(data)) + data
-
-
-def tempo_chunk():
-    microseconds = 60_000_000 // TEMPO_BPM
-    data = bytearray()
-    data += var_len(0) + b"\xFF\x51\x03" + microseconds.to_bytes(3, "big")
-    data += var_len(0) + b"\xFF\x58\x04\x04\x02\x18\x08"  # 4/4
-    loop_tick = len(INTRO) * BAR
-    data += var_len(loop_tick) + b"\xFF\x06" + var_len(10) + b"Loop start"
-    data += var_len(len(SONG) * BAR - loop_tick) + b"\xFF\x06" + var_len(8) + b"Loop end"
-    data += var_len(0) + b"\xFF\x2F\x00"
-    return b"MTrk" + struct.pack(">I", len(data)) + data
-
-
-def write(path, tracks):
-    header = b"MThd" + struct.pack(">IHHH", 6, 1, len(tracks) + 1, PPQ)
-    with open(path, "wb") as file:
-        file.write(header + tempo_chunk() + b"".join(tracks))
-
+MARKERS = [(len(INTRO) * BAR, "Loop start"), (len(SONG) * BAR, "Loop end")]
 
 PARTS = [
     ("Lead", lead, 0),
@@ -242,7 +189,7 @@ if __name__ == "__main__":
     for index, (name, build, channel) in enumerate(PARTS, start=1):
         chunk = track_chunk(name, build(), channel)
         chunks.append(chunk)
-        write(os.path.join(OUT_DIR, f"{index}_{name}.mid"), [chunk])
-    write(os.path.join(OUT_DIR, "MenuTheme_AllParts.mid"), chunks)
+        write(os.path.join(OUT_DIR, f"{index}_{name}.mid"), TEMPO_BPM, [chunk], MARKERS)
+    write(os.path.join(OUT_DIR, "MenuTheme_AllParts.mid"), TEMPO_BPM, chunks, MARKERS)
     seconds = len(SONG) * 4 * 60 / TEMPO_BPM
     print(f"Wrote {len(PARTS)} parts + combined to {os.path.abspath(OUT_DIR)} ({len(SONG)} bars, {seconds:.1f} s)")
