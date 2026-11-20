@@ -84,7 +84,7 @@ private:
 	TArray<TObjectPtr<UObject>> Relays;
 };
 
-/** First thing on launch: "Powered by Unreal Engine 5", then the title, then it hands over to the main menu. */
+/** After Epic's logo movie: the title rises out of black over the arena, then hands over to the main menu. */
 UCLASS()
 class LIGHTWALKER_API ULWIntroScreen : public ULWMenuWidget
 {
@@ -103,15 +103,6 @@ protected:
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
 private:
-	UPROPERTY(Transient)
-	TObjectPtr<UWidget> EngineLogo;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EngineLine;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> EngineName;
-
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> Title;
 
@@ -170,6 +161,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> ResolutionButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> FrameRateButton;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> VSyncButton;

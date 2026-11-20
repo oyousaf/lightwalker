@@ -13,11 +13,12 @@ This is a game project, kept in `D:\Documents\Unreal Projects`, separate from th
 - **Structure:** Menu → Arena 1 → Path → Arena 2 → Shield → Boss, plus an Endless Arena with a leaderboard (standing in for the unfinished 2014 `get_score.php`).
 - **Look:** top-down neon: dark arena, emissive glow, bloom. Camera tilted about 50–60° rather than straight down. Third person was rejected (breaks the 360° swarm design and needs far more art).
 - **Devices:** scale with UE scalability settings, never by changing the camera.
+- **Frame rate:** 60 fps by default (with V-sync); players can pick 30, 120, 144 or unlimited in Settings. Gameplay is frame-rate independent.
 
 ## Milestones (each one playable)
 
 1. **Arena slice** (done in code): player, lasers, both enemy types, 15 waves (the two 2014 ones, then 13 that build on them), score, three lives, respawn, HUD. Dajjal take three shots.
-2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, menus, gamepad UX. Menus done 2026-11-20: intro (the official Unreal emblem from the engine's own `Engine/Content/Slate/Starship/Common/UELogo.svg`, unaltered, over "Powered by Unreal Engine 5"), main menu with Lightwalker in the dark arena, pause and settings. Still to do: control rebinding, and wiring the saved volumes and vibration once audio and rumble exist.
+2. **Polish:** lighting, Niagara effects, MetaSounds audio, camera shake, menus, gamepad UX. Menus done 2026-11-20: intro (Epic's official animated Unreal Engine logo as a startup movie, `Content/Movies/UE_Splash.mp4`, a 4K60 H.264 encode of their ProRes master, which stays out of the repo; then the title), main menu with Lightwalker in the dark arena, pause and settings. Still to do: control rebinding, and wiring the saved volumes and vibration once audio and rumble exist.
 3. **Hero and pickups** (agreed 2026-11-18; pickups, the hero model and the light-orb glide done 2026-11-19; rigging and a run animation still to do, with the long robe as a cloth layer):
    - A realistic Lightwalker model holding a light weapon (lantern-staff or light gauntlet), designed to read from above, rigged (e.g. Mixamo) for run and aim.
    - Timed power-ups dropped by killed enemies (dajjal 40%, shaytaan 3%): light orb (bigger light radius and bolts), spread shot, piercing beam, shield (blocks one hit).
