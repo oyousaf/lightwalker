@@ -3,6 +3,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
+#include "Effects/LWParticles.h"
 #include "Engine/StaticMesh.h"
 #include "Player/LightWalkerPawn.h"
 #include "UObject/ConstructorHelpers.h"
@@ -43,6 +44,9 @@ APickup::APickup()
 	Visual = CreateDefaultSubobject<USceneComponent>(TEXT("Visual"));
 	Visual->SetupAttachment(Root);
 	Visual->SetRelativeScale3D(FVector(1.5f));
+
+	Sparkles = CreateDefaultSubobject<ULWParticleComponent>(TEXT("Sparkles"));
+	Sparkles->SetupAttachment(Root);
 
 	Light = CreateDefaultSubobject<UPointLightComponent>(TEXT("Light"));
 	Light->SetupAttachment(Root);
@@ -85,6 +89,7 @@ void APickup::InitPickup(EPickupType InType, ALightWalkerPawn* InPlayer)
 	Player = InPlayer;
 
 	const FLinearColor Color = LWPickups::GetColor(Type);
+	Sparkles->Setup(SphereMesh, Color, 10.f);
 	Light->SetLightColor(Color);
 
 	// Basic shapes are 100 units across, centred on their pivot (the cone and cylinder run along +Z).
@@ -149,12 +154,30 @@ void APickup::Tick(float DeltaSeconds)
 	const float Left = Lifetime - Age;
 	const bool bVisible = Left > BlinkTime || FMath::Frac(Age * FMath::Lerp(10.f, 4.f, Left / BlinkTime)) > 0.35f;
 	Visual->SetVisibility(bVisible, true);
+
+	SparkleTimer -= DeltaSeconds;
+	if (SparkleTimer <= 0.f && bVisible)
+	{
+		SparkleTimer = Type == EPickupType::Book ? 0.06f : 0.14f;
+		FLWEmit Mote;
+		Mote.Count = 1;
+		Mote.Origin = GetActorLocation();
+		Mote.OriginRadius = 45.f;
+		Mote.Direction = FVector::UpVector;
+		Mote.Spread = 10.f;
+		Mote.Speed = FVector2D(50.f, 110.f);
+		Mote.Life = FVector2D(0.6f, 1.f);
+		Mote.Size = FVector2D(0.025f, 0.045f);
+		Mote.Drag = 0.5f;
+		Sparkles->Emit(Mote);
+	}
 	Light->SetVisibility(bVisible);
 
 	ALightWalkerPawn* LightWalker = Player.Get();
 	if (LightWalker && !LightWalker->IsDowned() &&
 		FVector::DistSquared2D(GetActorLocation(), LightWalker->GetActorLocation()) <= FMath::Square(CollectRadius))
 	{
+		LWFX::PickupCollect(GetWorld(), GetActorLocation(), LWPickups::GetColor(Type), Type == EPickupType::Book);
 		LightWalker->CollectPickup(Type);
 		Destroy();
 	}

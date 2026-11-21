@@ -3,6 +3,7 @@
 #include "Arena/Arena.h"
 #include "Core/LWMusicSubsystem.h"
 #include "Core/LWSound.h"
+#include "Effects/LWParticles.h"
 #include "Core/LightWalkerGameInstance.h"
 #include "Enemies/Dajjal.h"
 #include "Enemies/Shaytaan.h"
@@ -450,10 +451,12 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 	if (LightWalker->TryBlockHit())
 	{
 		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
+		LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
 		return;
 	}
 
 	ULWSoundSubsystem::Play(this, ELWSound::LifeLost);
+	LWFX::LifeLost(GetWorld(), LightWalker->GetActorLocation());
 
 	LightWalker->SetDowned(true);
 	LightWalker->ClearPowerUps();
@@ -482,6 +485,7 @@ void AArenaGameMode::RespawnLightWalker()
 	{
 		LightWalker->Revive(FindRespawnPoint(), RespawnGrace);
 		ULWSoundSubsystem::Play(this, ELWSound::Respawn);
+		LWFX::Respawn(GetWorld(), LightWalker->GetActorLocation());
 	}
 	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
 }

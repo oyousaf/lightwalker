@@ -5,6 +5,7 @@
 #include "Pickup.generated.h"
 
 class ALightWalkerPawn;
+class ULWParticleComponent;
 class UPointLightComponent;
 class USceneComponent;
 class UStaticMeshComponent;
@@ -63,6 +64,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<UPointLightComponent> Light;
 
+	/** Little motes drifting up off the pickup. */
+	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
+	TObjectPtr<ULWParticleComponent> Sparkles;
+
 	/** Seconds before it disappears. It blinks for the last BlinkTime of them. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float Lifetime = 10.f;
@@ -99,4 +104,5 @@ private:
 	TWeakObjectPtr<ALightWalkerPawn> Player;
 	EPickupType Type = EPickupType::LightOrb;
 	float Age = 0.f;
+	float SparkleTimer = 0.f;
 };

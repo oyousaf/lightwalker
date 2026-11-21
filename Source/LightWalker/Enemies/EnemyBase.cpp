@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
 #include "Core/LWSound.h"
+#include "Effects/LWParticles.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/World.h"
@@ -218,6 +219,11 @@ void AEnemyBase::SetModelGlow(float Glow)
 	}
 }
 
+void AEnemyBase::SpawnDeathEffect()
+{
+	LWFX::ShaytaanDeath(GetWorld(), GetActorLocation());
+}
+
 void AEnemyBase::TakeHit()
 {
 	if (bDead)
@@ -232,6 +238,7 @@ void AEnemyBase::TakeHit()
 	}
 	HitFlash = 1.f;
 	ULWSoundSubsystem::Play(this, ELWSound::DajjalHit);
+	LWFX::DajjalHit(GetWorld(), GetActorLocation());
 }
 
 void AEnemyBase::UpdateHitFlash(float DeltaSeconds)
@@ -259,6 +266,7 @@ void AEnemyBase::Kill()
 
 	bDead = true;
 	ULWSoundSubsystem::Play(this, DeathSound);
+	SpawnDeathEffect();
 	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
 	{
 		GameMode->HandleEnemyKilled(this);

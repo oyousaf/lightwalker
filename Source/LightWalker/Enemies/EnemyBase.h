@@ -125,6 +125,9 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<USceneComponent>> Placeholders;
 
+	/** The burst of light when shot dead (a red ember pop by default). */
+	virtual void SpawnDeathEffect();
+
 	/** Played when shot dead (set by each enemy type). */
 	ELWSound DeathSound = ELWSound::ShaytaanDeath;
 

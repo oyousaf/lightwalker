@@ -25,6 +25,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void UpdateMovement(float DeltaSeconds) override;
 	virtual void UpdateLook(float DeltaSeconds) override;
+	virtual void SpawnDeathEffect() override;
 
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<UProceduralMeshComponent> Pyramid;

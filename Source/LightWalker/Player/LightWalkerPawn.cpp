@@ -7,6 +7,7 @@
 #include "Core/LightWalkerUserSettings.h"
 #include "Core/LWNeon.h"
 #include "Core/LWSound.h"
+#include "Effects/LWParticles.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -62,6 +63,10 @@ ALightWalkerPawn::ALightWalkerPawn()
 	Staff = MakePart(TEXT("Staff"), CylinderMesh.Object, HeadingPivot, FVector(14.f, 26.f, 10.f), FRotator(-80.f, 0.f, 0.f), FVector(0.05f, 0.05f, 0.85f));
 	Lantern = MakePart(TEXT("Lantern"), SphereMesh.Object, HeadingPivot, LanternOffset, FRotator::ZeroRotator, FVector(0.26f));
 
+	GlideTrail = CreateDefaultSubobject<ULWParticleComponent>(TEXT("GlideTrail"));
+	GlideTrail->SetupAttachment(Collision);
+	GlideTrail->SetStaticMesh(SphereMesh.Object);
+
 	ShieldPivot = CreateDefaultSubobject<USceneComponent>(TEXT("ShieldPivot"));
 	ShieldPivot->SetupAttachment(Collision);
 	for (int32 Index = 0; Index < ShieldMoteCount; ++Index)
@@ -100,6 +105,7 @@ void ALightWalkerPawn::BeginPlay()
 	LWNeon::ApplyGlow(Head, Color, GlowIntensity * 0.6f);
 	LWNeon::ApplyGlow(Staff, FLinearColor(0.75f, 0.9f, 1.f), GlowIntensity * 0.5f);
 	LWNeon::ApplyGlow(Lantern, FLinearColor(0.85f, 1.f, 1.f), GlowIntensity * 3.f);
+	GlideTrail->Setup(GlideTrail->GetStaticMesh(), LWPickups::GetColor(EPickupType::LightOrb), 10.f);
 	for (UStaticMeshComponent* Mote : ShieldMotes)
 	{
 		LWNeon::ApplyGlow(Mote, LWPickups::GetColor(EPickupType::Shield), 10.f);
@@ -311,6 +317,27 @@ void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
 	// The light orb lifts Lightwalker off the ground: rise, hover gently, and settle back when it runs out.
 	GlideBlend = FMath::FInterpTo(GlideBlend, OrbScale > 1.f ? 1.f : 0.f, DeltaSeconds, 3.f);
 	GlideTime += DeltaSeconds;
+
+	// While gliding, leave a trail of warm light motes behind (only when actually moving).
+	const FVector Here = GetActorLocation();
+	const bool bMoving = FVector::DistSquared2D(Here, LastTrailLocation) > FMath::Square(60.f * DeltaSeconds);
+	LastTrailLocation = Here;
+	TrailTimer -= DeltaSeconds;
+	if (GlideBlend > 0.3f && bMoving && TrailTimer <= 0.f)
+	{
+		TrailTimer = 0.018f;
+		FLWEmit Mote;
+		Mote.Count = 1;
+		Mote.Origin = Here + FVector(0.f, 0.f, GlideHeight * GlideBlend - 20.f);
+		Mote.OriginRadius = 20.f;
+		Mote.Speed = FVector2D(10.f, 40.f);
+		// Long-lived and shrinking, so the trail stretches well behind and tapers to a point.
+		Mote.Life = FVector2D(1.1f, 1.6f);
+		Mote.Size = FVector2D(0.06f, 0.1f);
+		Mote.Drag = 2.f;
+		Mote.Gravity = -40.f;
+		GlideTrail->Emit(Mote);
+	}
 	HeadingPivot->SetRelativeLocation(FVector(0.f, 0.f, GlideBlend * (GlideHeight + FMath::Sin(GlideTime * 2.5f) * 5.f)));
 
 	ShieldPivot->AddLocalRotation(FRotator(0.f, 160.f * DeltaSeconds, 0.f));

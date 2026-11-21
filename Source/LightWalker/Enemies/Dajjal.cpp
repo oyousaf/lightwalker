@@ -1,5 +1,7 @@
 #include "Enemies/Dajjal.h"
 
+#include "Effects/LWParticles.h"
+
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Player/LightWalkerPawn.h"
@@ -195,4 +197,9 @@ void ADajjal::UpdateLook(float DeltaSeconds)
 	}
 
 	Visual->SetRelativeLocation(FVector(0.f, 0.f, FMath::Sin(LookTime * 2.f) * 5.f));
+}
+
+void ADajjal::SpawnDeathEffect()
+{
+	LWFX::DajjalDeath(GetWorld(), GetActorLocation());
 }

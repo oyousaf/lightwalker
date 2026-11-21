@@ -53,10 +53,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
 	float TrailRetractRate = 4.f;
 
+	/** How far the tip of the trail wavers side to side, so it reads as smoke. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
+	float TrailWobble = 9.f;
+
 private:
 	void UpdateTrail(float DeltaSeconds);
 
 	/** Blobs that follow each other behind the devil, shrinking and dimming towards the end. */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> TrailSegments;
+
+	/** The chain the trail follows (before the wobble), and each wisp's base size. */
+	TArray<FVector> TrailPoints;
+	TArray<float> TrailScales;
 };

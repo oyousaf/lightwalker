@@ -113,6 +113,10 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> ShieldMotes;
 
+	/** Motes of light left behind while gliding on the light orb. */
+	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
+	TObjectPtr<class ULWParticleComponent> GlideTrail;
+
 	/**
 	 * Optional imported hero model (see Tools/import_models.py). When it exists it replaces the placeholder figure,
 	 * scaled to ModelHeight and turned to face the heading; the lantern light and shield stay.
@@ -217,6 +221,8 @@ private:
 	/** 0 walking, 1 fully gliding (light orb). */
 	float GlideBlend = 0.f;
 	float GlideTime = 0.f;
+	float TrailTimer = 0.f;
+	FVector LastTrailLocation = FVector::ZeroVector;
 	void ShowPickupMessage(const FString& Title, const FString& Detail);
 	class ULightWalkerGameInstance* GetRun() const;
 

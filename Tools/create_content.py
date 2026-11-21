@@ -15,10 +15,26 @@ asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
 
 
+def ensure_usage(path, flag):
+    """Materials only render on mesh types they're marked for (else the default material in packaged builds):
+    used_with_instanced_static_meshes for particles, used_with_nanite for the imported models."""
+    material = unreal.EditorAssetLibrary.load_asset(path)
+    if material and not material.get_editor_property(flag):
+        material.set_editor_property(flag, True)
+        mel.recompile_material(material)
+        unreal.EditorAssetLibrary.save_asset(path, only_if_is_dirty=False)
+        unreal.log(f"{path}: enabled {flag}")
+
+
+def allow_instancing(path):
+    ensure_usage(path, "used_with_instanced_static_meshes")
+
+
 def create_neon_material():
     path = "/Game/Materials/M_Neon"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.log("M_Neon already exists")
+        allow_instancing(path)
         return
 
     material = asset_tools.create_asset("M_Neon", "/Game/Materials", unreal.Material, unreal.MaterialFactoryNew())
@@ -37,6 +53,7 @@ def create_neon_material():
     mel.connect_material_expressions(intensity, "", multiply, "B")
     mel.connect_material_property(multiply, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
+    material.set_editor_property("used_with_instanced_static_meshes", True)
     mel.recompile_material(material)
     unreal.EditorAssetLibrary.save_asset(path, only_if_is_dirty=False)
     unreal.log("Created M_Neon")
@@ -46,10 +63,12 @@ def create_model_glow_material():
     path = "/Game/Materials/M_ModelGlow"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.log("M_ModelGlow already exists")
+        ensure_usage(path, "used_with_nanite")
         return
 
     material = asset_tools.create_asset("M_ModelGlow", "/Game/Materials", unreal.Material, unreal.MaterialFactoryNew())
     material.set_editor_property("two_sided", True)
+    material.set_editor_property("used_with_nanite", True)
 
     base = mel.create_material_expression(material, unreal.MaterialExpressionTextureSampleParameter2D, -800, 0)
     base.set_editor_property("parameter_name", "BaseColor")

@@ -35,17 +35,19 @@ AShaytaan::AShaytaan()
 	UStaticMeshComponent* EyeRight = AddShape(TEXT("EyeRight"), SphereMesh.Object, nullptr,
 		FVector(25.f, 11.f, 17.f), FRotator(0.f, 0.f, 25.f), FVector(0.07f, 0.15f, 0.06f));
 
-	// Fading trail: blobs placed in world space each frame, each following the one ahead of it.
-	constexpr int32 TrailCount = 18;
+	// Fading trail: small wisps placed in world space each frame, each following the one ahead of it.
+	constexpr int32 TrailCount = 14;
 	for (int32 Index = 0; Index < TrailCount; ++Index)
 	{
 		const float Fade = 1.f - static_cast<float>(Index) / TrailCount;
 		UStaticMeshComponent* Segment = AddShape(*FString::Printf(TEXT("Trail%d"), Index), SphereMesh.Object, Collision,
-			FVector::ZeroVector, FRotator::ZeroRotator, FVector(FMath::Lerp(0.07f, 0.4f, Fade)));
+			FVector::ZeroVector, FRotator::ZeroRotator, FVector(FMath::Lerp(0.03f, 0.17f, Fade)));
 		Segment->SetUsingAbsoluteLocation(true);
 		Segment->SetUsingAbsoluteRotation(true);
 		TrailSegments.Add(Segment);
-		AddGlowPart(Segment, BodyColor, FMath::Lerp(0.12f, 1.1f, Fade * Fade));
+		TrailPoints.Add(FVector::ZeroVector);
+		TrailScales.Add(FMath::Lerp(0.03f, 0.17f, Fade));
+		AddGlowPart(Segment, BodyColor, FMath::Lerp(0.1f, 0.9f, Fade * Fade));
 	}
 
 	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Shaytaan.SM_Shaytaan"));
@@ -70,6 +72,10 @@ void AShaytaan::BeginPlay()
 	for (UStaticMeshComponent* Segment : TrailSegments)
 	{
 		Segment->SetWorldLocation(GetActorLocation());
+	}
+	for (FVector& Point : TrailPoints)
+	{
+		Point = GetActorLocation();
 	}
 }
 
@@ -117,18 +123,32 @@ void AShaytaan::UpdateLook(float DeltaSeconds)
 
 void AShaytaan::UpdateTrail(float DeltaSeconds)
 {
-	// Follow-the-leader chain: each blob stays at most TrailSpacing behind the one ahead, and drifts
+	// Follow-the-leader chain: each point stays at most TrailSpacing behind the one ahead, and drifts
 	// towards it over time so the trail shrinks back into the body when the devil stops.
 	FVector Leader = GetActorLocation();
-	for (UStaticMeshComponent* Segment : TrailSegments)
+	for (FVector& Point : TrailPoints)
 	{
-		FVector Location = FMath::VInterpTo(Segment->GetComponentLocation(), Leader, DeltaSeconds, TrailRetractRate);
+		FVector Location = FMath::VInterpTo(Point, Leader, DeltaSeconds, TrailRetractRate);
 		const FVector Offset = Location - Leader;
 		if (Offset.SizeSquared() > FMath::Square(TrailSpacing))
 		{
 			Location = Leader + Offset.GetSafeNormal() * TrailSpacing;
 		}
-		Segment->SetWorldLocation(Location);
+		Point = Location;
 		Leader = Location;
+	}
+
+	// Drawn with a wavering, flickering wobble that grows towards the tip, so it reads as smoke rather than
+	// a neat row of beads.
+	const FVector Back = (TrailPoints.Num() > 0 ? GetActorLocation() - TrailPoints.Last() : FVector::ZeroVector).GetSafeNormal2D();
+	const FVector Side(-Back.Y, Back.X, 0.f);
+	for (int32 Index = 0; Index < TrailSegments.Num(); ++Index)
+	{
+		const float Along = static_cast<float>(Index) / FMath::Max(1, TrailSegments.Num() - 1);
+		const float Sway = FMath::Sin(LookTime * 9.f + Index * 0.8f) * Along * TrailWobble;
+		const float Rise = FMath::Sin(LookTime * 6.f + Index * 1.3f) * Along * TrailWobble * 0.5f;
+		TrailSegments[Index]->SetWorldLocation(TrailPoints[Index] + Side * Sway + FVector(0.f, 0.f, Rise));
+		const float Flicker = 0.75f + 0.25f * FMath::Sin(LookTime * 23.f + Index * 1.9f);
+		TrailSegments[Index]->SetRelativeScale3D(FVector(TrailScales[Index] * Flicker));
 	}
 }

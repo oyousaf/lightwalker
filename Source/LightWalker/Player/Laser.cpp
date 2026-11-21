@@ -3,6 +3,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
+#include "Effects/LWParticles.h"
 #include "Enemies/EnemyBase.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ConstructorHelpers.h"
@@ -66,6 +67,8 @@ void ALaser::HandleOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
 	{
 		return;
 	}
+
+	LWFX::HitSpark(GetWorld(), GetActorLocation(), Direction);
 
 	if (bPiercing)
 	{
