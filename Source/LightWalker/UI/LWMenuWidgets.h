@@ -53,6 +53,7 @@ public:
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	/** Builds the tree under the canvas root. */
@@ -60,7 +61,14 @@ protected:
 
 	ALightWalkerPlayerController* GetLWController() const;
 
+	/** Display face (Audiowide). */
 	UTextBlock* MakeText(const FString& Text, int32 Size, const FLinearColor& Color, int32 LetterSpacing = 0);
+	/** Text face (Rajdhani). */
+	UTextBlock* MakeBody(const FString& Text, int32 Size, const FLinearColor& Color, int32 LetterSpacing = 0);
+	/** Big pink neon title with a cyan echo, leaning forward. */
+	UTextBlock* MakeTitle(const FString& Text, int32 Size);
+	/** The LIGHTWALKER logo art at the given width, or the neon title text if the art isn't imported. */
+	UWidget* MakeLogo(float Width, int32 FallbackTextSize);
 	UButton* AddButton(UPanelWidget* Parent, const FString& Label, TFunction<void()> OnClick);
 	void AddSlider(UPanelWidget* Parent, const FString& Label, float Value, TFunction<void(float)> OnChange);
 	void SetButtonLabel(UButton* Button, const FString& Label);
@@ -68,8 +76,17 @@ protected:
 	/** A centred column of the given width, for the menu's title and buttons. */
 	UVerticalBox* AddColumn(UCanvasPanel* Root, const FVector2D& Anchor, const FVector2D& Alignment, float Width, const FVector2D& Offset = FVector2D::ZeroVector);
 
+	/** A centred dark glass panel with a neon edge, holding a column (pause, settings). */
+	UVerticalBox* AddPanel(UCanvasPanel* Root, float Width);
+
 	/** A full-screen dark veil behind overlay menus (pause, settings). */
 	void AddVeil(UCanvasPanel* Root, float Opacity);
+
+	/** Makes a widget slide in and fade up with the menu. */
+	void AddSlideIn(UWidget* Widget) { SlideIns.Add(Widget); }
+
+	/** Faint CRT scanlines over the whole menu. */
+	void AddScanlines(UCanvasPanel* Root);
 
 private:
 	struct FFocusable
@@ -77,8 +94,13 @@ private:
 		TWeakObjectPtr<UWidget> Widget;
 		TWeakObjectPtr<UButton> Button;
 		TWeakObjectPtr<UTextBlock> Label;
+		bool bWasActive = false;
 	};
 	TArray<FFocusable> Focusables;
+
+	/** Columns and panels that slide in when the menu opens. */
+	TArray<TWeakObjectPtr<UWidget>> SlideIns;
+	float AppearTime = 0.f;
 	TWeakObjectPtr<UWidget> LastFocused;
 
 	UPROPERTY(Transient)
@@ -105,10 +127,12 @@ protected:
 
 private:
 	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> Title;
+	TObjectPtr<UWidget> Title;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UWidget> Backdrop;
+
+	bool bArtBackdrop = false;
 
 	float Time = 0.f;
 	bool bFinished = false;

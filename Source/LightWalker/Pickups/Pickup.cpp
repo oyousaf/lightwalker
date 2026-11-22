@@ -55,6 +55,8 @@ APickup::APickup()
 	Light->SetIntensity(12.f);
 	Light->SetAttenuationRadius(300.f);
 	Light->SetCastShadows(false);
+	// Kept out of Lumen's global illumination: the blink before a pickup vanishes otherwise leaves dark ghosts.
+	Light->SetIndirectLightingIntensity(0.f);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -77,6 +79,8 @@ UStaticMeshComponent* APickup::AddPart(UStaticMesh* Mesh, const FVector& Locatio
 	Part->SetRelativeScale3D(Scale);
 	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Part->SetCastShadow(false);
+	Part->bAffectDynamicIndirectLighting = false;
+	Part->bAffectDistanceFieldLighting = false;
 	Part->RegisterComponent();
 	LWNeon::ApplyGlow(Part, Color, Intensity);
 	Parts.Add(Part);
@@ -126,7 +130,8 @@ void APickup::InitPickup(EPickupType InType, ALightWalkerPawn* InPlayer)
 		AddPart(CubeMesh, FVector(0.f, 16.f, 0.f), FRotator(0.f, 0.f, 14.f), FVector(0.42f, 0.32f, 0.04f), Color, 5.f);
 		AddPart(CubeMesh, FVector(0.f, -15.f, 3.f), FRotator(0.f, 0.f, -14.f), FVector(0.38f, 0.28f, 0.02f), FLinearColor(1.f, 0.95f, 0.8f), 14.f);
 		AddPart(CubeMesh, FVector(0.f, 15.f, 3.f), FRotator(0.f, 0.f, 14.f), FVector(0.38f, 0.28f, 0.02f), FLinearColor(1.f, 0.95f, 0.8f), 14.f);
-		Light->SetIntensity(30.f);
+		LightIntensity = 30.f;
+		Light->SetIntensity(LightIntensity);
 		Light->SetAttenuationRadius(500.f);
 		Lifetime = 14.f;
 		break;
@@ -150,10 +155,17 @@ void APickup::Tick(float DeltaSeconds)
 	Visual->AddLocalRotation(FRotator(0.f, SpinRate * DeltaSeconds, 0.f));
 	Visual->SetRelativeLocation(FVector(0.f, 0.f, 20.f + FMath::Sin(Age * 3.f) * 8.f));
 
-	// Blink faster and faster as it's about to vanish.
+	// Pulse faster and faster as it's about to vanish. A smooth pulse rather than a hard on/off blink: flicking the
+	// light and glow off every few frames leaves dark smears in the temporal lighting and anti-aliasing.
 	const float Left = Lifetime - Age;
-	const bool bVisible = Left > BlinkTime || FMath::Frac(Age * FMath::Lerp(10.f, 4.f, Left / BlinkTime)) > 0.35f;
-	Visual->SetVisibility(bVisible, true);
+	float Pulse = 1.f;
+	if (Left < BlinkTime)
+	{
+		BlinkPhase += DeltaSeconds * FMath::Lerp(14.f, 6.f, Left / BlinkTime);
+		Pulse = 0.6f + 0.4f * FMath::Cos(BlinkPhase);
+	}
+	const bool bVisible = Pulse > 0.5f;
+	Visual->SetRelativeScale3D(FVector(1.5f * Pulse));
 
 	SparkleTimer -= DeltaSeconds;
 	if (SparkleTimer <= 0.f && bVisible)
@@ -171,7 +183,7 @@ void APickup::Tick(float DeltaSeconds)
 		Mote.Drag = 0.5f;
 		Sparkles->Emit(Mote);
 	}
-	Light->SetVisibility(bVisible);
+	Light->SetIntensity(LightIntensity * Pulse * Pulse);
 
 	ALightWalkerPawn* LightWalker = Player.Get();
 	if (LightWalker && !LightWalker->IsDowned() &&

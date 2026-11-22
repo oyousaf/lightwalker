@@ -105,4 +105,6 @@ private:
 	EPickupType Type = EPickupType::LightOrb;
 	float Age = 0.f;
 	float SparkleTimer = 0.f;
+	float LightIntensity = 12.f;
+	float BlinkPhase = 0.f;
 };

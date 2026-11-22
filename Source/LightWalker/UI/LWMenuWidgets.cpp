@@ -8,6 +8,9 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/Slider.h"
 #include "Components/TextBlock.h"
@@ -15,31 +18,80 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Core/LWSound.h"
 #include "Core/LightWalkerUserSettings.h"
+#include "Engine/Texture2D.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPlayerController.h"
-#include "Styling/CoreStyle.h"
+#include "UI/LWStyle.h"
 
 namespace
 {
-	const FLinearColor MenuGlow(0.55f, 0.95f, 1.f);
-	const FLinearColor MenuMuted(0.5f, 0.62f, 0.75f);
-	const FLinearColor MenuWarm(1.f, 0.88f, 0.6f);
-	const FLinearColor MenuIdleFill(0.f, 0.02f, 0.05f, 0.45f);
-	const FLinearColor MenuActiveFill(0.1f, 0.75f, 0.8f, 0.35f);
+	/** Buttons lean forward like italic type. */
+	constexpr float ButtonShear = -12.f;
 
-	FButtonStyle MakeButtonStyle()
+	FLinearColor WithAlpha(const FLinearColor& Color, float Alpha)
 	{
-		// White rounded boxes with a thin cyan outline; the fill colour comes from the button's background tint.
+		return FLinearColor(Color.R, Color.G, Color.B, Alpha);
+	}
+
+	FSlateBrush NeonBox(const FLinearColor& Fill, const FLinearColor& Outline, float OutlineWidth, float Radius = 4.f)
+	{
 		FSlateBrush Brush;
 		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
-		Brush.TintColor = FSlateColor(FLinearColor::White);
-		Brush.OutlineSettings = FSlateBrushOutlineSettings(FVector4(8.f, 8.f, 8.f, 8.f), FSlateColor(FLinearColor(0.35f, 0.9f, 1.f, 0.55f)), 1.5f);
+		Brush.TintColor = FSlateColor(Fill);
+		Brush.OutlineSettings = FSlateBrushOutlineSettings(FVector4(Radius, Radius, Radius, Radius), FSlateColor(Outline), OutlineWidth);
 		Brush.OutlineSettings.RoundingType = ESlateBrushRoundingType::FixedRadius;
+		return Brush;
+	}
 
+	/** True when the ChatGPT button art is imported (the buttons are then drawn from it and need no shear). */
+	bool HasButtonArt()
+	{
+		return LWStyle::Art(TEXT("ButtonNormal")) && LWStyle::Art(TEXT("ButtonHover")) && LWStyle::Art(TEXT("ButtonPressed"));
+	}
+
+	FButtonStyle MakeButtonStyle(bool bActive)
+	{
+		if (HasButtonArt())
+		{
+			// 9-slice so the slanted ends and corner tab keep their shape at any button width.
+			// Cropped tight to the frame; the slanted ends keep their width, the middle stretches.
+			const FVector2D Size(420.f, 81.f);
+			const FMargin Slice(0.14f, 0.f, 0.14f, 0.f);
+			const FSlateBrush Idle = LWStyle::ArtBrush(LWStyle::Art(bActive ? TEXT("ButtonHover") : TEXT("ButtonNormal")), Size, Slice);
+			const FSlateBrush Pressed = LWStyle::ArtBrush(LWStyle::Art(TEXT("ButtonPressed")), Size, Slice);
+			FButtonStyle Style;
+			Style.SetNormal(Idle).SetHovered(Idle).SetPressed(Pressed).SetDisabled(Idle);
+			Style.SetNormalPadding(FMargin(0.f)).SetPressedPadding(FMargin(0.f));
+			return Style;
+		}
+
+		// Built-in look. Idle: dark glass with a thin cyan edge. Active: a hot pink edge with a pink glow inside.
+		const FSlateBrush Brush = bActive
+			? NeonBox(WithAlpha(LWStyle::Pink, 0.24f), LWStyle::Pink, 2.5f)
+			: NeonBox(WithAlpha(LWStyle::Deep, 0.62f), WithAlpha(LWStyle::Cyan, 0.45f), 1.5f);
 		FButtonStyle Style;
 		Style.SetNormal(Brush).SetHovered(Brush).SetPressed(Brush).SetDisabled(Brush);
 		Style.SetNormalPadding(FMargin(0.f)).SetPressedPadding(FMargin(0.f));
 		return Style;
+	}
+
+	/** A 1x4 texture with one dark row, tiled over the screen for faint CRT scanlines. */
+	UTexture2D* ScanlineTexture()
+	{
+		static TWeakObjectPtr<UTexture2D> Cached;
+		if (!Cached.IsValid())
+		{
+			UTexture2D* Texture = UTexture2D::CreateTransient(1, 4, PF_B8G8R8A8);
+			Texture->Filter = TF_Nearest;
+			Texture->AddToRoot();
+			FColor* Pixels = static_cast<FColor*>(Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+			Pixels[0] = FColor(0, 0, 0, 255);
+			Pixels[1] = Pixels[2] = Pixels[3] = FColor(0, 0, 0, 0);
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+			Texture->UpdateResource();
+			Cached = Texture;
+		}
+		return Cached.Get();
 	}
 
 	FString QualityName(int32 Level)
@@ -75,8 +127,15 @@ TSharedRef<SWidget> ULWMenuWidget::RebuildWidget()
 		UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("Root"));
 		WidgetTree->RootWidget = Root;
 		Build(Root);
+		AddScanlines(Root);
 	}
 	return Super::RebuildWidget();
+}
+
+void ULWMenuWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	AppearTime = 0.f;
 }
 
 ALightWalkerPlayerController* ULWMenuWidget::GetLWController() const
@@ -87,9 +146,7 @@ ALightWalkerPlayerController* ULWMenuWidget::GetLWController() const
 UTextBlock* ULWMenuWidget::MakeText(const FString& Text, int32 Size, const FLinearColor& Color, int32 LetterSpacing)
 {
 	UTextBlock* Block = WidgetTree->ConstructWidget<UTextBlock>();
-	FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", Size);
-	Font.LetterSpacing = LetterSpacing;
-	Block->SetFont(Font);
+	Block->SetFont(LWStyle::Display(Size, LetterSpacing));
 	Block->SetText(FText::FromString(Text));
 	Block->SetColorAndOpacity(FSlateColor(Color));
 	Block->SetShadowOffset(FVector2D(2.f, 2.f));
@@ -98,17 +155,71 @@ UTextBlock* ULWMenuWidget::MakeText(const FString& Text, int32 Size, const FLine
 	return Block;
 }
 
+UTextBlock* ULWMenuWidget::MakeBody(const FString& Text, int32 Size, const FLinearColor& Color, int32 LetterSpacing)
+{
+	UTextBlock* Block = MakeText(Text, Size, Color, LetterSpacing);
+	Block->SetFont(LWStyle::Body(Size, true, LetterSpacing));
+	return Block;
+}
+
+UTextBlock* ULWMenuWidget::MakeTitle(const FString& Text, int32 Size)
+{
+	// Hot pink lettering with an offset cyan "shadow": the doubled-neon look of a sign seen through haze.
+	UTextBlock* Block = MakeText(Text, Size, LWStyle::Pink, 260);
+	Block->SetShadowOffset(FVector2D(Size * 0.045f, Size * 0.045f));
+	Block->SetShadowColorAndOpacity(WithAlpha(LWStyle::Cyan, 0.75f));
+	Block->SetRenderShear(FVector2D(ButtonShear * 0.6f, 0.f));
+	return Block;
+}
+
+UWidget* ULWMenuWidget::MakeLogo(float Width, int32 FallbackTextSize)
+{
+	if (UTexture2D* Logo = LWStyle::Art(TEXT("Logo")))
+	{
+		// Fixed size, keeping the art's proportions.
+		// The size the art was made at: the GPU copy may be padded to a power of two.
+		const FIntPoint ArtSize = Logo->GetImportedSize();
+		const float Height = Width * ArtSize.Y / FMath::Max(1, ArtSize.X);
+		UImage* Image = WidgetTree->ConstructWidget<UImage>();
+		Image->SetBrush(LWStyle::ArtBrush(Logo, FVector2D(Width, Height)));
+		USizeBox* Box = WidgetTree->ConstructWidget<USizeBox>();
+		Box->SetWidthOverride(Width);
+		Box->SetHeightOverride(Height);
+		Box->AddChild(Image);
+		return Box;
+	}
+	return MakeTitle(TEXT("LIGHTWALKER"), FallbackTextSize);
+}
+
 UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TFunction<void()> OnClick)
 {
 	UButton* Button = WidgetTree->ConstructWidget<UButton>();
-	Button->SetStyle(MakeButtonStyle());
-	Button->SetBackgroundColor(MenuIdleFill);
-
-	UTextBlock* Text = MakeText(Label, 22, MenuMuted, 120);
-	if (UButtonSlot* PanelSlot = Cast<UButtonSlot>(Button->AddChild(Text)))
+	Button->SetStyle(MakeButtonStyle(false));
+	const bool bArt = HasButtonArt();
+	if (!bArt)
 	{
-		PanelSlot->SetPadding(FMargin(28.f, 12.f));
-		PanelSlot->SetHorizontalAlignment(HAlign_Center);
+		Button->SetRenderShear(FVector2D(ButtonShear, 0.f));
+	}
+
+	// Content: the label.
+	UOverlay* Content = WidgetTree->ConstructWidget<UOverlay>();
+	Content->SetClipping(EWidgetClipping::ClipToBounds);
+	UTextBlock* Text = MakeText(Label, 22, LWStyle::Muted, 160);
+	if (bArt)
+	{
+		Text->SetRenderShear(FVector2D(ButtonShear * 0.7f, 0.f));  // italic, to match the slanted art
+	}
+	if (UOverlaySlot* TextSlot = Content->AddChildToOverlay(Text))
+	{
+		TextSlot->SetHorizontalAlignment(HAlign_Center);
+		TextSlot->SetVerticalAlignment(VAlign_Center);
+		TextSlot->SetPadding(bArt ? FMargin(48.f, 20.f) : FMargin(28.f, 13.f));
+	}
+	if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(Button->AddChild(Content)))
+	{
+		ContentSlot->SetPadding(FMargin(0.f));
+		ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+		ContentSlot->SetVerticalAlignment(VAlign_Fill);
 	}
 
 	ULWClickRelay* Relay = NewObject<ULWClickRelay>(this);
@@ -120,14 +231,16 @@ UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TF
 	Button->OnClicked.AddDynamic(Relay, &ULWClickRelay::HandleClicked);
 	Relays.Add(Relay);
 
-	UPanelSlot* PanelSlot = Parent->AddChild(Button);
-	if (UVerticalBoxSlot* VerticalSlot = Cast<UVerticalBoxSlot>(PanelSlot))
+	if (UVerticalBoxSlot* VerticalSlot = Cast<UVerticalBoxSlot>(Parent->AddChild(Button)))
 	{
-		VerticalSlot->SetPadding(FMargin(0.f, 6.f));
+		VerticalSlot->SetPadding(FMargin(0.f, 7.f));
 		VerticalSlot->SetHorizontalAlignment(HAlign_Fill);
 	}
 
-	Focusables.Add({ Button, Button, Text });
+	FFocusable& Item = Focusables.AddDefaulted_GetRef();
+	Item.Widget = Button;
+	Item.Button = Button;
+	Item.Label = Text;
 	return Button;
 }
 
@@ -135,27 +248,27 @@ void ULWMenuWidget::AddSlider(UPanelWidget* Parent, const FString& Label, float 
 {
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
 
-	UTextBlock* Text = MakeText(Label, 20, MenuMuted, 120);
+	UTextBlock* Text = MakeBody(Label, 22, LWStyle::Muted, 180);
 	Text->SetJustification(ETextJustify::Left);
 	if (UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(Text))
 	{
 		TextSlot->SetVerticalAlignment(VAlign_Center);
 		TextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		TextSlot->SetPadding(FMargin(8.f, 0.f));
+		TextSlot->SetPadding(FMargin(10.f, 0.f));
 	}
 
 	USlider* Slider = WidgetTree->ConstructWidget<USlider>();
 	Slider->SetValue(Value);
 	Slider->SetStepSize(0.05f);
-	Slider->SetSliderBarColor(FLinearColor(0.2f, 0.3f, 0.4f));
-	Slider->SetSliderHandleColor(MenuGlow);
+	Slider->SetSliderBarColor(WithAlpha(LWStyle::Magenta * 0.5f, 1.f));
+	Slider->SetSliderHandleColor(LWStyle::Pink);
 	USizeBox* SliderBox = WidgetTree->ConstructWidget<USizeBox>();
 	SliderBox->SetWidthOverride(300.f);
 	SliderBox->AddChild(Slider);
 	if (UHorizontalBoxSlot* SliderSlot = Row->AddChildToHorizontalBox(SliderBox))
 	{
 		SliderSlot->SetVerticalAlignment(VAlign_Center);
-		SliderSlot->SetPadding(FMargin(8.f, 0.f));
+		SliderSlot->SetPadding(FMargin(10.f, 0.f));
 	}
 
 	ULWSliderRelay* Relay = NewObject<ULWSliderRelay>(this);
@@ -167,16 +280,18 @@ void ULWMenuWidget::AddSlider(UPanelWidget* Parent, const FString& Label, float 
 	{
 		PanelSlot->SetPadding(FMargin(0.f, 8.f));
 	}
-	Focusables.Add({ Slider, nullptr, Text });
+	FFocusable& Item = Focusables.AddDefaulted_GetRef();
+	Item.Widget = Slider;
+	Item.Label = Text;
 }
 
 void ULWMenuWidget::SetButtonLabel(UButton* Button, const FString& Label)
 {
-	if (Button)
+	for (const FFocusable& Item : Focusables)
 	{
-		if (UTextBlock* Text = Cast<UTextBlock>(Button->GetChildAt(0)))
+		if (Item.Button.Get() == Button && Item.Label.IsValid())
 		{
-			Text->SetText(FText::FromString(Label));
+			Item.Label->SetText(FText::FromString(Label));
 		}
 	}
 }
@@ -193,14 +308,60 @@ UVerticalBox* ULWMenuWidget::AddColumn(UCanvasPanel* Root, const FVector2D& Anch
 	PanelSlot->SetAlignment(Alignment);
 	PanelSlot->SetPosition(Offset);
 	PanelSlot->SetAutoSize(true);
+	SlideIns.Add(Box);
+	return Column;
+}
+
+UVerticalBox* ULWMenuWidget::AddPanel(UCanvasPanel* Root, float Width)
+{
+	// A dark glass panel with a neon edge, centred, holding a column: the ChatGPT frame art if imported
+	// (9-slice, keeping its corner details), otherwise the built-in pink outline.
+	UBorder* Panel = WidgetTree->ConstructWidget<UBorder>();
+	if (UTexture2D* Frame = LWStyle::Art(TEXT("Panel")))
+	{
+		Panel->SetBrush(LWStyle::ArtBrush(Frame, FVector2D(768.f, 512.f), FMargin(0.2f, 0.25f, 0.2f, 0.25f)));
+		Panel->SetPadding(FMargin(90.f, 70.f));
+	}
+	else
+	{
+		Panel->SetBrush(NeonBox(WithAlpha(LWStyle::Deep, 0.82f), WithAlpha(LWStyle::Pink, 0.8f), 2.f, 10.f));
+		Panel->SetPadding(FMargin(44.f, 36.f));
+	}
+
+	USizeBox* Box = WidgetTree->ConstructWidget<USizeBox>();
+	Box->SetWidthOverride(Width);
+	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>();
+	Box->AddChild(Column);
+	Panel->AddChild(Box);
+
+	UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(Panel);
+	PanelSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+	PanelSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+	PanelSlot->SetAutoSize(true);
+	SlideIns.Add(Panel);
 	return Column;
 }
 
 void ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
 {
 	UBorder* Veil = WidgetTree->ConstructWidget<UBorder>();
-	Veil->SetBrushColor(FLinearColor(0.f, 0.f, 0.02f, Opacity));
+	Veil->SetBrushColor(FLinearColor(0.01f, 0.f, 0.04f, Opacity));
 	UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(Veil);
+	PanelSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+	PanelSlot->SetOffsets(FMargin(0.f));
+}
+
+void ULWMenuWidget::AddScanlines(UCanvasPanel* Root)
+{
+	UImage* Lines = WidgetTree->ConstructWidget<UImage>();
+	FSlateBrush Brush;
+	Brush.SetResourceObject(ScanlineTexture());
+	Brush.ImageSize = FVector2D(1.f, 4.f);
+	Brush.Tiling = ESlateBrushTileType::Both;
+	Lines->SetBrush(Brush);
+	Lines->SetRenderOpacity(0.18f);
+	Lines->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(Lines);
 	PanelSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
 	PanelSlot->SetOffsets(FMargin(0.f));
 }
@@ -224,9 +385,22 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
+	// Columns and panels slide in from the left and fade up when the menu opens.
+	AppearTime += InDeltaTime;
+	const float Appear = FMath::InterpEaseOut(0.f, 1.f, FMath::Clamp(AppearTime / 0.35f, 0.f, 1.f), 3.f);
+	for (const TWeakObjectPtr<UWidget>& Widget : SlideIns)
+	{
+		if (UWidget* Panel = Widget.Get())
+		{
+			Panel->SetRenderTranslation(FVector2D((1.f - Appear) * -50.f, 0.f));
+			Panel->SetRenderOpacity(Appear);
+		}
+	}
+
 	// One highlight at a time: hovering with the mouse moves focus, so mouse and gamepad never disagree.
 	UWidget* Focused = nullptr;
-	for (const FFocusable& Item : Focusables)
+	const float Pulse = 0.85f + 0.15f * FMath::Sin(AppearTime * 5.f);
+	for (FFocusable& Item : Focusables)
 	{
 		UWidget* Widget = Item.Widget.Get();
 		if (!Widget)
@@ -245,12 +419,17 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 		}
 		if (UButton* Button = Item.Button.Get())
 		{
-			Button->SetBackgroundColor(bActive ? MenuActiveFill : MenuIdleFill);
+			if (bActive != Item.bWasActive)
+			{
+				Button->SetStyle(MakeButtonStyle(bActive));
+			}
+			Button->SetBackgroundColor(bActive ? FLinearColor(Pulse, Pulse, Pulse, 1.f) : FLinearColor::White);
 		}
 		if (UTextBlock* Label = Item.Label.Get())
 		{
-			Label->SetColorAndOpacity(FSlateColor(bActive ? MenuWarm : MenuMuted));
+			Label->SetColorAndOpacity(FSlateColor(bActive ? LWStyle::Text : LWStyle::Muted));
 		}
+		Item.bWasActive = bActive;
 	}
 
 	if (Focused && LastFocused.IsValid() && Focused != LastFocused.Get())
@@ -285,15 +464,28 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 {
 	SetIsFocusable(true);
 
-	UBorder* Black = WidgetTree->ConstructWidget<UBorder>();
-	Black->SetBrushColor(FLinearColor(0.f, 0.f, 0.f, 1.f));
-	UCanvasPanelSlot* BlackSlot = Root->AddChildToCanvas(Black);
-	BlackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	BlackSlot->SetOffsets(FMargin(0.f));
-	Backdrop = Black;
+	// The neon sunset art behind the logo if it's imported, plain black otherwise.
+	UWidget* Back = nullptr;
+	if (UTexture2D* Sunset = LWStyle::Art(TEXT("MenuBackground")))
+	{
+		UImage* Image = WidgetTree->ConstructWidget<UImage>();
+		Image->SetBrush(LWStyle::ArtBrush(Sunset, FVector2D(1920.f, 1080.f)));
+		Back = Image;
+		bArtBackdrop = true;
+	}
+	else
+	{
+		UBorder* Black = WidgetTree->ConstructWidget<UBorder>();
+		Black->SetBrushColor(FLinearColor(0.f, 0.f, 0.f, 1.f));
+		Back = Black;
+	}
+	UCanvasPanelSlot* BackSlot = Root->AddChildToCanvas(Back);
+	BackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+	BackSlot->SetOffsets(FMargin(0.f));
+	Backdrop = Back;
 
 	UVerticalBox* Centre = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1400.f);
-	Title = MakeText(TEXT("LIGHTWALKER"), 110, MenuGlow, 300);
+	Title = MakeLogo(1100.f, 110);
 	Title->SetRenderOpacity(0.f);
 	if (UVerticalBoxSlot* PanelSlot = Centre->AddChildToVerticalBox(Title))
 	{
@@ -307,9 +499,17 @@ void ULWIntroScreen::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 	Time += InDeltaTime;
 
-	// The title shows over the arena: the black backdrop lifts as it fades in.
 	Title->SetRenderOpacity(FadeWindow(Time, TitleIn, TitleHold, TitleOut, 1.f));
-	Backdrop->SetRenderOpacity(1.f - FMath::Clamp((Time - TitleIn) / 2.f, 0.f, 1.f));
+	if (bArtBackdrop)
+	{
+		// The logo glows over the sunset, then both fade away to reveal Lightwalker in the arena.
+		Backdrop->SetRenderOpacity(FMath::Clamp((TitleOut - Time) / (TitleOut - TitleHold), 0.f, 1.f));
+	}
+	else
+	{
+		// The title shows over the arena: the black backdrop lifts as it fades in.
+		Backdrop->SetRenderOpacity(1.f - FMath::Clamp((Time - TitleIn) / 2.f, 0.f, 1.f));
+	}
 
 	if (Time >= TitleOut)
 	{
@@ -346,9 +546,16 @@ FReply ULWIntroScreen::NativeOnMouseButtonDown(const FGeometry& InGeometry, cons
 
 void ULWMainMenu::Build(UCanvasPanel* Root)
 {
-	UVerticalBox* Header = AddColumn(Root, FVector2D(0.5f, 0.f), FVector2D(0.5f, 0.f), 1400.f, FVector2D(0.f, 70.f));
-	Header->AddChildToVerticalBox(MakeText(TEXT("LIGHTWALKER"), 96, MenuGlow, 300));
-	Header->AddChildToVerticalBox(MakeText(TEXT("CARRY THE LIGHT"), 20, MenuMuted, 600));
+	// Logo and tagline, top centre.
+	UWidget* Logo = MakeLogo(640.f, 96);
+	UCanvasPanelSlot* LogoSlot = Root->AddChildToCanvas(Logo);
+	LogoSlot->SetAnchors(FAnchors(0.5f, 0.f));
+	LogoSlot->SetAlignment(FVector2D(0.5f, 0.f));
+	LogoSlot->SetPosition(FVector2D(0.f, 24.f));
+	LogoSlot->SetAutoSize(true);
+	AddSlideIn(Logo);
+	UVerticalBox* Tagline = AddColumn(Root, FVector2D(0.5f, 0.f), FVector2D(0.5f, 0.f), 900.f, FVector2D(0.f, 178.f));
+	Tagline->AddChildToVerticalBox(MakeBody(TEXT("CARRY THE LIGHT"), 24, LWStyle::Cyan, 900));
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
@@ -365,7 +572,7 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	RefreshHeroLabel();
 
 	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -36.f));
-	Footer->AddChildToVerticalBox(MakeText(TEXT("ENTER / A  SELECT       ESC / B  BACK"), 16, MenuMuted, 200));
+	Footer->AddChildToVerticalBox(MakeBody(TEXT("ENTER / A  SELECT       ESC / B  BACK"), 18, LWStyle::Muted, 300));
 }
 
 void ULWMainMenu::RefreshHeroLabel()
@@ -381,8 +588,8 @@ void ULWPauseMenu::Build(UCanvasPanel* Root)
 {
 	AddVeil(Root, 0.6f);
 
-	UVerticalBox* Column = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 440.f);
-	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeText(TEXT("PAUSED"), 56, MenuGlow, 300)))
+	UVerticalBox* Column = AddPanel(Root, 440.f);
+	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeTitle(TEXT("PAUSED"), 56)))
 	{
 		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 24.f));
 	}
@@ -400,8 +607,8 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 	AddVeil(Root, 0.75f);
 
 	ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
-	UVerticalBox* Column = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 680.f);
-	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeText(TEXT("SETTINGS"), 48, MenuGlow, 300)))
+	UVerticalBox* Column = AddPanel(Root, 680.f);
+	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeTitle(TEXT("SETTINGS"), 48)))
 	{
 		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 18.f));
 	}
