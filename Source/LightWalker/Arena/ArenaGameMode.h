@@ -151,7 +151,6 @@ private:
 
 	void StartRun();
 	void EnterMenu(bool bInstantCamera);
-	void SpawnLurkers();
 	void BeginWaveIntro();
 	void BeginFighting();
 	void SpawnWave(const FArenaWave& Wave);

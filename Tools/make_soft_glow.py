@@ -1,8 +1,8 @@
 """
-Writes SourceArt/UI/Sliced/LanternGlow.png: a soft warm halo laid over the lantern in the hero concept art on the
-main menu (cutting the art out of its background took the original halo with it). Plain Python, no libraries.
+Writes SourceArt/UI/Sliced/SoftGlow.png: a soft warm dot of light with a bright core, the sprite for the motes of
+light rising through the menus (tinted per mote). Plain Python, no libraries.
 
-  python Tools/make_lantern_glow.py   then   Tools/import_ui.py  ->  /Game/UI/T_LanternGlow
+  python Tools/make_soft_glow.py   then   Tools/import_ui.py  ->  /Game/UI/T_SoftGlow
 """
 import math
 import os
@@ -11,13 +11,13 @@ import zlib
 
 SIZE = 256
 COLOUR = (255, 236, 200)  # warm lantern white
-OUT = os.path.join(os.path.dirname(__file__), "..", "SourceArt", "UI", "Sliced", "LanternGlow.png")
+OUT = os.path.join(os.path.dirname(__file__), "..", "SourceArt", "UI", "Sliced", "SoftGlow.png")
 
 
 def alpha(r):
-    # A bright core over the glass and a wide soft bloom, faded fully out before the edge.
-    core = 0.55 * math.exp(-(r / 0.1) ** 2)
-    bloom = 0.4 * math.exp(-(r / 0.26) ** 2)
+    # A bright core and a soft bloom, faded fully out before the edge.
+    core = 0.9 * math.exp(-(r / 0.07) ** 2)
+    bloom = 0.35 * math.exp(-(r / 0.22) ** 2)
     edge = max(0.0, min(1.0, (0.5 - r) / 0.12))
     return min(1.0, (core + bloom) * edge)
 

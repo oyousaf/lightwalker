@@ -38,6 +38,43 @@ public:
 	void HandleValueChanged(float Value) { if (Callback) { Callback(Value); } }
 };
 
+/** Soft motes of light drifting up the screen like embers, drawn behind the menus' buttons. */
+UCLASS()
+class LIGHTWALKER_API ULWMoteField : public UUserWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+		FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
+private:
+	struct FMote
+	{
+		/** X across the screen, Y down it, both 0 to 1. */
+		FVector2D Position = FVector2D::ZeroVector;
+		/** Screen heights per second. */
+		float Speed = 0.f;
+		float Size = 0.f;
+		float Brightness = 0.f;
+		float SwayAmount = 0.f;
+		float SwayRate = 0.f;
+		float Twinkle = 0.f;
+		float Phase = 0.f;
+		FLinearColor Color = FLinearColor::White;
+	};
+
+	/** A new mote just below the bottom (or anywhere, when the field first fills). */
+	static void Respawn(FMote& Mote, bool bAnywhere);
+
+	static constexpr int32 MoteCount = 90;
+	TArray<FMote> Motes;
+	FSlateBrush Brush;
+	float Time = 0.f;
+};
+
 /**
  * Base for the menus. Each one builds its widget tree in code (the game needs no widget assets), with neon
  * buttons that light up when hovered or focused, so mouse, keyboard and gamepad all show where you are.
@@ -81,6 +118,12 @@ protected:
 
 	/** A full-screen dark veil behind overlay menus (pause, settings). */
 	void AddVeil(UCanvasPanel* Root, float Opacity);
+
+	/** The full-screen neon sunset art; null (and nothing added) if it isn't imported. */
+	UWidget* AddBackdrop(UCanvasPanel* Root);
+
+	/** Motes of light rising across the whole screen. */
+	void AddMotes(UCanvasPanel* Root);
 
 	/** Makes a widget slide in and fade up with the menu. */
 	void AddSlideIn(UWidget* Widget) { SlideIns.Add(Widget); }
@@ -136,7 +179,7 @@ private:
 	bool bFinished = false;
 };
 
-/** Title, Play, Hero, Settings, Quit, beside Lightwalker standing in the dark arena. */
+/** The logo, then Play, Hero, Settings and Quit over the neon sunset, with motes of light rising through it. */
 UCLASS()
 class LIGHTWALKER_API ULWMainMenu : public ULWMenuWidget
 {
@@ -144,23 +187,12 @@ class LIGHTWALKER_API ULWMainMenu : public ULWMenuWidget
 
 protected:
 	virtual void Build(UCanvasPanel* Root) override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
 	void RefreshHeroLabel();
 
-	static constexpr float HeroArtSize = 760.f;
-	static constexpr float LanternGlowSize = 300.f;
-	float GlowTime = 0.f;
-
-	UPROPERTY(Transient)
-	TObjectPtr<class UImage> LanternGlow;
-
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> HeroButton;
-
-	UPROPERTY(Transient)
-	TObjectPtr<class UImage> HeroImage;
 };
 
 UCLASS()

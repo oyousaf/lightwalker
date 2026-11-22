@@ -144,8 +144,7 @@ void ALightWalkerPawn::SetFrozen(bool bInFrozen)
 		FaceDirection(Heading);
 	}
 
-	// On the menu the hero's concept art stands in for the model, which is built to be seen from far above.
-	// The lantern light stays on, so the art stands in its glow on the floor.
+	// The menu shows only the sunset art, so the model stays hidden until play.
 	Model->SetHiddenInGame(bFrozen);
 }
 

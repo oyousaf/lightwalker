@@ -333,6 +333,30 @@ void ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
 	PanelSlot->SetOffsets(FMargin(0.f));
 }
 
+UWidget* ULWMenuWidget::AddBackdrop(UCanvasPanel* Root)
+{
+	UTexture2D* Sunset = LWStyle::Art(TEXT("MenuBackground"));
+	if (!Sunset)
+	{
+		return nullptr;
+	}
+	UImage* Image = WidgetTree->ConstructWidget<UImage>();
+	Image->SetBrush(LWStyle::ArtBrush(Sunset, FVector2D(1920.f, 1080.f)));
+	UCanvasPanelSlot* BackSlot = Root->AddChildToCanvas(Image);
+	BackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+	BackSlot->SetOffsets(FMargin(0.f));
+	return Image;
+}
+
+void ULWMenuWidget::AddMotes(UCanvasPanel* Root)
+{
+	ULWMoteField* Motes = WidgetTree->ConstructWidget<ULWMoteField>();
+	Motes->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* MotesSlot = Root->AddChildToCanvas(Motes);
+	MotesSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+	MotesSlot->SetOffsets(FMargin(0.f));
+}
+
 void ULWMenuWidget::FocusButton(int32 Index)
 {
 	if (Focusables.IsValidIndex(Index))
@@ -432,24 +456,18 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 	SetIsFocusable(true);
 
 	// The neon sunset art behind the logo if it's imported, plain black otherwise.
-	UWidget* Back = nullptr;
-	if (UTexture2D* Sunset = LWStyle::Art(TEXT("MenuBackground")))
-	{
-		UImage* Image = WidgetTree->ConstructWidget<UImage>();
-		Image->SetBrush(LWStyle::ArtBrush(Sunset, FVector2D(1920.f, 1080.f)));
-		Back = Image;
-		bArtBackdrop = true;
-	}
-	else
+	Backdrop = AddBackdrop(Root);
+	bArtBackdrop = Backdrop != nullptr;
+	if (!Backdrop)
 	{
 		UBorder* Black = WidgetTree->ConstructWidget<UBorder>();
 		Black->SetBrushColor(FLinearColor(0.f, 0.f, 0.f, 1.f));
-		Back = Black;
+		UCanvasPanelSlot* BackSlot = Root->AddChildToCanvas(Black);
+		BackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		BackSlot->SetOffsets(FMargin(0.f));
+		Backdrop = Black;
 	}
-	UCanvasPanelSlot* BackSlot = Root->AddChildToCanvas(Back);
-	BackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	BackSlot->SetOffsets(FMargin(0.f));
-	Backdrop = Back;
+	AddMotes(Root);
 
 	UVerticalBox* Centre = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1400.f);
 	Title = MakeLogo(1100.f, 110);
@@ -467,12 +485,8 @@ void ULWIntroScreen::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	Time += InDeltaTime;
 
 	Title->SetRenderOpacity(FadeWindow(Time, TitleIn, TitleHold, TitleOut, 1.f));
-	if (bArtBackdrop)
-	{
-		// The logo glows over the sunset, then both fade away to reveal Lightwalker in the arena.
-		Backdrop->SetRenderOpacity(FMath::Clamp((TitleOut - Time) / (TitleOut - TitleHold), 0.f, 1.f));
-	}
-	else
+	// Over the art, only the logo fades; the sunset stays for the main menu.
+	if (!bArtBackdrop)
 	{
 		// The title shows over the arena: the black backdrop lifts as it fades in.
 		Backdrop->SetRenderOpacity(1.f - FMath::Clamp((Time - TitleIn) / 2.f, 0.f, 1.f));
@@ -513,6 +527,10 @@ FReply ULWIntroScreen::NativeOnMouseButtonDown(const FGeometry& InGeometry, cons
 
 void ULWMainMenu::Build(UCanvasPanel* Root)
 {
+	// The neon sunset with motes of light rising through it (over the arena if the art isn't imported).
+	AddBackdrop(Root);
+	AddMotes(Root);
+
 	// The logo, top centre.
 	UWidget* Logo = MakeLogo(640.f, 96);
 	UCanvasPanelSlot* LogoSlot = Root->AddChildToCanvas(Logo);
@@ -521,33 +539,6 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	LogoSlot->SetPosition(FVector2D(0.f, 24.f));
 	LogoSlot->SetAutoSize(true);
 	AddSlideIn(Logo);
-
-	// The chosen hero's concept art on the right, standing in the lantern light on the arena floor (the 3D model,
-	// built to be seen from far above, is hidden on the menu).
-	// The art and the lantern's halo share a stage, so the halo can sit over the lantern of either hero.
-	UCanvasPanel* HeroStage = WidgetTree->ConstructWidget<UCanvasPanel>();
-	HeroStage->SetVisibility(ESlateVisibility::HitTestInvisible);
-	UCanvasPanelSlot* StageSlot = Root->AddChildToCanvas(HeroStage);
-	StageSlot->SetAnchors(FAnchors(0.79f, 1.f));
-	StageSlot->SetAlignment(FVector2D(0.5f, 1.f));
-	StageSlot->SetPosition(FVector2D(0.f, -40.f));
-	StageSlot->SetSize(FVector2D(HeroArtSize, HeroArtSize));
-	AddSlideIn(HeroStage);
-
-	HeroImage = WidgetTree->ConstructWidget<UImage>();
-	UCanvasPanelSlot* HeroSlot = HeroStage->AddChildToCanvas(HeroImage);
-	HeroSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	HeroSlot->SetOffsets(FMargin(0.f));
-
-	// Cutting the art out of its background took the lantern's halo with it; this puts a flickering one back.
-	if (UTexture2D* Glow = LWStyle::Art(TEXT("LanternGlow")))
-	{
-		LanternGlow = WidgetTree->ConstructWidget<UImage>();
-		LanternGlow->SetBrush(LWStyle::ArtBrush(Glow, FVector2D(LanternGlowSize, LanternGlowSize)));
-		UCanvasPanelSlot* GlowSlot = HeroStage->AddChildToCanvas(LanternGlow);
-		GlowSlot->SetAlignment(FVector2D(0.5f, 0.5f));
-		GlowSlot->SetSize(FVector2D(LanternGlowSize, LanternGlowSize));
-	}
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
@@ -571,43 +562,6 @@ void ULWMainMenu::RefreshHeroLabel()
 {
 	const ALightWalkerPlayerController* Controller = GetLWController();
 	SetButtonLabel(HeroButton, FString::Printf(TEXT("HERO: %s"), Controller ? *Controller->GetHeroName() : TEXT("LIGHTWALKER")));
-
-	if (HeroImage)
-	{
-		const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
-		UTexture2D* Art = (Settings && Settings->HeroIndex == 1) ? LWStyle::Art(TEXT("HeroFemale")) : nullptr;
-		Art = Art ? Art : LWStyle::Art(TEXT("HeroMale"));
-		HeroImage->SetVisibility(Art ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-		if (Art)
-		{
-			HeroImage->SetBrush(LWStyle::ArtBrush(Art, FVector2D(HeroArtSize, HeroArtSize)));
-		}
-
-		if (LanternGlow)
-		{
-			// Where each concept's lantern glass sits, as a fraction of the art.
-			const bool bFemale = Art && Art == LWStyle::Art(TEXT("HeroFemale"));
-			const FVector2D Lantern = bFemale ? FVector2D(0.285f, 0.121f) : FVector2D(0.262f, 0.161f);
-			LanternGlow->SetVisibility(Art ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-			if (UCanvasPanelSlot* GlowSlot = Cast<UCanvasPanelSlot>(LanternGlow->Slot))
-			{
-				GlowSlot->SetPosition(Lantern * HeroArtSize);
-			}
-		}
-	}
-}
-
-void ULWMainMenu::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-	Super::NativeTick(MyGeometry, InDeltaTime);
-
-	// A slow breath with a faint flame flicker on top.
-	GlowTime += InDeltaTime;
-	if (LanternGlow)
-	{
-		LanternGlow->SetRenderOpacity(0.86f + 0.09f * FMath::Sin(GlowTime * 2.1f) + 0.05f * FMath::Sin(GlowTime * 7.3f + 1.f));
-		LanternGlow->SetRenderScale(FVector2D(1.f + 0.03f * FMath::Sin(GlowTime * 2.1f)));
-	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -914,4 +868,94 @@ void ULWControlsMenu::NativeDestruct()
 {
 	Listening = -1;
 	Super::NativeDestruct();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Rising motes of light
+
+void ULWMoteField::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+	if (UTexture2D* Glow = LWStyle::Art(TEXT("SoftGlow")))
+	{
+		Brush = LWStyle::ArtBrush(Glow, FVector2D(64.f, 64.f));
+	}
+	if (Motes.Num() == 0)
+	{
+		Motes.SetNum(MoteCount);
+		for (FMote& Mote : Motes)
+		{
+			Respawn(Mote, true);
+		}
+	}
+}
+
+void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
+{
+	// Mostly small warm sparks; a few big, faint, out-of-focus ones nearer the eye.
+	const bool bBokeh = FMath::FRand() < 0.12f;
+	Mote.Position = FVector2D(FMath::FRand(), bAnywhere ? FMath::FRandRange(0.05f, 1.05f) : FMath::FRandRange(1.02f, 1.1f));
+	Mote.Size = bBokeh ? FMath::FRandRange(110.f, 180.f) : FMath::FRandRange(26.f, 64.f);
+	Mote.Brightness = bBokeh ? FMath::FRandRange(0.12f, 0.22f) : FMath::FRandRange(0.6f, 1.f);
+	// Nearer (bigger) motes rise faster.
+	Mote.Speed = bBokeh ? FMath::FRandRange(0.05f, 0.08f) : FMath::FRandRange(0.018f, 0.055f);
+	Mote.SwayAmount = FMath::FRandRange(6.f, 22.f);
+	Mote.SwayRate = FMath::FRandRange(0.35f, 1.1f);
+	Mote.Twinkle = FMath::FRandRange(1.5f, 4.f);
+	Mote.Phase = FMath::FRand() * UE_TWO_PI;
+
+	// The sunset's palette: lantern gold, with some pink and a little cyan.
+	const float Pick = FMath::FRand();
+	Mote.Color = Pick < 0.6f ? FLinearColor(1.f, 0.78f, 0.45f) : Pick < 0.85f ? FLinearColor(1.f, 0.4f, 0.72f) : FLinearColor(0.4f, 0.9f, 1.f);
+}
+
+void ULWMoteField::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	Time += InDeltaTime;
+	for (FMote& Mote : Motes)
+	{
+		Mote.Position.Y -= Mote.Speed * InDeltaTime;
+		if (Mote.Position.Y < -0.05f)
+		{
+			Respawn(Mote, false);
+		}
+	}
+}
+
+int32 ULWMoteField::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+	FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+	const int32 Layer = Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled) + 1;
+	if (!Brush.GetResourceObject())
+	{
+		return Layer;
+	}
+
+	const FVector2D Area = AllottedGeometry.GetLocalSize();
+	const FLinearColor Tint = InWidgetStyle.GetColorAndOpacityTint();
+	for (const FMote& Mote : Motes)
+	{
+		// Fades in as it leaves the floor and dies away towards the top, twinkling on the way.
+		const float Y = Mote.Position.Y;
+		const float Fade = FMath::Clamp((1.05f - Y) / 0.15f, 0.f, 1.f) * FMath::Clamp((Y + 0.02f) / 0.45f, 0.f, 1.f);
+		const float Twinkle = 0.7f + 0.3f * FMath::Sin(Time * Mote.Twinkle + Mote.Phase);
+		const float Alpha = Mote.Brightness * Fade * Twinkle;
+		if (Alpha < 0.01f)
+		{
+			continue;
+		}
+
+		const FVector2f Size(Mote.Size, Mote.Size);
+		const FVector2f Centre(
+			Mote.Position.X * Area.X + Mote.SwayAmount * FMath::Sin(Time * Mote.SwayRate + Mote.Phase),
+			Y * Area.Y);
+		FLinearColor Color = Mote.Color * Tint;
+		Color.A = Alpha * Tint.A;
+		FSlateDrawElement::MakeBox(OutDrawElements, Layer,
+			AllottedGeometry.ToPaintGeometry(Size, FSlateLayoutTransform(Centre - Size * 0.5f)), &Brush, ESlateDrawEffect::None, Color);
+	}
+	return Layer;
 }
