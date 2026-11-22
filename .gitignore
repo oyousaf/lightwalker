@@ -21,7 +21,9 @@ Plugins/*/Intermediate/
 
 # Packaged builds
 Build/*
-!Build/**/*.ico
+!Build/Windows/
+Build/Windows/*
+!Build/Windows/*.ico
 Packaged/
 
 # Python bytecode from the Tools scripts

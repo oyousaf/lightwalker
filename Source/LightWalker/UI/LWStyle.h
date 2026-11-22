@@ -13,6 +13,9 @@ class UTexture2D;
  */
 namespace LWStyle
 {
+	/** The colour with a new alpha (shared here so the HUD and menus can't define clashing copies in a unity build). */
+	inline FLinearColor WithAlpha(const FLinearColor& Color, float Alpha) { return FLinearColor(Color.R, Color.G, Color.B, Alpha); }
+
 	inline const FLinearColor Pink(1.f, 0.12f, 0.5f);
 	inline const FLinearColor Magenta(0.75f, 0.12f, 1.f);
 	inline const FLinearColor Orange(1.f, 0.42f, 0.1f);

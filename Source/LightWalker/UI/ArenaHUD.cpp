@@ -16,10 +16,7 @@
 
 namespace
 {
-	FLinearColor WithAlpha(const FLinearColor& Color, float Alpha)
-	{
-		return FLinearColor(Color.R, Color.G, Color.B, Alpha);
-	}
+	using LWStyle::WithAlpha;
 
 	const TCHAR* IconName(EPickupType Type)
 	{

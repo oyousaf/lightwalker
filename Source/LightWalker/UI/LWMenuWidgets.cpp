@@ -30,10 +30,7 @@ namespace
 	/** Space under a panel title, so the first row clears the frame's top edge and its corner details. */
 	constexpr float PanelTitleGap = 56.f;
 
-	FLinearColor WithAlpha(const FLinearColor& Color, float Alpha)
-	{
-		return FLinearColor(Color.R, Color.G, Color.B, Alpha);
-	}
+	using LWStyle::WithAlpha;
 
 	FSlateBrush NeonBox(const FLinearColor& Fill, const FLinearColor& Outline, float OutlineWidth, float Radius = 4.f)
 	{
