@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
@@ -36,6 +37,16 @@ AArena::AArena()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 
 	Floor = MakeMesh(this, TEXT("Floor"), PlaneMesh.Object, RootComponent);
+
+	Grid = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Grid"));
+	Grid->SetupAttachment(RootComponent);
+	Grid->SetStaticMesh(CubeMesh.Object);
+	Grid->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Grid->SetCastShadow(false);
+	// Glow only: kept out of Lumen and distance-field lighting.
+	Grid->bAffectDynamicIndirectLighting = false;
+	Grid->bAffectDistanceFieldLighting = false;
+	Grid->bVisibleInRayTracing = false;
 	EdgeTop = MakeMesh(this, TEXT("EdgeTop"), CubeMesh.Object, RootComponent);
 	EdgeBottom = MakeMesh(this, TEXT("EdgeBottom"), CubeMesh.Object, RootComponent);
 	EdgeLeft = MakeMesh(this, TEXT("EdgeLeft"), CubeMesh.Object, RootComponent);
@@ -70,10 +81,15 @@ void AArena::BeginPlay()
 
 	LWNeon::ApplySurface(Floor, FloorColor);
 	EdgeMaterials.Reset();
-	for (UStaticMeshComponent* Edge : { EdgeTop.Get(), EdgeBottom.Get(), EdgeLeft.Get(), EdgeRight.Get() })
+	for (UStaticMeshComponent* Edge : { EdgeTop.Get(), EdgeBottom.Get() })
 	{
 		EdgeMaterials.Add(LWNeon::ApplyGlow(Edge, EdgeColor, EdgeGlowIntensity));
 	}
+	for (UStaticMeshComponent* Edge : { EdgeLeft.Get(), EdgeRight.Get() })
+	{
+		EdgeMaterials.Add(LWNeon::ApplyGlow(Edge, SideEdgeColor, EdgeGlowIntensity));
+	}
+	GridMaterial = LWNeon::ApplyGlow(Grid, GridColor, GridGlowIntensity);
 	ApplyCamera();
 }
 
@@ -83,6 +99,23 @@ void AArena::Layout()
 	const FVector2D Full = HalfExtent * 2.f;
 
 	Floor->SetRelativeScale3D(FVector((Full.X + FloorMargin) / 100.f, (Full.Y + FloorMargin) / 100.f, 1.f));
+
+	// Grid lines inside the edges, centred so the pattern is symmetrical. Basic cube is 100 units.
+	Grid->ClearInstances();
+	constexpr float LineWidth = 3.f;
+	constexpr float LineHeight = 0.6f;
+	const int32 RowsX = FMath::FloorToInt(HalfExtent.X / GridSpacing);
+	const int32 RowsY = FMath::FloorToInt(HalfExtent.Y / GridSpacing);
+	for (int32 Index = -RowsX; Index <= RowsX; ++Index)
+	{
+		Grid->AddInstance(FTransform(FRotator::ZeroRotator, FVector(Index * GridSpacing, 0.f, 0.5f),
+			FVector(LineWidth / 100.f, Full.Y / 100.f, LineHeight / 100.f)));
+	}
+	for (int32 Index = -RowsY; Index <= RowsY; ++Index)
+	{
+		Grid->AddInstance(FTransform(FRotator::ZeroRotator, FVector(0.f, Index * GridSpacing, 0.5f),
+			FVector(Full.X / 100.f, LineWidth / 100.f, LineHeight / 100.f)));
+	}
 
 	const float EdgeZ = EdgeHeight * 0.5f;
 	const float SpanX = (Full.X + EdgeThickness * 2.f) / 100.f;
@@ -120,7 +153,12 @@ void AArena::ApplyCamera()
 	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha) + Rotation.RotateVector(ShakeMove));
 	Camera->SetFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha));
 
-	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out.
+	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out, and the grid dims so
+	// it stays a backdrop behind the buttons.
+	if (GridMaterial)
+	{
+		GridMaterial->SetScalarParameterValue(FName(TEXT("Intensity")), FMath::Lerp(GridGlowIntensity, GridGlowIntensity * 0.3f, Alpha));
+	}
 	Moonlight->SetIntensity(FMath::Lerp(MoonlightIntensity, MoonlightIntensity * 0.08f, Alpha));
 	for (UMaterialInstanceDynamic* Material : EdgeMaterials)
 	{

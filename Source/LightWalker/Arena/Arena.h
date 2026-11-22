@@ -7,6 +7,7 @@
 class UCameraComponent;
 class UDirectionalLightComponent;
 class UPostProcessComponent;
+class UInstancedStaticMeshComponent;
 class UStaticMeshComponent;
 
 /**
@@ -62,6 +63,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Arena")
 	TObjectPtr<UStaticMeshComponent> Floor;
 
+	/** Faint neon grid lines across the floor, like the sunset art's gridscape. */
+	UPROPERTY(VisibleAnywhere, Category = "Arena")
+	TObjectPtr<UInstancedStaticMeshComponent> Grid;
+
 	UPROPERTY(VisibleAnywhere, Category = "Arena")
 	TObjectPtr<UStaticMeshComponent> EdgeTop;
 
@@ -98,13 +103,28 @@ protected:
 	float CameraFieldOfView = 55.f;
 
 	UPROPERTY(EditAnywhere, Category = "Arena|Look")
-	FLinearColor FloorColor = FLinearColor(0.012f, 0.014f, 0.03f);
+	FLinearColor FloorColor = FLinearColor(0.016f, 0.008f, 0.032f);
 
 	UPROPERTY(EditAnywhere, Category = "Arena|Look")
-	FLinearColor EdgeColor = FLinearColor(0.35f, 0.2f, 1.f);
+	FLinearColor EdgeColor = FLinearColor(1.f, 0.1f, 0.45f);
+
+	/** The left and right edges, so the arena is framed in both neon colours. */
+	UPROPERTY(EditAnywhere, Category = "Arena|Look")
+	FLinearColor SideEdgeColor = FLinearColor(0.2f, 0.85f, 1.f);
 
 	UPROPERTY(EditAnywhere, Category = "Arena|Look")
-	float EdgeGlowIntensity = 4.f;
+	float EdgeGlowIntensity = 2.2f;
+
+	UPROPERTY(EditAnywhere, Category = "Arena|Look")
+	FLinearColor GridColor = FLinearColor(0.35f, 0.25f, 1.f);
+
+	/** Kept low: the grid gives the floor depth without competing with the enemies. */
+	UPROPERTY(EditAnywhere, Category = "Arena|Look")
+	float GridGlowIntensity = 0.36f;
+
+	/** Distance between grid lines. */
+	UPROPERTY(EditAnywhere, Category = "Arena|Look")
+	float GridSpacing = 206.f;
 
 	UPROPERTY(EditAnywhere, Category = "Arena|Look")
 	float MoonlightIntensity = 1.5f;
@@ -123,6 +143,9 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<class UMaterialInstanceDynamic>> EdgeMaterials;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> GridMaterial;
 
 	/** Camera shake: current trauma, how fast it fades per second, the largest offset (cm) and tilt (degrees). */
 	float Trauma = 0.f;
