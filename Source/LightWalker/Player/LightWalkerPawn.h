@@ -139,6 +139,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	float ModelGlow = 1.6f;
 
+	/** Glow multiplier on the menu, where the camera is close and the lantern bright. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	float MenuGlowScale = 0.55f;
+
 	/** Light colour once the model is in (the placeholder uses Color). */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	FLinearColor LanternLightColor = FLinearColor(1.f, 0.9f, 0.72f);

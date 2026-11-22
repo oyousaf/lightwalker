@@ -143,6 +143,16 @@ void ALightWalkerPawn::SetFrozen(bool bInFrozen)
 		Heading = FVector::BackwardVector;
 		FaceDirection(Heading);
 	}
+
+	// The menu camera is close to the lantern, so the model's own glow is toned down there to keep the robe's
+	// teal and gold from washing out to white.
+	for (int32 Slot = 0; Slot < Model->GetNumMaterials(); ++Slot)
+	{
+		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Model->GetMaterial(Slot)))
+		{
+			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (bFrozen ? MenuGlowScale : 1.f));
+		}
+	}
 }
 
 bool ALightWalkerPawn::UseModel(const FSoftObjectPath& Path)
@@ -174,7 +184,7 @@ bool ALightWalkerPawn::UseModel(const FSoftObjectPath& Path)
 	{
 		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
 		{
-			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (bFrozen ? MenuGlowScale : 1.f));
 		}
 	}
 

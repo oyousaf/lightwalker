@@ -85,8 +85,6 @@ protected:
 	/** Makes a widget slide in and fade up with the menu. */
 	void AddSlideIn(UWidget* Widget) { SlideIns.Add(Widget); }
 
-	/** Faint CRT scanlines over the whole menu. */
-	void AddScanlines(UCanvasPanel* Root);
 
 private:
 	struct FFocusable

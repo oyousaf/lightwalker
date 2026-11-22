@@ -18,7 +18,6 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Core/LWSound.h"
 #include "Core/LightWalkerUserSettings.h"
-#include "Engine/Texture2D.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPlayerController.h"
 #include "UI/LWStyle.h"
@@ -75,25 +74,6 @@ namespace
 		return Style;
 	}
 
-	/** A 1x4 texture with one dark row, tiled over the screen for faint CRT scanlines. */
-	UTexture2D* ScanlineTexture()
-	{
-		static TWeakObjectPtr<UTexture2D> Cached;
-		if (!Cached.IsValid())
-		{
-			UTexture2D* Texture = UTexture2D::CreateTransient(1, 4, PF_B8G8R8A8);
-			Texture->Filter = TF_Nearest;
-			Texture->AddToRoot();
-			FColor* Pixels = static_cast<FColor*>(Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
-			Pixels[0] = FColor(0, 0, 0, 255);
-			Pixels[1] = Pixels[2] = Pixels[3] = FColor(0, 0, 0, 0);
-			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
-			Texture->UpdateResource();
-			Cached = Texture;
-		}
-		return Cached.Get();
-	}
-
 	FString QualityName(int32 Level)
 	{
 		switch (Level)
@@ -127,7 +107,6 @@ TSharedRef<SWidget> ULWMenuWidget::RebuildWidget()
 		UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("Root"));
 		WidgetTree->RootWidget = Root;
 		Build(Root);
-		AddScanlines(Root);
 	}
 	return Super::RebuildWidget();
 }
@@ -351,21 +330,6 @@ void ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
 	PanelSlot->SetOffsets(FMargin(0.f));
 }
 
-void ULWMenuWidget::AddScanlines(UCanvasPanel* Root)
-{
-	UImage* Lines = WidgetTree->ConstructWidget<UImage>();
-	FSlateBrush Brush;
-	Brush.SetResourceObject(ScanlineTexture());
-	Brush.ImageSize = FVector2D(1.f, 4.f);
-	Brush.Tiling = ESlateBrushTileType::Both;
-	Lines->SetBrush(Brush);
-	Lines->SetRenderOpacity(0.18f);
-	Lines->SetVisibility(ESlateVisibility::HitTestInvisible);
-	UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(Lines);
-	PanelSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	PanelSlot->SetOffsets(FMargin(0.f));
-}
-
 void ULWMenuWidget::FocusButton(int32 Index)
 {
 	if (Focusables.IsValidIndex(Index))
@@ -546,7 +510,7 @@ FReply ULWIntroScreen::NativeOnMouseButtonDown(const FGeometry& InGeometry, cons
 
 void ULWMainMenu::Build(UCanvasPanel* Root)
 {
-	// Logo and tagline, top centre.
+	// The logo, top centre.
 	UWidget* Logo = MakeLogo(640.f, 96);
 	UCanvasPanelSlot* LogoSlot = Root->AddChildToCanvas(Logo);
 	LogoSlot->SetAnchors(FAnchors(0.5f, 0.f));
@@ -554,8 +518,6 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	LogoSlot->SetPosition(FVector2D(0.f, 24.f));
 	LogoSlot->SetAutoSize(true);
 	AddSlideIn(Logo);
-	UVerticalBox* Tagline = AddColumn(Root, FVector2D(0.5f, 0.f), FVector2D(0.5f, 0.f), 900.f, FVector2D(0.f, 178.f));
-	Tagline->AddChildToVerticalBox(MakeBody(TEXT("CARRY THE LIGHT"), 24, LWStyle::Cyan, 900));
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
