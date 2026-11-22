@@ -2,6 +2,7 @@
 
 #include "Arena/ArenaGameMode.h"
 #include "CanvasItem.h"
+#include "Core/LWFeel.h"
 #include "Core/LightWalkerGameInstance.h"
 #include "Engine/Canvas.h"
 #include "Engine/Texture2D.h"
@@ -81,6 +82,18 @@ void AArenaHUD::DrawHUD()
 	if (!Canvas || !GameMode || !Run || GameMode->GetPhase() == EArenaPhase::Menu)
 	{
 		return;
+	}
+
+	// A brief colour flash over the whole screen on the big moments (life lost, book, shield).
+	if (const ULWFeelSubsystem* Feel = GetGameInstance()->GetSubsystem<ULWFeelSubsystem>())
+	{
+		const FLinearColor Flash = Feel->GetFlash();
+		if (Flash.A > 0.001f)
+		{
+			FCanvasTileItem Tile(FVector2D::ZeroVector, FVector2D(Canvas->ClipX, Canvas->ClipY), Flash);
+			Tile.BlendMode = SE_BLEND_Translucent;
+			Canvas->DrawItem(Tile);
+		}
 	}
 
 	// Sizes are designed at 1080p and scale with the screen.

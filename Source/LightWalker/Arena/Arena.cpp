@@ -110,8 +110,14 @@ void AArena::ApplyCamera()
 	const FVector GameLocation = -FRotator(CameraPitch, 0.f, 0.f).Vector() * CameraDistance;
 	const FVector MenuLocation = MenuCameraTarget - FRotator(MenuCameraPitch, 0.f, 0.f).Vector() * MenuCameraDistance;
 
-	Camera->SetRelativeRotation(FRotator(Pitch, 0.f, 0.f));
-	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha));
+	// Shake: smooth noise (not random jitter), scaled by trauma squared so small knocks stay subtle.
+	const float Shake = Trauma * Trauma;
+	const FVector ShakeMove = FVector(0.f, FMath::PerlinNoise1D(ShakeTime * 23.f), FMath::PerlinNoise1D(ShakeTime * 23.f + 50.f)) * ShakeOffset * Shake;
+	const FRotator ShakeTurn(FMath::PerlinNoise1D(ShakeTime * 19.f + 100.f) * ShakeTilt * Shake, 0.f, FMath::PerlinNoise1D(ShakeTime * 19.f + 150.f) * ShakeTilt * Shake);
+
+	const FRotator Rotation(Pitch, 0.f, 0.f);
+	Camera->SetRelativeRotation(Rotation + ShakeTurn);
+	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha) + Rotation.RotateVector(ShakeMove));
 	Camera->SetFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha));
 
 	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out.
@@ -139,10 +145,21 @@ void AArena::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	const bool bShaking = Trauma > 0.f;
+	if (bShaking)
+	{
+		ShakeTime += DeltaSeconds;
+		Trauma = FMath::Max(0.f, Trauma - TraumaDecay * DeltaSeconds);
+	}
+
 	if (MenuBlend != MenuBlendTarget)
 	{
 		const float Step = DeltaSeconds / FMath::Max(CameraBlendTime, KINDA_SMALL_NUMBER);
 		MenuBlend = MenuBlendTarget > MenuBlend ? FMath::Min(MenuBlend + Step, MenuBlendTarget) : FMath::Max(MenuBlend - Step, MenuBlendTarget);
+		ApplyCamera();
+	}
+	else if (bShaking)
+	{
 		ApplyCamera();
 	}
 }

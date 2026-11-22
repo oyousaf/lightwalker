@@ -36,6 +36,9 @@ public:
 	/** Moves the camera between the low menu close-up of Lightwalker and the top-down game view. */
 	void SetMenuView(bool bMenu, bool bInstant = false);
 
+	/** Shakes the camera: trauma (0-1) adds up, decays over time, and the shake grows with its square. */
+	void AddTrauma(float Amount) { Trauma = FMath::Min(1.f, Trauma + Amount); }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -120,6 +123,13 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<class UMaterialInstanceDynamic>> EdgeMaterials;
+
+	/** Camera shake: current trauma, how fast it fades per second, the largest offset (cm) and tilt (degrees). */
+	float Trauma = 0.f;
+	float TraumaDecay = 1.6f;
+	float ShakeOffset = 28.f;
+	float ShakeTilt = 1.2f;
+	float ShakeTime = 0.f;
 
 	/** 0 = game view, 1 = menu view. */
 	float MenuBlend = 0.f;

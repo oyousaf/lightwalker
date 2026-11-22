@@ -6,6 +6,7 @@
 #include "Core/LightWalkerGameInstance.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Core/LWNeon.h"
+#include "Core/LWFeel.h"
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
 #include "Engine/StaticMesh.h"
@@ -360,6 +361,7 @@ void ALightWalkerPawn::Fire(const FVector& Direction)
 	const bool bPiercing = GetPowerUpTimeLeft(EPickupType::PiercingBeam) > 0.f;
 	const bool bSpread = GetPowerUpTimeLeft(EPickupType::SpreadShot) > 0.f;
 	ULWSoundSubsystem::Play(this, bPiercing ? ELWSound::ShotPiercing : bSpread ? ELWSound::ShotSpread : ELWSound::Shot);
+	ULWFeelSubsystem::Play(this, ELWFeel::Fire);
 	const float BoltSpeed = GetRun() ? GetRun()->GetUpgrades().BoltSpeed : 1.f;
 	const bool bPowered = bOrb || bPiercing || BoltSpeed > 1.f;
 
@@ -385,6 +387,10 @@ void ALightWalkerPawn::Fire(const FVector& Direction)
 void ALightWalkerPawn::CollectPickup(EPickupType Type)
 {
 	const FString Title = LWPickups::GetName(Type);
+	if (Type != EPickupType::Book)
+	{
+		ULWFeelSubsystem::Play(this, ELWFeel::Pickup);
+	}
 	switch (Type)
 	{
 	case EPickupType::LightOrb:
@@ -414,6 +420,7 @@ void ALightWalkerPawn::CollectPickup(EPickupType Type)
 		break;
 	case EPickupType::Book:
 		ULWSoundSubsystem::Play(this, ELWSound::Book);
+		ULWFeelSubsystem::Play(this, ELWFeel::Book);
 		if (ULightWalkerGameInstance* Run = GetRun())
 		{
 			const FBookReading Reading = Run->ReadBook();

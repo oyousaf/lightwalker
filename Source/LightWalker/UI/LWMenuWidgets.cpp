@@ -685,6 +685,15 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
+	ShakeButton = AddButton(Column, TEXT("SCREEN SHAKE"), [this]()
+	{
+		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
+		{
+			S->bScreenShake = !S->bScreenShake;
+			Refresh();
+		}
+	});
+
 	AddButton(Column, TEXT("BACK"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
@@ -715,4 +724,5 @@ void ULWSettingsMenu::Refresh()
 	SetButtonLabel(FrameRateButton, FrameRate > 0.f ? FString::Printf(TEXT("FRAME RATE: %d FPS"), FMath::RoundToInt(FrameRate)) : FString(TEXT("FRAME RATE: UNLIMITED")));
 	SetButtonLabel(VSyncButton, FString::Printf(TEXT("V-SYNC: %s"), S->IsVSyncEnabled() ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(VibrationButton, FString::Printf(TEXT("VIBRATION: %s"), S->bVibration ? TEXT("ON") : TEXT("OFF")));
+	SetButtonLabel(ShakeButton, FString::Printf(TEXT("SCREEN SHAKE: %s"), S->bScreenShake ? TEXT("ON") : TEXT("OFF")));
 }

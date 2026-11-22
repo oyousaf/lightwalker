@@ -195,4 +195,7 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> VibrationButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> ShakeButton;
 };

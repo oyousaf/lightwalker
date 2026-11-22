@@ -2,6 +2,7 @@
 
 #include "Arena/Arena.h"
 #include "Core/LWMusicSubsystem.h"
+#include "Core/LWFeel.h"
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
 #include "Core/LightWalkerGameInstance.h"
@@ -451,11 +452,13 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 	if (LightWalker->TryBlockHit())
 	{
 		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
+		ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
 		LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
 		return;
 	}
 
 	ULWSoundSubsystem::Play(this, ELWSound::LifeLost);
+	ULWFeelSubsystem::Play(this, ELWFeel::LifeLost);
 	LWFX::LifeLost(GetWorld(), LightWalker->GetActorLocation());
 
 	LightWalker->SetDowned(true);
@@ -538,6 +541,7 @@ void AArenaGameMode::FinishWave()
 	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 	{
 		Music->PlaySting(ELWSting::WaveCleared);
+		ULWFeelSubsystem::Play(this, ELWFeel::WaveCleared);
 	}
 	SetPhase(EArenaPhase::WaveCleared, WaveClearedDuration, &AArenaGameMode::AdvanceWave);
 }

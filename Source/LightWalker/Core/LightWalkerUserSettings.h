@@ -33,9 +33,13 @@ public:
 	UPROPERTY(Config)
 	float EffectsVolume = 1.f;
 
-	/** Controller rumble (used once rumble is added). */
+	/** Controller rumble on hits, kills and pickups. */
 	UPROPERTY(Config)
 	bool bVibration = true;
+
+	/** Camera shake on hits and kills (off for players who find it uncomfortable). */
+	UPROPERTY(Config)
+	bool bScreenShake = true;
 
 	/** 0 = Lightwalker (male), 1 = Lightwalker (female). */
 	UPROPERTY(Config)

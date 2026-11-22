@@ -8,6 +8,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
+#include "Core/LWFeel.h"
 #include "Core/LWSound.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -428,6 +429,10 @@ void ALightWalkerPlayerController::CloseSettings()
 
 void ALightWalkerPlayerController::SetMenuPaused(bool bPaused)
 {
+	if (ULWFeelSubsystem* Feel = GetGameInstance()->GetSubsystem<ULWFeelSubsystem>())
+	{
+		Feel->CancelHitStop();
+	}
 	SetPause(bPaused);
 	if (bPaused)
 	{
