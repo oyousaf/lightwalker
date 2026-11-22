@@ -144,9 +144,17 @@ class LIGHTWALKER_API ULWMainMenu : public ULWMenuWidget
 
 protected:
 	virtual void Build(UCanvasPanel* Root) override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
 	void RefreshHeroLabel();
+
+	static constexpr float HeroArtSize = 760.f;
+	static constexpr float LanternGlowSize = 300.f;
+	float GlowTime = 0.f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UImage> LanternGlow;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> HeroButton;
@@ -199,4 +207,33 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> ShakeButton;
+};
+
+/**
+ * Settings > Controls: pick a control, then press the key or gamepad button for it (Esc cancels). Keys replace
+ * the keyboard binding and buttons the gamepad one, so both stay bound. Taking a key from another control swaps.
+ */
+UCLASS()
+class LIGHTWALKER_API ULWControlsMenu : public ULWMenuWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void Build(UCanvasPanel* Root) override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual FReply NativeOnPreviewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeDestruct() override;
+
+private:
+	void Refresh();
+	void StopListening();
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UButton>> BindingButtons;
+
+	/** The control waiting for a key, or -1. */
+	int32 Listening = -1;
+	/** Ignores the press that started listening. */
+	float ListenAge = 0.f;
 };

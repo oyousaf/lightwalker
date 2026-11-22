@@ -151,6 +151,17 @@ void AArenaGameMode::StartPlay()
 			if (FParse::Param(FCommandLine::Get(), TEXT("LWMenu")))
 			{
 				Controller->ShowMainMenu();
+
+				// -LWPage=settings or -LWPage=controls opens that page over it.
+				FString Page;
+				if (FParse::Value(FCommandLine::Get(), TEXT("LWPage="), Page))
+				{
+					Controller->OpenSettings();
+					if (Page == TEXT("controls"))
+					{
+						Controller->OpenControls();
+					}
+				}
 			}
 			else
 #endif

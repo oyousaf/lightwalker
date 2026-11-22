@@ -97,23 +97,44 @@ void ALightWalkerPlayerController::BuildInput()
 	BackAction = MakeAction(TEXT("IA_Back"), EInputActionValueType::Boolean, true);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Arena"));
+	ApplyBindings();
+}
 
-	MapDirectionalKeys(MappingContext, MoveAction, EKeys::W, EKeys::A, EKeys::S, EKeys::D);
+void ALightWalkerPlayerController::ApplyBindings()
+{
+	if (!MappingContext)
+	{
+		return;
+	}
+	MappingContext->UnmapAll();
+
+	// The player's bindings (Settings > Controls), keyboard and gamepad.
+	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+	for (const bool bGamepad : { false, true })
+	{
+		auto Bound = [Settings, bGamepad](ELWBinding Binding)
+		{
+			return Settings ? Settings->GetBinding(Binding, bGamepad) : ULightWalkerUserSettings::GetDefaultBinding(Binding, bGamepad);
+		};
+		MapDirectionalKeys(MappingContext, MoveAction,
+			Bound(ELWBinding::MoveUp), Bound(ELWBinding::MoveLeft), Bound(ELWBinding::MoveDown), Bound(ELWBinding::MoveRight));
+		MapKeys(MappingContext, FireAction, { Bound(ELWBinding::Fire) });
+		MapKeys(MappingContext, PauseAction, { Bound(ELWBinding::Pause) });
+	}
+
+	// Fixed: the arrow keys and sticks always move and aim, the mouse always aims, Esc always pauses.
 	MapDirectionalKeys(MappingContext, MoveAction, EKeys::Up, EKeys::Left, EKeys::Down, EKeys::Right);
-	MapDirectionalKeys(MappingContext, MoveAction,
-		EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Left, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_DPad_Right);
 	MapStick(MappingContext, MoveAction, EKeys::Gamepad_Left2D);
-
 	MapStick(MappingContext, AimAction, EKeys::Gamepad_Right2D);
-
-	MapKeys(MappingContext, FireAction, {
-		EKeys::SpaceBar, EKeys::LeftControl,
-		EKeys::Gamepad_RightTrigger, EKeys::Gamepad_RightShoulder, EKeys::Gamepad_FaceButton_Bottom });
 	MapKeys(MappingContext, MouseFireAction, { EKeys::LeftMouseButton });
-
+	MapKeys(MappingContext, PauseAction, { EKeys::Escape });
 	MapKeys(MappingContext, ConfirmAction, { EKeys::Enter, EKeys::SpaceBar, EKeys::Gamepad_FaceButton_Bottom });
-	MapKeys(MappingContext, PauseAction, { EKeys::Escape, EKeys::P, EKeys::Gamepad_Special_Right });
 	MapKeys(MappingContext, BackAction, { EKeys::BackSpace, EKeys::Gamepad_FaceButton_Right });
+
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayer() ? ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()) : nullptr)
+	{
+		Subsystem->RequestRebuildControlMappings();
+	}
 }
 
 void ALightWalkerPlayerController::SetupInputComponent()
@@ -274,6 +295,10 @@ void ALightWalkerPlayerController::HandlePause(const FInputActionValue& Value)
 	{
 		IntroScreen->Skip();
 	}
+	else if (ControlsMenu && ControlsMenu->IsInViewport())
+	{
+		CloseControls();
+	}
 	else if (SettingsMenu && SettingsMenu->IsInViewport())
 	{
 		CloseSettings();
@@ -295,7 +320,11 @@ void ALightWalkerPlayerController::HandlePause(const FInputActionValue& Value)
 
 void ALightWalkerPlayerController::HandleBack(const FInputActionValue& Value)
 {
-	if (SettingsMenu && SettingsMenu->IsInViewport())
+	if (ControlsMenu && ControlsMenu->IsInViewport())
+	{
+		CloseControls();
+	}
+	else if (SettingsMenu && SettingsMenu->IsInViewport())
 	{
 		CloseSettings();
 	}
@@ -307,7 +336,7 @@ void ALightWalkerPlayerController::HandleBack(const FInputActionValue& Value)
 
 void ALightWalkerPlayerController::ShowMenu(ULWMenuWidget* Menu)
 {
-	for (ULWMenuWidget* Other : { (ULWMenuWidget*)IntroScreen.Get(), (ULWMenuWidget*)MainMenu.Get(), (ULWMenuWidget*)PauseMenu.Get(), (ULWMenuWidget*)SettingsMenu.Get() })
+	for (ULWMenuWidget* Other : { (ULWMenuWidget*)IntroScreen.Get(), (ULWMenuWidget*)MainMenu.Get(), (ULWMenuWidget*)PauseMenu.Get(), (ULWMenuWidget*)SettingsMenu.Get(), (ULWMenuWidget*)ControlsMenu.Get() })
 	{
 		if (Other && Other != Menu && Other->IsInViewport())
 		{
@@ -425,6 +454,24 @@ void ALightWalkerPlayerController::CloseSettings()
 		Settings->SaveSettings();
 	}
 	ShowMenu(SettingsReturn ? SettingsReturn.Get() : (ULWMenuWidget*)MainMenu.Get());
+}
+
+void ALightWalkerPlayerController::OpenControls()
+{
+	if (!ControlsMenu)
+	{
+		ControlsMenu = CreateWidget<ULWControlsMenu>(this, ULWControlsMenu::StaticClass());
+	}
+	ShowMenu(ControlsMenu);
+}
+
+void ALightWalkerPlayerController::CloseControls()
+{
+	if (ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get())
+	{
+		Settings->SaveSettings();
+	}
+	ShowMenu(SettingsMenu);
 }
 
 void ALightWalkerPlayerController::SetMenuPaused(bool bPaused)

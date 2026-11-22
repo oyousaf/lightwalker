@@ -27,6 +27,9 @@ namespace
 	/** Buttons lean forward like italic type. */
 	constexpr float ButtonShear = -12.f;
 
+	/** Space under a panel title, so the first row clears the frame's top edge and its corner details. */
+	constexpr float PanelTitleGap = 56.f;
+
 	FLinearColor WithAlpha(const FLinearColor& Color, float Alpha)
 	{
 		return FLinearColor(Color.R, Color.G, Color.B, Alpha);
@@ -242,7 +245,7 @@ void ULWMenuWidget::AddSlider(UPanelWidget* Parent, const FString& Label, float 
 	Slider->SetSliderBarColor(WithAlpha(LWStyle::Magenta * 0.5f, 1.f));
 	Slider->SetSliderHandleColor(LWStyle::Pink);
 	USizeBox* SliderBox = WidgetTree->ConstructWidget<USizeBox>();
-	SliderBox->SetWidthOverride(300.f);
+	SliderBox->SetWidthOverride(200.f);
 	SliderBox->AddChild(Slider);
 	if (UHorizontalBoxSlot* SliderSlot = Row->AddChildToHorizontalBox(SliderBox))
 	{
@@ -299,7 +302,7 @@ UVerticalBox* ULWMenuWidget::AddPanel(UCanvasPanel* Root, float Width)
 	if (UTexture2D* Frame = LWStyle::Art(TEXT("Panel")))
 	{
 		Panel->SetBrush(LWStyle::ArtBrush(Frame, FVector2D(768.f, 512.f), FMargin(0.2f, 0.25f, 0.2f, 0.25f)));
-		Panel->SetPadding(FMargin(90.f, 70.f));
+		Panel->SetPadding(FMargin(90.f, 70.f, 90.f, 220.f));  // clear of the frame's lower corner details
 	}
 	else
 	{
@@ -521,14 +524,30 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 
 	// The chosen hero's concept art on the right, standing in the lantern light on the arena floor (the 3D model,
 	// built to be seen from far above, is hidden on the menu).
+	// The art and the lantern's halo share a stage, so the halo can sit over the lantern of either hero.
+	UCanvasPanel* HeroStage = WidgetTree->ConstructWidget<UCanvasPanel>();
+	HeroStage->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* StageSlot = Root->AddChildToCanvas(HeroStage);
+	StageSlot->SetAnchors(FAnchors(0.79f, 1.f));
+	StageSlot->SetAlignment(FVector2D(0.5f, 1.f));
+	StageSlot->SetPosition(FVector2D(0.f, -40.f));
+	StageSlot->SetSize(FVector2D(HeroArtSize, HeroArtSize));
+	AddSlideIn(HeroStage);
+
 	HeroImage = WidgetTree->ConstructWidget<UImage>();
-	HeroImage->SetVisibility(ESlateVisibility::HitTestInvisible);
-	UCanvasPanelSlot* HeroSlot = Root->AddChildToCanvas(HeroImage);
-	HeroSlot->SetAnchors(FAnchors(0.79f, 1.f));
-	HeroSlot->SetAlignment(FVector2D(0.5f, 1.f));
-	HeroSlot->SetPosition(FVector2D(0.f, -40.f));
-	HeroSlot->SetSize(FVector2D(760.f, 760.f));
-	AddSlideIn(HeroImage);
+	UCanvasPanelSlot* HeroSlot = HeroStage->AddChildToCanvas(HeroImage);
+	HeroSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+	HeroSlot->SetOffsets(FMargin(0.f));
+
+	// Cutting the art out of its background took the lantern's halo with it; this puts a flickering one back.
+	if (UTexture2D* Glow = LWStyle::Art(TEXT("LanternGlow")))
+	{
+		LanternGlow = WidgetTree->ConstructWidget<UImage>();
+		LanternGlow->SetBrush(LWStyle::ArtBrush(Glow, FVector2D(LanternGlowSize, LanternGlowSize)));
+		UCanvasPanelSlot* GlowSlot = HeroStage->AddChildToCanvas(LanternGlow);
+		GlowSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+		GlowSlot->SetSize(FVector2D(LanternGlowSize, LanternGlowSize));
+	}
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
@@ -561,8 +580,33 @@ void ULWMainMenu::RefreshHeroLabel()
 		HeroImage->SetVisibility(Art ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		if (Art)
 		{
-			HeroImage->SetBrush(LWStyle::ArtBrush(Art, FVector2D(760.f, 760.f)));
+			HeroImage->SetBrush(LWStyle::ArtBrush(Art, FVector2D(HeroArtSize, HeroArtSize)));
 		}
+
+		if (LanternGlow)
+		{
+			// Where each concept's lantern glass sits, as a fraction of the art.
+			const bool bFemale = Art && Art == LWStyle::Art(TEXT("HeroFemale"));
+			const FVector2D Lantern = bFemale ? FVector2D(0.285f, 0.121f) : FVector2D(0.262f, 0.161f);
+			LanternGlow->SetVisibility(Art ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+			if (UCanvasPanelSlot* GlowSlot = Cast<UCanvasPanelSlot>(LanternGlow->Slot))
+			{
+				GlowSlot->SetPosition(Lantern * HeroArtSize);
+			}
+		}
+	}
+}
+
+void ULWMainMenu::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// A slow breath with a faint flame flicker on top.
+	GlowTime += InDeltaTime;
+	if (LanternGlow)
+	{
+		LanternGlow->SetRenderOpacity(0.86f + 0.09f * FMath::Sin(GlowTime * 2.1f) + 0.05f * FMath::Sin(GlowTime * 7.3f + 1.f));
+		LanternGlow->SetRenderScale(FVector2D(1.f + 0.03f * FMath::Sin(GlowTime * 2.1f)));
 	}
 }
 
@@ -576,7 +620,7 @@ void ULWPauseMenu::Build(UCanvasPanel* Root)
 	UVerticalBox* Column = AddPanel(Root, 440.f);
 	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeTitle(TEXT("PAUSED"), 56)))
 	{
-		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 24.f));
+		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, PanelTitleGap));
 	}
 	AddButton(Column, TEXT("RESUME"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->SetMenuPaused(false); } });
 	AddButton(Column, TEXT("RESTART"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->RestartRun(); } });
@@ -592,13 +636,27 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 	AddVeil(Root, 0.75f);
 
 	ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
-	UVerticalBox* Column = AddPanel(Root, 680.f);
+	UVerticalBox* Column = AddPanel(Root, 1120.f);
 	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeTitle(TEXT("SETTINGS"), 48)))
 	{
-		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 18.f));
+		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, PanelTitleGap));
 	}
 
-	QualityButton = AddButton(Column, TEXT("GRAPHICS"), [this]()
+	// Two columns so the page fits a 16:9 screen: display on the left, sound and feel on the right.
+	UHorizontalBox* Columns = WidgetTree->ConstructWidget<UHorizontalBox>();
+	Column->AddChildToVerticalBox(Columns);
+	UVerticalBox* Left = WidgetTree->ConstructWidget<UVerticalBox>();
+	UVerticalBox* Right = WidgetTree->ConstructWidget<UVerticalBox>();
+	for (UVerticalBox* Side : { Left, Right })
+	{
+		if (UHorizontalBoxSlot* SideSlot = Columns->AddChildToHorizontalBox(Side))
+		{
+			SideSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			SideSlot->SetPadding(FMargin(Side == Left ? 0.f : 20.f, 0.f, Side == Left ? 20.f : 0.f, 0.f));
+		}
+	}
+
+	QualityButton = AddButton(Left, TEXT("GRAPHICS"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
@@ -609,7 +667,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
-	WindowButton = AddButton(Column, TEXT("DISPLAY"), [this]()
+	WindowButton = AddButton(Left, TEXT("DISPLAY"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
@@ -621,7 +679,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
-	ResolutionButton = AddButton(Column, TEXT("RESOLUTION"), [this]()
+	ResolutionButton = AddButton(Left, TEXT("RESOLUTION"), [this]()
 	{
 		ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get();
 		TArray<FIntPoint> Resolutions;
@@ -635,7 +693,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		Refresh();
 	});
 
-	FrameRateButton = AddButton(Column, TEXT("FRAME RATE"), [this]()
+	FrameRateButton = AddButton(Left, TEXT("FRAME RATE"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
@@ -647,7 +705,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
-	VSyncButton = AddButton(Column, TEXT("V-SYNC"), [this]()
+	VSyncButton = AddButton(Left, TEXT("V-SYNC"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
@@ -657,11 +715,11 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
-	AddSlider(Column, TEXT("MASTER VOLUME"), Settings ? Settings->MasterVolume : 1.f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->MasterVolume = Value; } });
-	AddSlider(Column, TEXT("MUSIC"), Settings ? Settings->MusicVolume : 0.8f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->MusicVolume = Value; } });
-	AddSlider(Column, TEXT("EFFECTS"), Settings ? Settings->EffectsVolume : 1.f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->EffectsVolume = Value; } });
+	AddSlider(Right, TEXT("MASTER VOLUME"), Settings ? Settings->MasterVolume : 1.f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->MasterVolume = Value; } });
+	AddSlider(Right, TEXT("MUSIC"), Settings ? Settings->MusicVolume : 0.8f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->MusicVolume = Value; } });
+	AddSlider(Right, TEXT("EFFECTS"), Settings ? Settings->EffectsVolume : 1.f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->EffectsVolume = Value; } });
 
-	VibrationButton = AddButton(Column, TEXT("VIBRATION"), [this]()
+	VibrationButton = AddButton(Right, TEXT("VIBRATION"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
@@ -670,7 +728,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
-	ShakeButton = AddButton(Column, TEXT("SCREEN SHAKE"), [this]()
+	ShakeButton = AddButton(Right, TEXT("SCREEN SHAKE"), [this]()
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
@@ -678,6 +736,8 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 			Refresh();
 		}
 	});
+
+	AddButton(Right, TEXT("CONTROLS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->OpenControls(); } });
 
 	AddButton(Column, TEXT("BACK"), [this]()
 	{
@@ -710,4 +770,148 @@ void ULWSettingsMenu::Refresh()
 	SetButtonLabel(VSyncButton, FString::Printf(TEXT("V-SYNC: %s"), S->IsVSyncEnabled() ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(VibrationButton, FString::Printf(TEXT("VIBRATION: %s"), S->bVibration ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(ShakeButton, FString::Printf(TEXT("SCREEN SHAKE: %s"), S->bScreenShake ? TEXT("ON") : TEXT("OFF")));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Controls
+
+namespace
+{
+	/** Gives up waiting for a key after this long (a gamepad has no Esc to cancel with). */
+	constexpr float ListenTimeout = 6.f;
+}
+
+void ULWControlsMenu::Build(UCanvasPanel* Root)
+{
+	AddVeil(Root, 0.75f);
+
+	UVerticalBox* Column = AddPanel(Root, 680.f);
+	if (UVerticalBoxSlot* PanelSlot = Column->AddChildToVerticalBox(MakeTitle(TEXT("CONTROLS"), 48)))
+	{
+		PanelSlot->SetPadding(FMargin(0.f, 0.f, 0.f, PanelTitleGap));
+	}
+
+	for (int32 Index = 0; Index < static_cast<int32>(ELWBinding::Count); ++Index)
+	{
+		BindingButtons.Add(AddButton(Column, ULightWalkerUserSettings::GetBindingLabel(static_cast<ELWBinding>(Index)), [this, Index]()
+		{
+			Listening = Index;
+			ListenAge = 0.f;
+			Refresh();
+		}));
+	}
+
+	AddButton(Column, TEXT("RESET TO DEFAULTS"), [this]()
+	{
+		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
+		{
+			S->ResetBindings();
+			S->SaveSettings();
+		}
+		if (ALightWalkerPlayerController* Controller = GetLWController())
+		{
+			Controller->ApplyBindings();
+		}
+		StopListening();
+	});
+	AddButton(Column, TEXT("BACK"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->CloseControls(); } });
+
+	// What stays fixed, along the bottom of the screen like the main menu's footer.
+	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -24.f));
+	Footer->AddChildToVerticalBox(MakeBody(TEXT("ARROW KEYS AND LEFT STICK ALSO MOVE       MOUSE OR RIGHT STICK AIMS       ESC PAUSES"), 18, LWStyle::Muted, 200));
+
+	Refresh();
+}
+
+void ULWControlsMenu::Refresh()
+{
+	const ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get();
+	for (int32 Index = 0; Index < BindingButtons.Num(); ++Index)
+	{
+		const ELWBinding Binding = static_cast<ELWBinding>(Index);
+		FString Label = ULightWalkerUserSettings::GetBindingLabel(Binding) + TEXT(":  ");
+		if (Index == Listening)
+		{
+			Label += TEXT("PRESS A KEY OR BUTTON");
+		}
+		else
+		{
+			const FKey Key = S ? S->GetBinding(Binding, false) : ULightWalkerUserSettings::GetDefaultBinding(Binding, false);
+			const FKey Button = S ? S->GetBinding(Binding, true) : ULightWalkerUserSettings::GetDefaultBinding(Binding, true);
+			Label += ULightWalkerUserSettings::GetKeyLabel(Key) + TEXT("  /  ") + ULightWalkerUserSettings::GetKeyLabel(Button);
+		}
+		SetButtonLabel(BindingButtons[Index], Label);
+	}
+}
+
+void ULWControlsMenu::StopListening()
+{
+	Listening = -1;
+	Refresh();
+}
+
+void ULWControlsMenu::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	if (Listening >= 0)
+	{
+		ListenAge += InDeltaTime;
+		if (ListenAge > ListenTimeout)
+		{
+			StopListening();
+		}
+	}
+}
+
+FReply ULWControlsMenu::NativeOnPreviewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (Listening < 0)
+	{
+		return Super::NativeOnPreviewKeyDown(InGeometry, InKeyEvent);
+	}
+
+	// While listening every key is ours: none of them navigate, pause or go back.
+	const FKey Key = InKeyEvent.GetKey();
+	if (InKeyEvent.IsRepeat() || ListenAge < 0.15f)
+	{
+		return FReply::Handled();
+	}
+	if (Key == EKeys::Escape)
+	{
+		ULWSoundSubsystem::Play(this, ELWSound::UIMove);
+		StopListening();
+		return FReply::Handled();
+	}
+
+	ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get();
+	if (S && S->SetBinding(static_cast<ELWBinding>(Listening), Key))
+	{
+		S->SaveSettings();
+		if (ALightWalkerPlayerController* Controller = GetLWController())
+		{
+			Controller->ApplyBindings();
+		}
+		ULWSoundSubsystem::Play(this, ELWSound::UISelect);
+		StopListening();
+	}
+	// Keys that can't be bound (sticks, arrows) are ignored; keep listening.
+	return FReply::Handled();
+}
+
+FReply ULWControlsMenu::NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (Listening >= 0)
+	{
+		// A click while listening cancels rather than pressing another button.
+		StopListening();
+		return FReply::Handled();
+	}
+	return Super::NativeOnPreviewMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+void ULWControlsMenu::NativeDestruct()
+{
+	Listening = -1;
+	Super::NativeDestruct();
 }

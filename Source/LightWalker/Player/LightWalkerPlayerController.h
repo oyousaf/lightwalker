@@ -11,9 +11,10 @@ struct FInputActionValue;
 /**
  * Builds the Enhanced Input actions and bindings in code, so the game needs no input assets.
  *
- * Keyboard and mouse: WASD or arrow keys move. Space or Left Ctrl fires the way Lightwalker faces;
+ * Defaults (WASD, d-pad, fire and pause can be rebound in Settings > Controls, see ULightWalkerUserSettings):
+ * Keyboard and mouse: WASD or arrow keys move. Space fires the way Lightwalker faces;
  * holding the left mouse button fires towards the cursor.
- * Gamepad: left stick or d-pad moves, right stick aims and fires (twin-stick). RT, RB or A fires the way
+ * Gamepad: left stick or d-pad moves, right stick aims and fires (twin-stick). RT fires the way
  * Lightwalker faces. Start pauses.
  * Enter, Space or A restarts after a game over or a win; Esc, P or Start pauses. Esc or B goes back in menus.
  *
@@ -38,6 +39,11 @@ public:
 	void CycleHero();
 	FString GetHeroName() const;
 	void OpenSettings();
+	void OpenControls();
+	void CloseControls();
+
+	/** Rebuilds the input mappings from the saved bindings (after Settings > Controls changes them). */
+	void ApplyBindings();
 	void SetMenuPaused(bool bPaused);
 	void RestartRun();
 	void QuitToMenu();
@@ -77,6 +83,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class ULWSettingsMenu> SettingsMenu;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWControlsMenu> ControlsMenu;
 
 	/** The menu Settings returns to. */
 	UPROPERTY(Transient)
