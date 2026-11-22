@@ -150,6 +150,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> HeroButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UImage> HeroImage;
 };
 
 UCLASS()

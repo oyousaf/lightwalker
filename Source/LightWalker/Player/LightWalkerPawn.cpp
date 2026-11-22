@@ -144,15 +144,9 @@ void ALightWalkerPawn::SetFrozen(bool bInFrozen)
 		FaceDirection(Heading);
 	}
 
-	// The menu camera is close to the lantern, so the model's own glow is toned down there to keep the robe's
-	// teal and gold from washing out to white.
-	for (int32 Slot = 0; Slot < Model->GetNumMaterials(); ++Slot)
-	{
-		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Model->GetMaterial(Slot)))
-		{
-			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (bFrozen ? MenuGlowScale : 1.f));
-		}
-	}
+	// On the menu the hero's concept art stands in for the model, which is built to be seen from far above.
+	// The lantern light stays on, so the art stands in its glow on the floor.
+	Model->SetHiddenInGame(bFrozen);
 }
 
 bool ALightWalkerPawn::UseModel(const FSoftObjectPath& Path)
@@ -184,7 +178,7 @@ bool ALightWalkerPawn::UseModel(const FSoftObjectPath& Path)
 	{
 		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
 		{
-			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (bFrozen ? MenuGlowScale : 1.f));
+			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
 		}
 	}
 

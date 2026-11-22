@@ -519,6 +519,17 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	LogoSlot->SetAutoSize(true);
 	AddSlideIn(Logo);
 
+	// The chosen hero's concept art on the right, standing in the lantern light on the arena floor (the 3D model,
+	// built to be seen from far above, is hidden on the menu).
+	HeroImage = WidgetTree->ConstructWidget<UImage>();
+	HeroImage->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* HeroSlot = Root->AddChildToCanvas(HeroImage);
+	HeroSlot->SetAnchors(FAnchors(0.79f, 1.f));
+	HeroSlot->SetAlignment(FVector2D(0.5f, 1.f));
+	HeroSlot->SetPosition(FVector2D(0.f, -40.f));
+	HeroSlot->SetSize(FVector2D(760.f, 760.f));
+	AddSlideIn(HeroImage);
+
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
 	HeroButton = AddButton(Column, TEXT("HERO"), [this]()
@@ -541,6 +552,18 @@ void ULWMainMenu::RefreshHeroLabel()
 {
 	const ALightWalkerPlayerController* Controller = GetLWController();
 	SetButtonLabel(HeroButton, FString::Printf(TEXT("HERO: %s"), Controller ? *Controller->GetHeroName() : TEXT("LIGHTWALKER")));
+
+	if (HeroImage)
+	{
+		const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+		UTexture2D* Art = (Settings && Settings->HeroIndex == 1) ? LWStyle::Art(TEXT("HeroFemale")) : nullptr;
+		Art = Art ? Art : LWStyle::Art(TEXT("HeroMale"));
+		HeroImage->SetVisibility(Art ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (Art)
+		{
+			HeroImage->SetBrush(LWStyle::ArtBrush(Art, FVector2D(760.f, 760.f)));
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
