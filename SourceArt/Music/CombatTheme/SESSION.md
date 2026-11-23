@@ -29,6 +29,7 @@ Each stem needs to sound right on its own and with the others. Keep the reverb a
 
 1. Start a new FL Studio project and set the tempo to **142**.
 2. Go to **File → Import → MIDI file** and choose `CombatTheme_AllParts.mid`, keeping tracks separate.
+   - FL puts **FLEX** on every imported channel. That's expected: a MIDI file only carries notes, not sounds. Either pick a FLEX preset (FLEX has good 808, keys, strings, bell and pad presets) or swap the plugin as below. Drums must go on **FPC**, whose default pads match the note layout; FLEX would play them as pitched notes.
    - Drums and HatRolls both use the drum channel. Put them on **two separate FPC channels**, because they're separate stems. You can also drag `4_Drums.mid` and `6_HatRolls.mid` in one at a time.
 3. Replace each channel's default instrument with the one in the table below, then browse its presets by ear.
 

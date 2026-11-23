@@ -18,6 +18,7 @@ The MIDI comes from `Tools/music/compose_menu_theme.py`. If you change the notes
 2. Go to **File → Import → MIDI file** and choose `MenuTheme_AllParts.mid`.
    - Tick "Start new project" (or not, if you've already set the tempo) and keep "Separate tracks".
    - FL creates one channel and pattern per part.
+   - FL puts **FLEX** on every imported channel. That's expected: a MIDI file only carries notes, not sounds. Either pick a FLEX preset (FLEX has good 808, keys, strings, bell and pad presets) or swap the plugin as below. Drums must go on **FPC**, whose default pads match the note layout; FLEX would play them as pitched notes.
 3. Replace each channel's default instrument with the one in the table below.
    - Right-click the channel, choose **Replace**, then pick the plugin.
    - Browse that plugin's presets and choose by ear. The table describes the sound to aim for.
