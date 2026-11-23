@@ -4,10 +4,26 @@ An original tune in the style of early-90s 16-bit platformers (Mega Drive FM, Am
 
 - **Tempo:** 140 BPM, 4/4
 - **Key:** A minor, lifting to C major
-- **Length:** 28 bars, about 48 s
+- **Length:** 108 bars, about 3 min 5 s
   - Bars 1–4 are the intro (plays once).
-  - Bars 5–28 are the loop: A (the hook), A2 (the hook, climbing higher at the end) and B (the chorus). The MIDI file has "Loop start" and "Loop end" markers.
-  - The lead's two-note pickup at the end of bar 4 (and again at the end of bars 12 and 28) leads into the hook.
+  - Bars 5–108 are the loop, in 8-bar sections (the MIDI has a marker at each, plus "Loop start" and "Loop end"):
+
+    | Bars | Section | What happens |
+    |---|---|---|
+    | 5 | A | The hook. |
+    | 13 | A2 | The hook, climbing into the chorus. |
+    | 21 | B | The chorus: brass hits, 16th hats, a leaping arp. |
+    | 29 | Break | Hats and pads only, the hook's notes held long, a drum build back in. |
+    | 37 | C | The bridge: new chords (Dm Em F G) and a new melody. |
+    | 45 | C2 | The bridge an octave up, full drums. |
+    | 53 | A3 | The hook, its first half an octave up. |
+    | 61 | A4 | The hook, climbing into the chorus. |
+    | 69 | B2 | The chorus. |
+    | 77 | B3 | The chorus up a whole tone (the big finish). |
+    | 85 | Drop | Kick and bass alone, then the hook creeps back in. |
+    | 93 | C3 | The bridge again. |
+    | 101 | Tag | Long notes over the hook's chords, a pickup back to A. |
+  - The lead's two-note pickups lead back into the hook.
 - **Rough preview:** `MenuTheme_Preview.wav` uses crude built-in synths. It's only there to judge the tune.
 
 The MIDI comes from `Tools/music/compose_menu_theme.py`. If you change the notes there and re-run it, the files update.
@@ -52,7 +68,7 @@ The parts are also exported separately (`1_Lead.mid` … `5_Drums.mid`), so you 
 Export two files from the Playlist in Song mode as WAV, **48 kHz, 24-bit**. Save them to `SourceArt/Music/MenuTheme/Export/`.
 
 1. **`MenuTheme_Intro.wav`:** bars 1–4.
-2. **`MenuTheme_Loop.wav`:** bars 5 to the end of bar 28, cut exactly on the bar lines.
+2. **`MenuTheme_Loop.wav`:** bars 5 to the end of bar 108, cut exactly on the bar lines.
    - In the export window, set **Tail** to **"Wrap remainder"**. Reverb and delay tails then wrap to the start, so the loop is seamless.
 
 For each export:

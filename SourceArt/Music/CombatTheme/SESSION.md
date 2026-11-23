@@ -5,9 +5,24 @@ A dark UK drill instrumental for the waves.
 - **Tempo:** 142 BPM in half-time. The snare lands on beat 3, so it feels heavy rather than fast.
 - **Key:** C# minor, harmonic (the G# chord is major, which gives it that eerie pull).
 - **Chords:** C#m | A | F#m | G# in the A sections; A | F#m | C#m | G# in the B sections (the lift).
-- **Length:** a 32-bar loop, about 54 s, in sections A, A′, B, B′.
-  - A: the two-bar piano/bell ostinato (the hook) over long, low strings. A′ ends on a turnaround.
-  - B: a higher, longer melody, the strings switching to short stabs on the 3-3-2 drill grid, and a busier 808 that drops an octave. B′ fills the stabs in and turns back to A.
+- **Length:** a 112-bar loop, about 3 min 9 s, in 8-bar sections (the MIDI has a marker at each):
+
+  | Bars | Section | What happens |
+  |---|---|---|
+  | 1 | A | The hook: a two-bar piano/bell ostinato over long, low strings. |
+  | 9 | A2 | The hook with a turnaround. |
+  | 17 | B | The lift: a higher, longer melody, string stabs on the 3-3-2 grid, a busier 808 that drops an octave. |
+  | 25 | B2 | The lift, fuller, turning back. |
+  | 33 | Break | Strings up high, the hook's notes held, 808 and drums thinned out. |
+  | 41 | C | A new section: a lower melody over F#m, C#m, A and G#, pulsing strings. |
+  | 49 | C2 | Its second half an octave up. |
+  | 57 | A3 | The hook, its second half an octave up. |
+  | 65 | A4 | The hook with a turnaround. |
+  | 73 | B3 | The lift. |
+  | 81 | B4 | The lift, turning back. |
+  | 89 | Drop | Three bars of near silence, a roll, then everything slams back in. |
+  | 97 | C3 | The new section again. |
+  | 105 | Turn | The hook thinning out, then the turnaround back to A. |
 - **Rough preview:** `CombatTheme_Preview.wav` uses crude built-in synths. It's only there to judge the groove and melody.
 
 The MIDI comes from `Tools/music/compose_combat_theme.py`. If you change the notes there and re-run it, the files update.
@@ -62,7 +77,7 @@ Each stem needs to sound right on its own and with the others. Keep the reverb a
 
 ## 4. Export (what the game needs)
 
-Export as WAV, **48 kHz, 24-bit**, bars 1 to the end of bar 32, cut exactly on the bar lines. Use **Tail: "Wrap remainder"** so each stem loops seamlessly. Save to `SourceArt/Music/CombatTheme/Export/`.
+Export as WAV, **48 kHz, 24-bit**, bars 1 to the end of bar 112, cut exactly on the bar lines. Use **Tail: "Wrap remainder"** so each stem loops seamlessly. Save to `SourceArt/Music/CombatTheme/Export/`.
 
 To export every stem at once:
 1. Route each instrument to its own mixer track.
