@@ -65,7 +65,9 @@ The parts are also exported separately (`1_Lead.mid` … `5_Drums.mid`), so you 
 
 ## 4. Export (what the game needs)
 
-Export two files from the Playlist in Song mode as WAV, **48 kHz, 24-bit**. Save them to `SourceArt/Music/MenuTheme/Export/`.
+**The easy way:** export the whole song once (**File → Export → WAV file**, Full song, 48 kHz) as `theme.wav` into `SourceArt/Music/MenuTheme/Export/`, then run `Tools/music/split_menu_theme.py` (or ask Claude). It cuts the intro and loop exactly on the bar lines, folds the reverb tail into the loop start so it loops seamlessly, matches the game's loudness, and keeps the full mix as `MenuTheme_Full.wav`.
+
+**By hand:** export two files from the Playlist in Song mode as WAV, **48 kHz, 24-bit**. Save them to `SourceArt/Music/MenuTheme/Export/`.
 
 1. **`MenuTheme_Intro.wav`:** bars 1–4.
 2. **`MenuTheme_Loop.wav`:** bars 5 to the end of bar 108, cut exactly on the bar lines.
