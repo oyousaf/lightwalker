@@ -10,6 +10,7 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
+#include "Components/ScaleBox.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/Slider.h"
@@ -17,6 +18,9 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Core/LWSound.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/Texture2D.h"
+#include "Engine/World.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPlayerController.h"
@@ -104,8 +108,17 @@ TSharedRef<SWidget> ULWMenuWidget::RebuildWidget()
 {
 	if (WidgetTree && !WidgetTree->RootWidget)
 	{
-		UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("Root"));
-		WidgetTree->RootWidget = Root;
+		// Backdrops, veils and motes cover the whole screen; everything else lives in a centred area no wider than
+		// 16:9, so on ultrawide screens the buttons and panels stay in front of the player instead of at the edges.
+		FullScreen = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("Root"));
+		WidgetTree->RootWidget = FullScreen;
+		USizeBox* Safe = WidgetTree->ConstructWidget<USizeBox>();
+		Safe->SetMaxAspectRatio(16.f / 9.f);
+		UCanvasPanelSlot* SafeSlot = FullScreen->AddChildToCanvas(Safe);
+		SafeSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		SafeSlot->SetOffsets(FMargin(0.f));
+		UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>();
+		Safe->AddChild(Root);
 		Build(Root);
 	}
 	return Super::RebuildWidget();
@@ -321,37 +334,95 @@ UVerticalBox* ULWMenuWidget::AddPanel(UCanvasPanel* Root, float Width)
 	return Column;
 }
 
+void ULWMenuWidget::AddFullScreen(UWidget* Widget)
+{
+	// Behind the centred content, in the order added.
+	if (UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(FullScreen->InsertChildAt(FullScreenLayers++, Widget)))
+	{
+		PanelSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		PanelSlot->SetOffsets(FMargin(0.f));
+	}
+}
+
 void ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
 {
 	UBorder* Veil = WidgetTree->ConstructWidget<UBorder>();
 	Veil->SetBrushColor(FLinearColor(0.01f, 0.f, 0.04f, Opacity));
-	UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(Veil);
-	PanelSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	PanelSlot->SetOffsets(FMargin(0.f));
+	AddFullScreen(Veil);
+}
+
+float ULWMenuWidget::GetViewAspect() const
+{
+	FVector2D Size(16.f, 9.f);
+	if (const UWorld* World = GetWorld())
+	{
+		if (const UGameViewportClient* Viewport = World->GetGameViewport())
+		{
+			Viewport->GetViewportSize(Size);
+		}
+	}
+	return Size.Y > 0.f ? Size.X / Size.Y : 16.f / 9.f;
+}
+
+UTexture2D* ULWMenuWidget::PickBackdropArt(float Aspect)
+{
+	// The sunset drawn for the screen's shape: 16:9, plus 21:9 and 32:9 versions if they've been imported.
+	struct FVersion { const TCHAR* Name; float Aspect; };
+	static const FVersion Versions[] = {
+		{ TEXT("MenuBackground"), 16.f / 9.f },
+		{ TEXT("MenuBackground_21x9"), 21.f / 9.f },
+		{ TEXT("MenuBackground_32x9"), 32.f / 9.f },
+	};
+	UTexture2D* Best = nullptr;
+	float BestGap = TNumericLimits<float>::Max();
+	for (const FVersion& Version : Versions)
+	{
+		UTexture2D* Art = LWStyle::Art(Version.Name);
+		const float Gap = FMath::Abs(FMath::Loge(Aspect / Version.Aspect));
+		if (Art && Gap < BestGap)
+		{
+			Best = Art;
+			BestGap = Gap;
+		}
+	}
+	return Best;
+}
+
+void ULWMenuWidget::SetBackdropArt(UTexture2D* Art)
+{
+	if (UImage* Image = BackdropImage.Get())
+	{
+		const FIntPoint Size = Art->GetImportedSize();
+		Image->SetBrush(LWStyle::ArtBrush(Art, FVector2D(Size.X, Size.Y)));
+		BackdropArt = Art;
+	}
 }
 
 UWidget* ULWMenuWidget::AddBackdrop(UCanvasPanel* Root)
 {
-	UTexture2D* Sunset = LWStyle::Art(TEXT("MenuBackground"));
+	UTexture2D* Sunset = PickBackdropArt(GetViewAspect());
 	if (!Sunset)
 	{
 		return nullptr;
 	}
+	// Scaled to cover the screen at any shape, cropping rather than stretching; NativeTick swaps in the version
+	// drawn for the screen's shape if the window changes.
 	UImage* Image = WidgetTree->ConstructWidget<UImage>();
-	Image->SetBrush(LWStyle::ArtBrush(Sunset, FVector2D(1920.f, 1080.f)));
-	UCanvasPanelSlot* BackSlot = Root->AddChildToCanvas(Image);
-	BackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	BackSlot->SetOffsets(FMargin(0.f));
-	return Image;
+	BackdropImage = Image;
+	SetBackdropArt(Sunset);
+	UScaleBox* Cover = WidgetTree->ConstructWidget<UScaleBox>();
+	Cover->SetStretch(EStretch::ScaleToFill);
+	Cover->SetClipping(EWidgetClipping::ClipToBounds);
+	Cover->AddChild(Image);
+	AddFullScreen(Cover);
+	return Cover;
 }
 
 void ULWMenuWidget::AddMotes(UCanvasPanel* Root)
 {
 	ULWMoteField* Motes = WidgetTree->ConstructWidget<ULWMoteField>();
 	Motes->SetVisibility(ESlateVisibility::HitTestInvisible);
-	UCanvasPanelSlot* MotesSlot = Root->AddChildToCanvas(Motes);
-	MotesSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-	MotesSlot->SetOffsets(FMargin(0.f));
+	AddFullScreen(Motes);
 }
 
 void ULWMenuWidget::FocusButton(int32 Index)
@@ -372,6 +443,15 @@ void ULWMenuWidget::FocusButton(int32 Index)
 void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	if (BackdropImage.IsValid())
+	{
+		UTexture2D* Art = PickBackdropArt(GetViewAspect());
+		if (Art && Art != BackdropArt.Get())
+		{
+			SetBackdropArt(Art);
+		}
+	}
 
 	// Columns and panels slide in from the left and fade up when the menu opens.
 	AppearTime += InDeltaTime;
@@ -459,9 +539,7 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 	{
 		UBorder* Black = WidgetTree->ConstructWidget<UBorder>();
 		Black->SetBrushColor(FLinearColor(0.f, 0.f, 0.f, 1.f));
-		UCanvasPanelSlot* BackSlot = Root->AddChildToCanvas(Black);
-		BackSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-		BackSlot->SetOffsets(FMargin(0.f));
+		AddFullScreen(Black);
 		Backdrop = Black;
 	}
 	AddMotes(Root);
@@ -666,6 +744,17 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
+	// HDR output, on displays that support it (Windows HDR on, DX12). Saved with the other settings on Back.
+	HDRButton = AddButton(Left, TEXT("HDR"), [this]()
+	{
+		ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get();
+		if (S && S->SupportsHDRDisplayOutput())
+		{
+			S->EnableHDRDisplayOutput(!S->IsHDREnabled(), 1000);
+			Refresh();
+		}
+	});
+
 	AddSlider(Right, TEXT("MASTER VOLUME"), Settings ? Settings->MasterVolume : 1.f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->MasterVolume = Value; } });
 	AddSlider(Right, TEXT("MUSIC"), Settings ? Settings->MusicVolume : 0.8f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->MusicVolume = Value; } });
 	AddSlider(Right, TEXT("EFFECTS"), Settings ? Settings->EffectsVolume : 1.f, [](float Value) { if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get()) { S->EffectsVolume = Value; } });
@@ -719,6 +808,7 @@ void ULWSettingsMenu::Refresh()
 	const float FrameRate = S->GetFrameRateLimit();
 	SetButtonLabel(FrameRateButton, FrameRate > 0.f ? FString::Printf(TEXT("FRAME RATE: %d FPS"), FMath::RoundToInt(FrameRate)) : FString(TEXT("FRAME RATE: UNLIMITED")));
 	SetButtonLabel(VSyncButton, FString::Printf(TEXT("V-SYNC: %s"), S->IsVSyncEnabled() ? TEXT("ON") : TEXT("OFF")));
+	SetButtonLabel(HDRButton, !S->SupportsHDRDisplayOutput() ? FString(TEXT("HDR: NOT AVAILABLE")) : FString::Printf(TEXT("HDR: %s"), S->IsHDREnabled() ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(VibrationButton, FString::Printf(TEXT("VIBRATION: %s"), S->bVibration ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(ShakeButton, FString::Printf(TEXT("SCREEN SHAKE: %s"), S->bScreenShake ? TEXT("ON") : TEXT("OFF")));
 }

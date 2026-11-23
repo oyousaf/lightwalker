@@ -116,6 +116,12 @@ protected:
 	/** A centred dark glass panel with a neon edge, holding a column (pause, settings). */
 	UVerticalBox* AddPanel(UCanvasPanel* Root, float Width);
 
+	/** The game window's width over height. */
+	float GetViewAspect() const;
+
+	/** Adds a widget covering the whole screen (past the 16:9 area on ultrawide), behind the menu's content. */
+	void AddFullScreen(UWidget* Widget);
+
 	/** A full-screen dark veil behind overlay menus (pause, settings). */
 	void AddVeil(UCanvasPanel* Root, float Opacity);
 
@@ -141,6 +147,17 @@ private:
 
 	/** Columns and panels that slide in when the menu opens. */
 	TArray<TWeakObjectPtr<UWidget>> SlideIns;
+
+	/** The whole screen; Build's Root is a centred area inside it no wider than 16:9. */
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> FullScreen;
+	int32 FullScreenLayers = 0;
+
+	/** The sunset art, and which version of it (16:9, 21:9 or 32:9) it shows. */
+	static UTexture2D* PickBackdropArt(float Aspect);
+	void SetBackdropArt(UTexture2D* Art);
+	TWeakObjectPtr<class UImage> BackdropImage;
+	TWeakObjectPtr<UTexture2D> BackdropArt;
 	float AppearTime = 0.f;
 	TWeakObjectPtr<UWidget> LastFocused;
 
@@ -233,6 +250,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> VSyncButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> HDRButton;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> VibrationButton;

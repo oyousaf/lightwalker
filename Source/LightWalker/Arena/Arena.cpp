@@ -6,7 +6,9 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -14,7 +16,8 @@ namespace
 {
 	constexpr float EdgeThickness = 24.f;
 	constexpr float EdgeHeight = 40.f;
-	constexpr float FloorMargin = 2000.f;
+	// The floor runs well past the arena on every side, so even a 32:9 view never sees its edge.
+	constexpr float FloorMargin = 30000.f;
 
 	UStaticMeshComponent* MakeMesh(AActor* Owner, const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent)
 	{
@@ -151,7 +154,12 @@ void AArena::ApplyCamera()
 	const FRotator Rotation(Pitch, 0.f, 0.f);
 	Camera->SetRelativeRotation(Rotation + ShakeTurn);
 	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha) + Rotation.RotateVector(ShakeMove));
-	Camera->SetFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha));
+	// The field of view is tuned for 16:9. Unreal keeps the horizontal angle fixed, so a wider screen would crop the
+	// arena's top and bottom: widen the angle to keep the 16:9 height in view, and show extra width at the sides.
+	const float BaseFieldOfView = FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha);
+	const float Widen = FMath::Max(1.f, ViewAspect / (16.f / 9.f));
+	const float FieldOfView = FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(BaseFieldOfView) * 0.5f) * Widen));
+	Camera->SetFieldOfView(FMath::Min(FieldOfView, 170.f));
 
 	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out, and the grid dims so
 	// it stays a backdrop behind the buttons.
@@ -183,6 +191,19 @@ void AArena::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	// Follow the window's shape (ultrawide, resizing, a resolution change).
+	bool bAspectChanged = false;
+	if (const UGameViewportClient* Viewport = GetWorld()->GetGameViewport())
+	{
+		FVector2D Size;
+		Viewport->GetViewportSize(Size);
+		if (Size.X > 0.f && Size.Y > 0.f && !FMath::IsNearlyEqual(Size.X / Size.Y, ViewAspect, 0.001f))
+		{
+			ViewAspect = Size.X / Size.Y;
+			bAspectChanged = true;
+		}
+	}
+
 	const bool bShaking = Trauma > 0.f;
 	if (bShaking)
 	{
@@ -196,7 +217,7 @@ void AArena::Tick(float DeltaSeconds)
 		MenuBlend = MenuBlendTarget > MenuBlend ? FMath::Min(MenuBlend + Step, MenuBlendTarget) : FMath::Max(MenuBlend - Step, MenuBlendTarget);
 		ApplyCamera();
 	}
-	else if (bShaking)
+	else if (bShaking || bAspectChanged)
 	{
 		ApplyCamera();
 	}

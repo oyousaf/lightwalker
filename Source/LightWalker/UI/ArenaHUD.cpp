@@ -93,19 +93,24 @@ void AArenaHUD::DrawHUD()
 		}
 	}
 
-	// Sizes are designed at 1080p and scale with the screen.
-	const float Scale = Canvas->ClipY / 1080.f;
+	// Sizes are designed at 1080p and scale with the screen (by width too, so narrow screens don't overlap).
+	const float Scale = FMath::Min(Canvas->ClipY / 1080.f, Canvas->ClipX / 1920.f);
 	auto Px = [Scale](float Value) { return Value * Scale; };
 	auto Size = [Scale](int32 Points) { return FMath::Max(1, FMath::RoundToInt(Points * Scale)); };
 	const float Margin = Px(44.f);
+	// The corners sit in a centred 16:9 area, so on ultrawide screens the score and lives stay near the action
+	// instead of out at the far edges.
+	const float SafeWidth = FMath::Min(Canvas->ClipX, Canvas->ClipY * 16.f / 9.f);
+	const float SafeLeft = (Canvas->ClipX - SafeWidth) * 0.5f + Margin;
+	const float SafeRight = (Canvas->ClipX + SafeWidth) * 0.5f - Margin;
 	const float CentreX = Canvas->ClipX * 0.5f;
 	const FLinearColor PinkGlow = WithAlpha(LWStyle::Pink, 0.7f);
 	const FLinearColor CyanGlow = WithAlpha(LWStyle::Cyan, 0.6f);
 
 	// Score and best, top left.
-	DrawLine(TEXT("SCORE"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, Margin, Margin, EAlign::Left);
-	DrawLine(FString::Printf(TEXT("%06d"), Run->GetScore()), LWStyle::Body(Size(44), true, 120), LWStyle::Text, Margin, Margin + Px(22.f), EAlign::Left, PinkGlow);
-	DrawLine(FString::Printf(TEXT("BEST  %06d"), Run->GetBestScore()), LWStyle::Body(Size(18), true, 150), LWStyle::Cyan, Margin, Margin + Px(74.f), EAlign::Left);
+	DrawLine(TEXT("SCORE"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, SafeLeft, Margin, EAlign::Left);
+	DrawLine(FString::Printf(TEXT("%06d"), Run->GetScore()), LWStyle::Body(Size(44), true, 120), LWStyle::Text, SafeLeft, Margin + Px(22.f), EAlign::Left, PinkGlow);
+	DrawLine(FString::Printf(TEXT("BEST  %06d"), Run->GetBestScore()), LWStyle::Body(Size(18), true, 150), LWStyle::Cyan, SafeLeft, Margin + Px(74.f), EAlign::Left);
 
 	// Wave, top centre.
 	DrawLine(TEXT("WAVE"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, CentreX, Margin, EAlign::Centre);
@@ -114,18 +119,18 @@ void AArenaHUD::DrawHUD()
 	// Lives, top right: one hooded figure each, or a number when there's no icon art or too many to show.
 	const int32 Lives = Run->GetLives();
 	UTexture2D* LifeIcon = LWStyle::Art(TEXT("IconLife"));
-	DrawLine(TEXT("LIVES"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, Canvas->ClipX - Margin, Margin, EAlign::Right);
+	DrawLine(TEXT("LIVES"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, SafeRight, Margin, EAlign::Right);
 	if (LifeIcon && Lives <= 6)
 	{
 		const float IconSize = Px(50.f);
 		for (int32 Index = 0; Index < Lives; ++Index)
 		{
-			DrawIcon(LifeIcon, Canvas->ClipX - Margin - IconSize * (Index + 1) + Px(6.f), Margin + Px(28.f), IconSize);
+			DrawIcon(LifeIcon, SafeRight - IconSize * (Index + 1) + Px(6.f), Margin + Px(28.f), IconSize);
 		}
 	}
 	else
 	{
-		DrawLine(FString::Printf(TEXT("x%d"), Lives), LWStyle::Body(Size(44), true, 80), LWStyle::Text, Canvas->ClipX - Margin, Margin + Px(22.f), EAlign::Right, PinkGlow);
+		DrawLine(FString::Printf(TEXT("x%d"), Lives), LWStyle::Body(Size(44), true, 80), LWStyle::Text, SafeRight, Margin + Px(22.f), EAlign::Right, PinkGlow);
 	}
 
 	if (const ALightWalkerPawn* LightWalker = Cast<ALightWalkerPawn>(GetOwningPawn()))
@@ -136,10 +141,10 @@ void AArenaHUD::DrawHUD()
 		auto DrawPower = [&](EPickupType Type, const FString& Status)
 		{
 			const FLinearColor Color = LWPickups::GetColor(Type);
-			float TextX = Margin;
+			float TextX = SafeLeft;
 			if (UTexture2D* Icon = LWStyle::Art(IconName(Type)))
 			{
-				DrawIcon(Icon, Margin, Y, IconSize);
+				DrawIcon(Icon, SafeLeft, Y, IconSize);
 				TextX += IconSize + Px(10.f);
 			}
 			DrawLine(LWPickups::GetName(Type), LWStyle::Body(Size(20), true, 200), Color, TextX, Y + Px(6.f), EAlign::Left);

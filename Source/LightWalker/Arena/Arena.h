@@ -154,6 +154,9 @@ private:
 	float ShakeTilt = 1.2f;
 	float ShakeTime = 0.f;
 
+	/** The game window's width over height; the camera widens past 16:9 so ultrawide screens keep the whole arena. */
+	float ViewAspect = 16.f / 9.f;
+
 	/** 0 = game view, 1 = menu view. */
 	float MenuBlend = 0.f;
 	float MenuBlendTarget = 0.f;
