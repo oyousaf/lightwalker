@@ -1,19 +1,20 @@
 # Menu theme: FL Studio session sheet
 
-An original tune in the style of early-90s 16-bit platformers (Mega Drive FM, Amiga): bouncy FM slap bass, off-beat stabs, a 16th-note arpeggio, a hooky lead and punchy drums. It's a stand-in until a more modern theme replaces it.
+An original tune in the style of early-90s 16-bit platformers (Mega Drive FM, Amiga): a bouncing FM slap bass that walks up into each chord, off-beat stabs that turn into brass hits in the chorus, a 16th-note arpeggio, a hooky lead and punchy drums with fills.
 
-- **Tempo:** 132 BPM, 4/4
+- **Tempo:** 140 BPM, 4/4
 - **Key:** A minor, lifting to C major
-- **Length:** 28 bars, about 51 s
+- **Length:** 28 bars, about 48 s
   - Bars 1–4 are the intro (plays once).
-  - Bars 5–28 are the loop (A, A, B). The MIDI file has "Loop start" and "Loop end" markers.
+  - Bars 5–28 are the loop: A (the hook), A2 (the hook, climbing higher at the end) and B (the chorus). The MIDI file has "Loop start" and "Loop end" markers.
+  - The lead's two-note pickup at the end of bar 4 (and again at the end of bars 12 and 28) leads into the hook.
 - **Rough preview:** `MenuTheme_Preview.wav` uses crude built-in synths. It's only there to judge the tune.
 
 The MIDI comes from `Tools/music/compose_menu_theme.py`. If you change the notes there and re-run it, the files update.
 
 ## 1. Set up
 
-1. Start a new FL Studio project and set the tempo to **132**.
+1. Start a new FL Studio project and set the tempo to **140**.
 2. Go to **File → Import → MIDI file** and choose `MenuTheme_AllParts.mid`.
    - Tick "Start new project" (or not, if you've already set the tempo) and keep "Separate tracks".
    - FL creates one channel and pattern per part.
@@ -29,7 +30,7 @@ The parts are also exported separately (`1_Lead.mid` … `5_Drums.mid`), so you 
 |---|---|---|
 | **Lead** | Sytrus (FM leads) or Wasp XT | A bright, slightly nasal FM or square lead, like a Mega Drive melody. Give it a little vibrato. |
 | **Bass** | Sytrus (FM bass), or Transistor Bass | A punchy FM "slap" bass with a bright attack that dulls quickly. Keep it mono. |
-| **Stabs** | 3x Osc or Sytrus (brass or organ stab) | Short and snappy, on the off-beats. The intro bars hold long chords, so a pad suits them (Harmless or Harmor). |
+| **Stabs** | 3x Osc or Sytrus (brass or organ stab) | Short and snappy on the off-beats in the hook, then punchy brass hits an octave up in the chorus. The intro bars hold long chords, so a pad suits them (Harmless or Harmor). |
 | **Arp** | Sytrus bell or pluck, or Plucked! | Glassy and quick, sitting behind the lead. Pan it slightly left and right. |
 | **Drums** | FPC with a punchy kit from the **Drums** pack | Tight 90s drum machine. The notes follow the General MIDI layout, which FPC's default pads match: 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 49 crash, 45/47/50 toms. |
 

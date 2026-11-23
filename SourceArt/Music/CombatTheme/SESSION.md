@@ -4,8 +4,10 @@ A dark UK drill instrumental for the waves.
 
 - **Tempo:** 142 BPM in half-time. The snare lands on beat 3, so it feels heavy rather than fast.
 - **Key:** C# minor, harmonic (the G# chord is major, which gives it that eerie pull).
-- **Chords:** C#m | A | F#m | G#, repeating.
-- **Length:** a 32-bar loop, about 54 s, in sections A, A′, B, B′. The B sections lift the melody and strings an octave.
+- **Chords:** C#m | A | F#m | G# in the A sections; A | F#m | C#m | G# in the B sections (the lift).
+- **Length:** a 32-bar loop, about 54 s, in sections A, A′, B, B′.
+  - A: the two-bar piano/bell ostinato (the hook) over long, low strings. A′ ends on a turnaround.
+  - B: a higher, longer melody, the strings switching to short stabs on the 3-3-2 drill grid, and a busier 808 that drops an octave. B′ fills the stabs in and turns back to A.
 - **Rough preview:** `CombatTheme_Preview.wav` uses crude built-in synths. It's only there to judge the groove and melody.
 
 The MIDI comes from `Tools/music/compose_combat_theme.py`. If you change the notes there and re-run it, the files update.
@@ -36,10 +38,10 @@ Each stem needs to sound right on its own and with the others. Keep the reverb a
 |---|---|---|
 | **1 Strings** | Harmless or Sakura (strings or dark pad) | Eerie, sustained and low, with a slow attack. In drill these sit in the background like a horror film score. |
 | **2 Melody** | FL Keys (piano), or a Sytrus or Harmor bell | A dark plucked piano or bell. This is the hook, so it should be clear but cold. |
-| **3 808** | FLEX (808 presets), or a sampler with an 808 from the **Drums** pack | A long, distorted 808. **Turn on Porta** (the portamento switch in the channel settings) so the overlapping notes slide. That glide is the signature drill sound. Slide time about 60–90 ms. Keep it mono. |
-| **4 Drums** | FPC with a drill or trap kit from the **Drums** pack | A hard, dry kick, a crisp snare, and tight hats with **short decay**. The notes follow the General MIDI layout, which FPC's default pads match: 36 kick, 37 rim, 38 snare, 42 hat, 46 open hat, 49 crash. |
-| **5 Counter** | Sytrus or Harmor (glassy bell or music box) | High and sparse. It answers the melody. |
-| **6 HatRolls** | A second FPC with the same hats as the Drums stem | The triplet rolls and stutters on top. Pan them slightly off centre to separate them from the main hats. |
+| **3 808** | FLEX (808 presets), or a sampler with an 808 from the **Drums** pack | A long, distorted 808. **Turn on Porta** (the portamento switch in the channel settings) so the overlapping notes slide. Every note meant to glide overlaps the next by half a 16th, so the slides land exactly where they're written: up to the octave, the fifth and back, and a slide down into each new section. Slide time about 60–90 ms. Keep it mono. |
+| **4 Drums** | FPC with a drill or trap kit from the **Drums** pack | A hard, dry kick (it follows the 808's long notes), a crisp snare layered with a clap on beat 3, the skippy late snare every other bar, and tight hats with **short decay** in the 3-3-2 grouping. The notes follow the General MIDI layout, which FPC's default pads match: 36 kick, 37 rim, 38 snare, 39 clap, 42 hat, 46 open hat, 49 crash. |
+| **5 Counter** | Sytrus or Harmor (glassy bell, or a choir pad) | High bells answering the hook in the A sections, then a held line above the melody in the B sections. A soft choir works well for the B part. |
+| **6 HatRolls** | A second FPC with the same hats as the Drums stem | Rolls that speed up from triplets to 32nds into beat 3, stutters, and a tom roll into each section. Pan slightly off centre. Pitching the rolls up a few semitones in FPC is very drill. |
 
 ## 3. Effects and mix
 
