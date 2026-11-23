@@ -6,7 +6,9 @@
 #include "LightWalkerPawn.generated.h"
 
 class ALaser;
+class UMeshComponent;
 class UPointLightComponent;
+class UPoseableMeshComponent;
 class USceneComponent;
 class USphereComponent;
 class UStaticMeshComponent;
@@ -48,7 +50,7 @@ public:
 	void Revive(const FVector& Location, float GraceSeconds);
 
 	bool IsDowned() const { return bDowned; }
-	bool IsVulnerable() const { return !bDowned && GraceRemaining <= 0.f; }
+	bool IsVulnerable() const;
 	float GetContactRadius() const { return ContactRadius; }
 
 	/** Menu pose: stands still facing the camera and ignores input. */
@@ -128,6 +130,28 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	FSoftObjectPath FemaleModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_LightwalkerFemale.SM_LightwalkerFemale"));
 
+	/**
+	 * The rigged versions (Tools/rig_hero.py, then Tools/import_hero_rig.py), used instead of the static models when
+	 * they exist. Their bones are posed in code (AnimateRig): a run cycle by speed, idle breathing and the glide.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	FSoftObjectPath RigPath = FSoftObjectPath(TEXT("/Game/Hero/SK_Lightwalker.SK_Lightwalker"));
+
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
+	FSoftObjectPath FemaleRigPath = FSoftObjectPath(TEXT("/Game/Hero/SK_LightwalkerFemale.SK_LightwalkerFemale"));
+
+	/** How far each leg swings forward and back at a full run. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model", meta = (Units = "deg"))
+	float RunLegSwing = 26.f;
+
+	/** How far the knee bends as the leg swings through. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model", meta = (Units = "deg"))
+	float RunKneeBend = 38.f;
+
+	/** How far the free (left) arm swings against the legs. The staff arm only bobs. */
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model", meta = (Units = "deg"))
+	float RunArmSwing = 24.f;
+
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	float ModelHeight = 165.f;
 
@@ -145,6 +169,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
 	TObjectPtr<UStaticMeshComponent> Model;
+
+	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
+	TObjectPtr<UPoseableMeshComponent> Rig;
 
 	/** 2014: 6 px per frame at 24 fps, scaled 5 units per pixel. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Movement")
@@ -209,12 +236,22 @@ protected:
 private:
 	void Fire(const FVector& Direction);
 	void UpdatePowerUps(float DeltaSeconds);
-	bool UseModel(const FSoftObjectPath& Path);
+	bool UseModel(int32 Index);
+	void AnimateRig(float DeltaSeconds);
 	bool bFrozen = false;
 	void UpdateModelStride(bool bMoving, float DeltaSeconds);
 
 	FVector ModelOffset = FVector::ZeroVector;
 	bool bUsingModel = false;
+
+	/** Whichever of Model and Rig is showing. */
+	UMeshComponent* ActiveModel() const;
+	bool bUsingRig = false;
+
+	/** The rig's reference pose: each bone's local transform and its rotation in component space. */
+	TArray<FTransform> RigRefLocal;
+	TArray<FQuat> RigRefComponent;
+	float IdleTime = 0.f;
 	float StrideTime = 0.f;
 	float StrideBlend = 0.f;
 

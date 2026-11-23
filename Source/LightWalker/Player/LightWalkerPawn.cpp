@@ -1,6 +1,7 @@
 #include "Player/LightWalkerPawn.h"
 
 #include "Components/PointLightComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LightWalkerGameInstance.h"
@@ -9,6 +10,7 @@
 #include "Core/LWFeel.h"
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -25,6 +27,17 @@ namespace
 	const FVector LanternOffset(52.f, 26.f, 14.f);
 
 	const FLinearColor PiercingColor(1.f, 0.85f, 0.4f);
+
+	/** -LWAutoRun (non-shipping): run on the spot, turning slowly and untouchable, to check the run cycle in -LWShots screenshots (with -LWZoom). */
+	bool IsDevAutoRun()
+	{
+#if UE_BUILD_SHIPPING
+		return false;
+#else
+		static const bool bAutoRun = FParse::Param(FCommandLine::Get(), TEXT("LWAutoRun"));
+		return bAutoRun;
+#endif
+	}
 }
 
 ALightWalkerPawn::ALightWalkerPawn()
@@ -85,6 +98,12 @@ ALightWalkerPawn::ALightWalkerPawn()
 	Model->SetCastShadow(false);
 	Model->SetVisibility(false);
 
+	Rig = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("Rig"));
+	Rig->SetupAttachment(HeadingPivot);
+	Rig->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Rig->SetCastShadow(false);
+	Rig->SetVisibility(false);
+
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(HeadingPivot);
 	Glow->SetRelativeLocation(LanternOffset + FVector(0.f, 0.f, 26.f));
@@ -119,16 +138,22 @@ void ALightWalkerPawn::BeginPlay()
 
 bool ALightWalkerPawn::HasHeroModel(int32 Index) const
 {
-	const FSoftObjectPath& Path = Index == 1 ? FemaleModelPath : ModelPath;
-	return !Path.IsNull() && FPackageName::DoesPackageExist(Path.GetLongPackageName());
+	for (const FSoftObjectPath* Path : { Index == 1 ? &FemaleRigPath : &RigPath, Index == 1 ? &FemaleModelPath : &ModelPath })
+	{
+		if (!Path->IsNull() && FPackageName::DoesPackageExist(Path->GetLongPackageName()))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void ALightWalkerPawn::SetHero(int32 Index)
 {
 	// Fall back to the other hero if this one hasn't been made yet, so there's always a model when one exists.
-	if (!UseModel(Index == 1 ? FemaleModelPath : ModelPath) && !bUsingModel)
+	if (!UseModel(Index) && !bUsingModel)
 	{
-		UseModel(Index == 1 ? ModelPath : FemaleModelPath);
+		UseModel(1 - Index);
 	}
 }
 
@@ -145,37 +170,69 @@ void ALightWalkerPawn::SetFrozen(bool bInFrozen)
 	}
 
 	// The menu shows only the sunset art, so the model stays hidden until play.
-	Model->SetHiddenInGame(bFrozen);
+	Model->SetHiddenInGame(bFrozen || bUsingRig);
+	Rig->SetHiddenInGame(bFrozen || !bUsingRig);
 }
 
-bool ALightWalkerPawn::UseModel(const FSoftObjectPath& Path)
+UMeshComponent* ALightWalkerPawn::ActiveModel() const
 {
-	if (Path.IsNull() || !FPackageName::DoesPackageExist(Path.GetLongPackageName()))
+	return bUsingRig ? static_cast<UMeshComponent*>(Rig.Get()) : static_cast<UMeshComponent*>(Model.Get());
+}
+
+bool ALightWalkerPawn::UseModel(int32 Index)
+{
+	auto Load = [](const FSoftObjectPath& Path) -> UObject*
+	{
+		return !Path.IsNull() && FPackageName::DoesPackageExist(Path.GetLongPackageName()) ? Path.TryLoad() : nullptr;
+	};
+
+	// The rigged model when it's been imported, otherwise the static one.
+	USkeletalMesh* RigMesh = Cast<USkeletalMesh>(Load(Index == 1 ? FemaleRigPath : RigPath));
+	UStaticMesh* Mesh = RigMesh ? nullptr : Cast<UStaticMesh>(Load(Index == 1 ? FemaleModelPath : ModelPath));
+	if (!RigMesh && !Mesh)
 	{
 		return false;
 	}
-	UStaticMesh* Mesh = Cast<UStaticMesh>(Path.TryLoad());
-	if (!Mesh)
-	{
-		return false;
-	}
+	bUsingRig = RigMesh != nullptr;
+	UMeshComponent* Shown = ActiveModel();
+	UMeshComponent* Unused = bUsingRig ? static_cast<UMeshComponent*>(Model.Get()) : static_cast<UMeshComponent*>(Rig.Get());
+	Unused->SetVisibility(false);
+	Unused->SetHiddenInGame(true);
+	Shown->SetHiddenInGame(bFrozen);
 
 	// Scale by height (the staff can make the model wider than it is tall) and centre it on the pivot.
-	const FBoxSphereBounds Bounds = Mesh->GetBounds();
+	const FBoxSphereBounds Bounds = bUsingRig ? RigMesh->GetBounds() : Mesh->GetBounds();
 	const float Scale = ModelHeight / FMath::Max(Bounds.BoxExtent.Z * 2.f, KINDA_SMALL_NUMBER);
 	const FRotator Rotation(0.f, ModelYaw, 0.f);
 	ModelOffset = -Rotation.RotateVector(Bounds.Origin * Scale) + FVector(0.f, 0.f, ModelHeight * 0.5f - ContactRadius);
 
 	// Drop the previous hero's material instances, or they'd carry its textures onto the new mesh.
-	Model->EmptyOverrideMaterials();
-	Model->SetStaticMesh(Mesh);
-	Model->SetRelativeScale3D(FVector(Scale));
-	Model->SetRelativeRotation(Rotation);
-	Model->SetRelativeLocation(ModelOffset);
-	Model->SetVisibility(true);
-	for (int32 Slot = 0; Slot < Model->GetNumMaterials(); ++Slot)
+	Shown->EmptyOverrideMaterials();
+	if (bUsingRig)
 	{
-		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
+		Rig->SetSkinnedAssetAndUpdate(RigMesh);
+
+		// Keep the reference pose to build each frame's pose from.
+		const FReferenceSkeleton& Skeleton = RigMesh->GetRefSkeleton();
+		RigRefLocal = Skeleton.GetRefBonePose();
+		RigRefComponent.SetNum(RigRefLocal.Num());
+		for (int32 Bone = 0; Bone < RigRefLocal.Num(); ++Bone)
+		{
+			const int32 Parent = Skeleton.GetParentIndex(Bone);
+			RigRefComponent[Bone] = (Parent == INDEX_NONE ? FQuat::Identity : RigRefComponent[Parent]) * RigRefLocal[Bone].GetRotation();
+		}
+	}
+	else
+	{
+		Model->SetStaticMesh(Mesh);
+	}
+	Shown->SetRelativeScale3D(FVector(Scale));
+	Shown->SetRelativeRotation(Rotation);
+	Shown->SetRelativeLocation(ModelOffset);
+	Shown->SetVisibility(true);
+	for (int32 Slot = 0; Slot < Shown->GetNumMaterials(); ++Slot)
+	{
+		if (UMaterialInstanceDynamic* Material = Shown->CreateDynamicMaterialInstance(Slot))
 		{
 			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
 		}
@@ -201,16 +258,87 @@ void ALightWalkerPawn::UpdateModelStride(bool bMoving, float DeltaSeconds)
 		return;
 	}
 
-	// A static mesh can't walk, so it bobs with each stride and leans into the run, easing in and out.
+	// The whole model bobs with each stride and leans into the run, easing in and out; the rig also runs (AnimateRig).
 	// While gliding the stride fades out and only a smooth lean is left.
 	StrideBlend = FMath::FInterpTo(StrideBlend, bMoving ? 1.f : 0.f, DeltaSeconds, 8.f);
 	StrideTime += DeltaSeconds * 11.f * StrideBlend * (1.f - GlideBlend);
 	const float Stride = FMath::Sin(StrideTime) * (1.f - GlideBlend);
-	const FQuat Lean = FRotator(-FMath::Lerp(7.f, 11.f, GlideBlend) * StrideBlend, 0.f, Stride * 3.f * StrideBlend).Quaternion();
+	const float LeanDegrees = bUsingRig ? FMath::Lerp(3.f, 9.f, GlideBlend) : FMath::Lerp(7.f, 11.f, GlideBlend);
+	const FQuat Lean = FRotator(-LeanDegrees * StrideBlend, 0.f, Stride * 3.f * StrideBlend).Quaternion();
 	const FVector Feet(0.f, 0.f, -ContactRadius);
 
-	Model->SetRelativeRotation(Lean * FRotator(0.f, ModelYaw, 0.f).Quaternion());
-	Model->SetRelativeLocation(Feet + Lean.RotateVector(ModelOffset - Feet) + FVector(0.f, 0.f, FMath::Abs(Stride) * 5.f * StrideBlend));
+	UMeshComponent* Shown = ActiveModel();
+	Shown->SetRelativeRotation(Lean * FRotator(0.f, ModelYaw, 0.f).Quaternion());
+	Shown->SetRelativeLocation(Feet + Lean.RotateVector(ModelOffset - Feet) + FVector(0.f, 0.f, FMath::Abs(Stride) * 5.f * StrideBlend));
+	AnimateRig(DeltaSeconds);
+}
+
+void ALightWalkerPawn::AnimateRig(float DeltaSeconds)
+{
+	USkinnedAsset* Asset = bUsingRig ? Rig->GetSkinnedAsset() : nullptr;
+	if (!Asset || Rig->BoneSpaceTransforms.Num() != RigRefLocal.Num())
+	{
+		return;
+	}
+	IdleTime += DeltaSeconds;
+	const FReferenceSkeleton& Skeleton = Asset->GetRefSkeleton();
+	TArray<FTransform>& Pose = Rig->BoneSpaceTransforms;
+	Pose = RigRefLocal;
+
+	// Turns a bone about an axis given in the model's own space (+X the hero's left, +Y forward, +Z up), carried
+	// along by any turn of its parents. About +X, a positive angle swings a hanging limb forward.
+	auto Turn = [&](const TCHAR* BoneName, const FVector& Axis, float Degrees)
+	{
+		const int32 Bone = Skeleton.FindBoneIndex(FName(BoneName));
+		if (Bone == INDEX_NONE || FMath::IsNearlyZero(Degrees))
+		{
+			return;
+		}
+		const FQuat Delta(Axis, FMath::DegreesToRadians(Degrees));
+		const FQuat& Reference = RigRefComponent[Bone];
+		Pose[Bone].SetRotation(Pose[Bone].GetRotation() * (Reference.Inverse() * Delta * Reference));
+	};
+	const FVector Side(1.f, 0.f, 0.f);
+	const FVector Up(0.f, 0.f, 1.f);
+
+	// The run: legs swing opposite each other, each knee bending as its leg comes through, the free arm swinging
+	// against its leg, the hips and shoulders twisting against each other. The staff arm only bobs.
+	const float Run = StrideBlend * (1.f - GlideBlend);
+	const float S = FMath::Sin(StrideTime);
+	const float C = FMath::Cos(StrideTime);
+	Turn(TEXT("thigh_l"), Side, RunLegSwing * S * Run);
+	Turn(TEXT("thigh_r"), Side, -RunLegSwing * S * Run);
+	Turn(TEXT("calf_l"), Side, -RunKneeBend * (0.2f + 0.8f * FMath::Max(0.f, C)) * Run);
+	Turn(TEXT("calf_r"), Side, -RunKneeBend * (0.2f + 0.8f * FMath::Max(0.f, -C)) * Run);
+	Turn(TEXT("foot_l"), Side, -0.3f * RunLegSwing * S * Run);
+	Turn(TEXT("foot_r"), Side, 0.3f * RunLegSwing * S * Run);
+	Turn(TEXT("pelvis"), Up, 6.f * S * Run);
+	Turn(TEXT("spine_01"), Side, -6.f * Run);
+	Turn(TEXT("spine_02"), Up, -9.f * S * Run);
+	Turn(TEXT("head"), Up, 4.f * S * Run);
+	Turn(TEXT("upperarm_l"), Side, -RunArmSwing * S * Run + 6.f * Run);
+	Turn(TEXT("lowerarm_l"), Side, (14.f + 8.f * FMath::Max(0.f, -S)) * Run);
+	Turn(TEXT("upperarm_r"), Side, 4.f * S * Run);
+
+	// Standing: slow breathing and the odd glance about.
+	const float Still = 1.f - StrideBlend;
+	Turn(TEXT("spine_02"), Side, 1.5f * FMath::Sin(IdleTime * 2.2f) * Still);
+	Turn(TEXT("head"), Up, 6.f * FMath::Sin(IdleTime * 0.45f) * Still);
+	Turn(TEXT("upperarm_r"), Side, 1.5f * FMath::Sin(IdleTime * 2.2f + 0.6f) * Still);
+
+	// Gliding on the light orb: legs together and trailing, the free arm swept back.
+	Turn(TEXT("thigh_l"), Side, -14.f * GlideBlend);
+	Turn(TEXT("thigh_r"), Side, -10.f * GlideBlend);
+	Turn(TEXT("calf_l"), Side, -22.f * GlideBlend);
+	Turn(TEXT("calf_r"), Side, -16.f * GlideBlend);
+	Turn(TEXT("upperarm_l"), Side, -22.f * GlideBlend);
+
+	Rig->MarkRefreshTransformDirty();
+}
+
+bool ALightWalkerPawn::IsVulnerable() const
+{
+	return !bDowned && GraceRemaining <= 0.f && !IsDevAutoRun();
 }
 
 ULightWalkerGameInstance* ALightWalkerPawn::GetRun() const
@@ -246,8 +374,14 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 
 	const FRunUpgrades Upgrades = GetRun() ? GetRun()->GetUpgrades() : FRunUpgrades();
 
+	if (IsDevAutoRun())
+	{
+		const float Angle = GetWorld()->GetTimeSeconds() * 0.6f;
+		MoveInput = FVector2D(FMath::Cos(Angle), FMath::Sin(Angle));
+	}
+
 	const FVector Move = ScreenToWorld(MoveInput.GetClampedToMaxSize(1.f));
-	if (!Move.IsNearlyZero())
+	if (!Move.IsNearlyZero() && !IsDevAutoRun())
 	{
 		FVector Location = GetActorLocation() + Move * MoveSpeed * Upgrades.MoveSpeed * DeltaSeconds;
 		if (PlayBounds.bIsValid)

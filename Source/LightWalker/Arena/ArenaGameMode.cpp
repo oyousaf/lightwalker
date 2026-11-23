@@ -348,6 +348,13 @@ void AArenaGameMode::SpawnWave(const FArenaWave& Wave)
 		}
 	};
 
+#if !UE_BUILD_SHIPPING
+	// Dev only: -LWAutoRun (the hero running on the spot for screenshots) leaves the arena empty.
+	if (FParse::Param(FCommandLine::Get(), TEXT("LWAutoRun")))
+	{
+		return;
+	}
+#endif
 	SpawnEnemies(ShaytaanClass, Wave.ShaytaanCount, Wave.ShaytaanSpeed);
 	SpawnEnemies(DajjalClass, Wave.DajjalCount, Wave.DajjalSpeed);
 	ApplyChaserSpeed();

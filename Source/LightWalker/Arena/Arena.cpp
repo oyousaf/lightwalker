@@ -159,7 +159,13 @@ void AArena::ApplyCamera()
 	const float BaseFieldOfView = FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha);
 	const float Widen = FMath::Max(1.f, ViewAspect / (16.f / 9.f));
 	const float FieldOfView = FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(BaseFieldOfView) * 0.5f) * Widen));
+#if !UE_BUILD_SHIPPING
+	// -LWZoom=N narrows the view N times onto the arena centre, to check the hero's model and animation up close.
+	static const float DevZoom = [] { float Zoom = 1.f; FParse::Value(FCommandLine::Get(), TEXT("LWZoom="), Zoom); return FMath::Max(Zoom, 1.f); }();
+	Camera->SetFieldOfView(FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(FMath::Min(FieldOfView, 170.f)) * 0.5f) / DevZoom)));
+#else
 	Camera->SetFieldOfView(FMath::Min(FieldOfView, 170.f));
+#endif
 
 	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out, and the grid dims so
 	// it stays a backdrop behind the buttons.
