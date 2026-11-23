@@ -17,7 +17,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from midi_writer import BAR, STEP, note, track_chunk, write  # noqa: E402
+from midi_writer import BAR, PPQ, STEP, note, track_chunk, write  # noqa: E402,F401  (PPQ: used by preview_menu_theme)
 from midi_writer import CLAP, CRASH, HAT, KICK, OPEN_HAT, SNARE, TOM_HIGH, TOM_LOW, TOM_MID  # noqa: E402
 
 TEMPO_BPM = 140
