@@ -33,3 +33,6 @@ __pycache__/
 # Claude Code project notes (kept locally, not published)
 CLAUDE.md
 .claude/
+
+# FL Studio's raw stem exports, kept locally after Tools/music/split_combat_stems.py cuts them
+SourceArt/Music/CombatTheme/FL_Stems/

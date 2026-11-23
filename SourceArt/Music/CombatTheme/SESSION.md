@@ -77,18 +77,11 @@ Each stem needs to sound right on its own and with the others. Keep the reverb a
 
 ## 4. Export (what the game needs)
 
-Export as WAV, **48 kHz, 24-bit**, bars 1 to the end of bar 112, cut exactly on the bar lines. Use **Tail: "Wrap remainder"** so each stem loops seamlessly. Save to `SourceArt/Music/CombatTheme/Export/`.
-
-To export every stem at once:
-1. Route each instrument to its own mixer track.
-2. In the export window, tick **"Split mixer tracks"**.
-3. Rename the results:
-   - `Combat_1_Strings.wav`
-   - `Combat_2_Melody.wav`
-   - `Combat_3_808.wav`
-   - `Combat_4_Drums.wav`
-   - `Combat_5_Counter.wav`
-   - `Combat_6_HatRolls.wav`
+Export every stem at once:
+1. Route each instrument to its own mixer track, **1–6 in stem order** (Strings, Melody, 808, Drums, Counter, HatRolls). Click each channel's mixer-track number box in the Channel Rack and scroll it.
+2. **File → Export → WAV file**: Full song, **Tail: Leave remainder**, 48 kHz, 24-bit, tick **"Split mixer tracks"**. Save into `SourceArt/Music/CombatTheme/Export/` under any name (e.g. `combat`); FL adds each track's name.
+3. Run `Tools/music/split_combat_stems.py` (with `C:\ComfyUI\.venv\Scripts\python.exe -I`). It matches each file to its stem by track number (or channel name), cuts all six to exactly 112 bars, folds the tails into the loop start, applies one common gain (so the FL balance is kept) and writes `Combat_1_Strings.wav` … `Combat_6_HatRolls.wav`. FL's own files move to `FL_Stems/` (git-ignored).
+4. Run `Tools/import_audio.py`.
 
 **Stings** (one-shots, no loop, let the tails ring out):
 - `Sting_WaveCleared.mid`: a rising bell arpeggio that resolves on E major. Use the Melody's bell or piano sound. Export it as `Sting_WaveCleared.wav`.
