@@ -196,7 +196,7 @@ private:
 	bool bFinished = false;
 };
 
-/** The logo, then Play, Hero, Settings and Quit over the neon sunset, with motes of light rising through it. */
+/** The logo, then Play, Endless, Hero, Leaderboard, Settings and Quit over the neon sunset, with motes of light rising through it. */
 UCLASS()
 class LIGHTWALKER_API ULWMainMenu : public ULWMenuWidget
 {

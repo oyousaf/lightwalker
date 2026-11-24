@@ -52,6 +52,14 @@ UTexture2D* LWStyle::Art(const TCHAR* Name)
 		if (FPackageName::DoesPackageExist(Package))
 		{
 			Slot = LoadObject<UTexture2D>(nullptr, *FString::Printf(TEXT("%s.T_%s"), *Package, Name));
+#if WITH_EDITOR
+			// The editor builds textures in the background. Slate measures one when it's first drawn, so a 9-slice drawn
+			// before that finished would lose its edges.
+			if (UTexture2D* Texture = Slot.Get())
+			{
+				Texture->BlockOnAnyAsyncBuild();
+			}
+#endif
 		}
 	}
 	return Slot.Get();

@@ -47,6 +47,7 @@ public:
 	virtual void RestartRun() override;
 	virtual void ReturnToMenu() override;
 	virtual bool IsRunOver() const override { return Phase == EShieldPhase::GameOver; }
+	virtual FString GetReached() const override { return TEXT("THE SHIELD"); }
 	virtual void AddCameraTrauma(float Amount) override;
 
 	EShieldPhase GetPhase() const { return Phase; }

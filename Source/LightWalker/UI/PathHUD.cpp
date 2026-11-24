@@ -82,7 +82,6 @@ AArenaHUD::FBanner APathHUD::GetBanner() const
 		Banner.Title = TEXT("GAME OVER");
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
-		Banner.Detail = TEXT("PRESS ENTER, A OR START TO PLAY AGAIN");
 		break;
 	default:
 		break;

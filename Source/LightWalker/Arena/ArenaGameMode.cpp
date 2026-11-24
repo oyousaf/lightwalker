@@ -83,6 +83,55 @@ const TArray<FArenaWave>& AArenaGameMode::GetWaves() const
 	return (WaveSet && WaveSet->Waves.Num() > 0) ? WaveSet->Waves : DefaultWaves;
 }
 
+bool AArenaGameMode::IsEndless() const
+{
+	return GetRun() && GetRun()->GetRunMode() == ERunMode::Endless;
+}
+
+bool AArenaGameMode::IsBossWave() const
+{
+	if (!BossClass)
+	{
+		return false;
+	}
+	return IsEndless() ? EndlessBossEvery > 0 && (WaveIndex + 1) % EndlessBossEvery == 0 : WaveIndex >= GetWaveCount();
+}
+
+bool AArenaGameMode::FindWave(int32 Index, FArenaWave& OutWave) const
+{
+	const TArray<FArenaWave>& Waves = GetWaves();
+	if (Waves.IsValidIndex(Index))
+	{
+		OutWave = Waves[Index];
+		return true;
+	}
+	if (!IsEndless() || Index < 0)
+	{
+		return false;
+	}
+
+	// Past the story's waves: more of them, faster, up to what the arena can hold and Lightwalker (720 cm/s) can outrun.
+	// Every fifth is a crowd of wanderers, as in the story.
+	const int32 Over = Index - Waves.Num() + 1;
+	const bool bWandererWave = (Index + 1) % 5 == 0;
+	OutWave = MakeWave(
+		FMath::RoundToInt(FMath::Min(60.f + Over * 1.5f, 76.f) * (bWandererWave ? 0.6f : 1.f)),
+		FMath::RoundToInt(FMath::Min(14.f + Over * 0.5f, 22.f) * (bWandererWave ? 1.6f : 1.f)),
+		FMath::Min(300.f + Over * 6.f, 400.f),
+		FMath::Min(480.f + Over * 8.f, 620.f));
+	OutWave.DajjalSpeed = FMath::Min(170.f + Over * 4.f, 260.f);
+	return true;
+}
+
+FString AArenaGameMode::GetReached() const
+{
+	if (Phase == EArenaPhase::Victory)
+	{
+		return TEXT("WON");
+	}
+	return Boss && !IsEndless() ? FString(TEXT("THE ONE-EYED LIAR")) : FString::Printf(TEXT("WAVE %d"), GetWaveNumber());
+}
+
 void AArenaGameMode::RestartPlayer(AController* NewPlayer)
 {
 	if (!NewPlayer || NewPlayer->IsPendingKillPending())
@@ -141,6 +190,14 @@ void AArenaGameMode::StartPlay()
 		return;
 	}
 
+#if !UE_BUILD_SHIPPING
+	// Dev only: -LWEndless makes a run started by -LWStartWave an endless one.
+	if (FParse::Param(FCommandLine::Get(), TEXT("LWEndless")))
+	{
+		GetRun()->SetRunMode(ERunMode::Endless);
+	}
+#endif
+
 	// Launch into the intro and main menu. Dev runs that ask for a wave skip straight to it.
 	bool bSkipMenu = false;
 #if !UE_BUILD_SHIPPING
@@ -167,7 +224,14 @@ void AArenaGameMode::StartPlay()
 				FString Page;
 				if (FParse::Value(FCommandLine::Get(), TEXT("LWPage="), Page))
 				{
-					Controller->OpenSettings();
+					if (Page == TEXT("leaderboard"))
+					{
+						Controller->OpenLeaderboard();
+					}
+					else
+					{
+						Controller->OpenSettings();
+					}
 					if (Page == TEXT("controls"))
 					{
 						Controller->OpenControls();
@@ -201,6 +265,7 @@ void AArenaGameMode::AddCameraTrauma(float Amount)
 
 void AArenaGameMode::EnterMenu(bool bInstantCamera)
 {
+	CancelRunEnd();
 	GetWorldTimerManager().ClearTimer(PhaseTimer);
 	ClearField();
 	Arena->SetMood(0.f);
@@ -237,6 +302,7 @@ void AArenaGameMode::ReturnToMenu()
 
 void AArenaGameMode::StartRun()
 {
+	CancelRunEnd();
 	ClearField();
 	Arena->SetMood(0.f);
 	GetRun()->StartRun(StartingLives);
@@ -258,7 +324,7 @@ void AArenaGameMode::StartRun()
 	if (FParse::Value(FCommandLine::Get(), TEXT("LWStartWave="), StartWave))
 	{
 		// One past the last wave is the boss.
-		WaveIndex = FMath::Clamp(StartWave - 1, 0, GetWaveCount());
+		WaveIndex = FMath::Clamp(StartWave - 1, 0, IsEndless() ? 10000 : GetWaveCount());
 	}
 #endif
 	BeginWaveIntro();
@@ -284,12 +350,12 @@ void AArenaGameMode::ContinueRun(int32 FromWaveIndex)
 
 bool AArenaGameMode::LeadsToPath() const
 {
-	return PathAfterWave > 0 && WaveIndex + 1 == PathAfterWave && MapExists(LWMaps::Path);
+	return !IsEndless() && PathAfterWave > 0 && WaveIndex + 1 == PathAfterWave && MapExists(LWMaps::Path);
 }
 
 bool AArenaGameMode::LeadsToShield() const
 {
-	return ShieldAfterWave > 0 && WaveIndex + 1 == ShieldAfterWave && MapExists(LWMaps::Shield);
+	return !IsEndless() && ShieldAfterWave > 0 && WaveIndex + 1 == ShieldAfterWave && MapExists(LWMaps::Shield);
 }
 
 void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArenaGameMode::*Next)())
@@ -305,15 +371,15 @@ void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArena
 
 void AArenaGameMode::BeginWaveIntro()
 {
-	const TArray<FArenaWave>& Waves = GetWaves();
 	if (IsBossWave())
 	{
 		BeginBossIntro();
 		return;
 	}
-	if (!Waves.IsValidIndex(WaveIndex))
+	if (!FindWave(WaveIndex, CurrentWave))
 	{
 		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+		EndRun(4.f);
 		return;
 	}
 
@@ -324,7 +390,7 @@ void AArenaGameMode::BeginWaveIntro()
 	}
 
 	bBookDroppedThisWave = false;
-	SpawnWave(Waves[WaveIndex]);
+	SpawnWave(CurrentWave);
 	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 	{
 		Music->SetCombatWave(WaveIndex + 1);
@@ -366,6 +432,11 @@ void AArenaGameMode::BeginBossIntro()
 		return;
 	}
 	Boss->InitEnemy(GetLightWalker(), Arena->GetPlayBounds(0.f), 0.f);
+	if (IsEndless())
+	{
+		const int32 Time = (WaveIndex + 1) / FMath::Max(1, EndlessBossEvery);
+		Boss->ScaleHealth(1.f + EndlessBossGrowth * (Time - 1));
+	}
 	Boss->Arrive(Arena->GetCentre(), BossIntroDuration - 0.8f);
 	Boss->OnSummon = [this](int32 Shaytaan, int32 Dajjal) { SummonForBoss(Shaytaan, Dajjal); };
 	Boss->OnStage = [this](int32 Stage) { HandleBossStage(Stage); };
@@ -482,7 +553,14 @@ void AArenaGameMode::HandleBossDefeated()
 	}
 	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 	{
-		Music->StopAll(3.f);
+		if (IsEndless())
+		{
+			Music->DuckCombat(4.f);
+		}
+		else
+		{
+			Music->StopAll(3.f);
+		}
 	}
 	SetPhase(EArenaPhase::BossFalling, 0.f, nullptr);
 }
@@ -491,12 +569,20 @@ void AArenaGameMode::HandleBossGone()
 {
 	Enemies.Remove(Boss);
 	Boss = nullptr;
+	if (IsEndless())
+	{
+		// On to the next wave.
+		Arena->SetMood(0.f);
+		FinishWave();
+		return;
+	}
 	Arena->SetMood(-1.f);
 	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 	{
 		Music->PlaySting(ELWSting::WaveCleared);
 	}
 	SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+	EndRun(5.5f);
 }
 
 void AArenaGameMode::BeginFighting()
@@ -600,13 +686,11 @@ FVector AArenaGameMode::RandomEnemySpawn() const
 
 void AArenaGameMode::ApplyChaserSpeed()
 {
-	const TArray<FArenaWave>& Waves = GetWaves();
-	if (!Waves.IsValidIndex(WaveIndex))
+	if (Boss)
 	{
-		return;
+		return;  // what it summons keeps its own pace
 	}
-
-	const FArenaWave& Wave = Waves[WaveIndex];
+	const FArenaWave& Wave = CurrentWave;
 
 	// 0 with the whole wave alive, 1 when only one enemy is left.
 	const int32 Total = Wave.GetEnemyCount();
@@ -679,6 +763,7 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 	{
 		SetEnemiesActive(false);
 		SetPhase(EArenaPhase::GameOver, 0.f, nullptr);
+		EndRun(2.6f);
 		if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 		{
 			Music->PlaySting(ELWSting::GameOver);
@@ -780,13 +865,15 @@ void AArenaGameMode::AdvanceWave()
 	}
 
 	++WaveIndex;
-	if (GetWaves().IsValidIndex(WaveIndex) || IsBossWave())
+	FArenaWave Next;
+	if (FindWave(WaveIndex, Next) || IsBossWave())
 	{
 		BeginWaveIntro();
 	}
 	else
 	{
 		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+		EndRun(4.f);
 		if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 		{
 			Music->StopAll(3.f);
@@ -798,7 +885,7 @@ void AArenaGameMode::RequestRestart()
 {
 	if (IsRunOver() && GetWorld()->GetTimeSeconds() - PhaseStartTime >= RestartLockout)
 	{
-		StartRun();
+		ShowRunEnd();
 	}
 }
 

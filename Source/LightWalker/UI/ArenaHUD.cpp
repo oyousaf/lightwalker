@@ -12,6 +12,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Pickups/Pickup.h"
 #include "Player/LightWalkerPawn.h"
+#include "Player/LightWalkerPlayerController.h"
 #include "Rendering/SlateRenderer.h"
 #include "UI/LWStyle.h"
 
@@ -84,6 +85,13 @@ void AArenaHUD::DrawHUD()
 
 	const ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>();
 	if (!Canvas || !Run || !IsShown())
+	{
+		return;
+	}
+
+	// The name entry and leaderboard have the screen to themselves.
+	const ALightWalkerPlayerController* Controller = Cast<ALightWalkerPlayerController>(GetOwningPlayerController());
+	if (Controller && Controller->IsRunEndShown())
 	{
 		return;
 	}
@@ -238,7 +246,8 @@ void AArenaHUD::DrawTopCentre(const FLayout& Layout)
 		return;
 	}
 	DrawLine(TEXT("WAVE"), LWStyle::Body(Layout.Size(18), true, 300), LWStyle::Muted, Layout.CentreX, Layout.Margin, EAlign::Centre);
-	DrawLine(FString::Printf(TEXT("%d / %d"), GameMode->GetWaveNumber(), GameMode->GetWaveCount()), LWStyle::Body(Layout.Size(44), true, 80), LWStyle::Text,
+	const FString Wave = GameMode->IsEndless() ? FString::FromInt(GameMode->GetWaveNumber()) : FString::Printf(TEXT("%d / %d"), GameMode->GetWaveNumber(), GameMode->GetWaveCount());
+	DrawLine(Wave, LWStyle::Body(Layout.Size(44), true, 80), LWStyle::Text,
 		Layout.CentreX, Layout.Margin + Layout.Px(22.f), EAlign::Centre, WithAlpha(LWStyle::Cyan, 0.6f));
 }
 
@@ -280,7 +289,6 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		Banner.Title = TEXT("GAME OVER");
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
-		Banner.Detail = TEXT("PRESS ENTER, A OR START TO PLAY AGAIN");
 		break;
 	case EArenaPhase::BossIntro:
 		Banner.Title = TEXT("THE ONE-EYED LIAR");
@@ -299,7 +307,7 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		Banner.Title = TEXT("THE LIGHT PREVAILS");
 		Banner.Color = LWStyle::Gold;
 		Banner.Glow = LWStyle::Pink;
-		Banner.Detail = FString::Printf(TEXT("FINAL SCORE %d     PRESS ENTER, A OR START TO PLAY AGAIN"), Run->GetScore());
+		Banner.Detail = FString::Printf(TEXT("FINAL SCORE %d"), Run->GetScore());
 		break;
 	default:
 		break;

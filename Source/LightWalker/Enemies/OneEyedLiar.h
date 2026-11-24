@@ -72,6 +72,9 @@ public:
 	/** Starts its descent into the arena; it fights once set active. */
 	void Arrive(const FVector& ArenaCentre, float Seconds);
 
+	/** More health than usual (the endless arena, where it returns). Call before it fights. */
+	void ScaleHealth(float Scale) { MaxHealth = FMath::RoundToInt(MaxHealth * Scale); Health = MaxHealth; }
+
 	float GetHealth() const { return MaxHealth > 0 ? static_cast<float>(Health) / MaxHealth : 0.f; }
 	int32 GetStage() const { return Stage; }
 

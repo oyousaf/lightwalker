@@ -1,5 +1,7 @@
 #include "Core/LightWalkerGameInstance.h"
 
+#include "Core/LWScoreboard.h"
+
 namespace
 {
 	// Original lines of general wisdom about light and knowledge, written for the game. Not quotations,
@@ -35,12 +37,16 @@ void ULightWalkerGameInstance::StartRun(int32 StartingLives)
 	Upgrades = FRunUpgrades();
 	UnreadWisdom.Reset();
 	bCarriedShield = false;
+	if (ULWScoreboard* Scores = GetSubsystem<ULWScoreboard>())
+	{
+		BestScore[static_cast<int32>(RunMode)] = FMath::Max(GetBestScore(), Scores->GetBest(RunMode));
+	}
 }
 
 void ULightWalkerGameInstance::AddScore(int32 Points)
 {
 	Score += Points;
-	BestScore = FMath::Max(BestScore, Score);
+	BestScore[static_cast<int32>(RunMode)] = FMath::Max(GetBestScore(), Score);
 }
 
 int32 ULightWalkerGameInstance::LoseLife()
@@ -85,7 +91,7 @@ FBookReading ULightWalkerGameInstance::ReadBook()
 		break;
 	default:
 		Score += 1000;
-		BestScore = FMath::Max(BestScore, Score);
+		BestScore[static_cast<int32>(RunMode)] = FMath::Max(GetBestScore(), Score);
 		Reading.Upgrade = TEXT("+1000");
 		break;
 	}

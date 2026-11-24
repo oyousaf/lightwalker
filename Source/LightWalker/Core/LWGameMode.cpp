@@ -10,6 +10,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
 #include "Player/LightWalkerPawn.h"
+#include "Player/LightWalkerPlayerController.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
 
@@ -56,6 +57,25 @@ void ALWGameMode::TravelTo(const TCHAR* Map, const TCHAR* GameMode)
 	}), TravelFadeTime + 0.05f, false);
 }
 
+void ALWGameMode::EndRun(float Delay)
+{
+	GetWorldTimerManager().SetTimer(RunEndTimer, this, &ALWGameMode::ShowRunEnd, FMath::Max(Delay, 0.01f), false);
+}
+
+void ALWGameMode::ShowRunEnd()
+{
+	CancelRunEnd();
+	if (ALightWalkerPlayerController* Controller = Cast<ALightWalkerPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		Controller->ShowRunEnd();
+	}
+}
+
+void ALWGameMode::CancelRunEnd()
+{
+	GetWorldTimerManager().ClearTimer(RunEndTimer);
+}
+
 void ALWGameMode::FadeIn()
 {
 	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
@@ -93,8 +113,9 @@ void ALWGameMode::TakeDevScreenshot()
 		return;
 	}
 	++Index;
-	// HighResShot renders the scene only; the menu needs a normal screenshot with the UI.
-	if (IsInMenu())
+	// HighResShot renders the scene only; the menus need a normal screenshot with the UI.
+	const ALightWalkerPlayerController* Viewer = Cast<ALightWalkerPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (IsInMenu() || (Viewer && Viewer->IsRunEndShown()))
 	{
 		FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("LWShot_%d"), Index), true, false);
 	}

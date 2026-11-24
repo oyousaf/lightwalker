@@ -16,7 +16,7 @@ The originals are in [legacy/](legacy/).
 
 ## Status
 
-Milestones 1 to 5: the arena (15 waves, power-ups, two animated heroes, music and menus), The Path (a run-and-jump stage after wave 5) The Shield (a beam-deflecting wall breaker after wave 10) and the boss. Next up are an endless mode and the packaged build.
+Milestones 1 to 5: the arena (15 waves, power-ups, two animated heroes, music and menus), The Path (a run-and-jump stage after wave 5) The Shield (a beam-deflecting wall breaker after wave 10), the boss, and an endless arena with a leaderboard kept on your computer. Next up is the packaged Windows build.
 
 ## Building
 

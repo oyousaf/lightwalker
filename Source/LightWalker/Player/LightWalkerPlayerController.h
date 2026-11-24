@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/LightWalkerGameInstance.h"
 #include "GameFramework/PlayerController.h"
 #include "LightWalkerPlayerController.generated.h"
 
@@ -37,7 +38,13 @@ public:
 	void ShowMainMenu();
 
 	/** Menu actions (called by the menu widgets). */
-	void StartGameFromMenu();
+	void StartGameFromMenu(ERunMode Mode);
+	void OpenLeaderboard();
+	void CloseLeaderboard();
+
+	/** The run has ended: a name for the leaderboard if the score earned it, then the leaderboard. */
+	void ShowRunEnd();
+	bool IsRunEndShown() const;
 	void CycleHero();
 	FString GetHeroName() const;
 	void OpenSettings();
@@ -96,6 +103,14 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class ULWControlsMenu> ControlsMenu;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWNameEntry> NameEntry;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class ULWLeaderboard> Leaderboard;
+
+	void ShowRunBoard(int32 Place);
 
 	/** The menu Settings returns to. */
 	UPROPERTY(Transient)

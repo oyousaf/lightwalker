@@ -399,6 +399,7 @@ void AShieldGameMode::LoseLife(bool bFromBeam)
 	if (Lives <= 0)
 	{
 		SetPhase(EShieldPhase::GameOver);
+		EndRun(2.6f);
 		if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 		{
 			Music->PlaySting(ELWSting::GameOver);
@@ -436,7 +437,7 @@ void AShieldGameMode::RequestRestart()
 {
 	if (IsRunOver() && GetWorld()->GetTimeSeconds() - PhaseStart >= RestartLockout)
 	{
-		RestartRun();
+		ShowRunEnd();
 	}
 }
 

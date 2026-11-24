@@ -57,11 +57,11 @@ namespace
 		if (HasButtonArt())
 		{
 			// 9-slice so the slanted ends and corner tab keep their shape at any button width.
-			// Cropped tight to the frame; the slanted ends keep their width, the middle stretches.
+			// Cropped tight to the frame, and drawn whole: buttons are close to the art's own shape. (9-slicing needs ends
+			// no wider than the button in the art's own pixels, and at 1450 px across they overlapped in the middle.)
 			const FVector2D Size(420.f, 81.f);
-			const FMargin Slice(0.14f, 0.f, 0.14f, 0.f);
-			const FSlateBrush Idle = LWStyle::ArtBrush(LWStyle::Art(bActive ? TEXT("ButtonHover") : TEXT("ButtonNormal")), Size, Slice);
-			const FSlateBrush Pressed = LWStyle::ArtBrush(LWStyle::Art(TEXT("ButtonPressed")), Size, Slice);
+			const FSlateBrush Idle = LWStyle::ArtBrush(LWStyle::Art(bActive ? TEXT("ButtonHover") : TEXT("ButtonNormal")), Size);
+			const FSlateBrush Pressed = LWStyle::ArtBrush(LWStyle::Art(TEXT("ButtonPressed")), Size);
 			FButtonStyle Style;
 			Style.SetNormal(Idle).SetHovered(Idle).SetPressed(Pressed).SetDisabled(Idle);
 			Style.SetNormalPadding(FMargin(0.f)).SetPressedPadding(FMargin(0.f));
@@ -616,7 +616,8 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	AddSlideIn(Logo);
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
-	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(); } });
+	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(ERunMode::Story); } });
+	AddButton(Column, TEXT("ENDLESS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(ERunMode::Endless); } });
 	HeroButton = AddButton(Column, TEXT("HERO"), [this]()
 	{
 		if (ALightWalkerPlayerController* Controller = GetLWController())
@@ -625,6 +626,7 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 			RefreshHeroLabel();
 		}
 	});
+	AddButton(Column, TEXT("LEADERBOARD"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->OpenLeaderboard(); } });
 	AddButton(Column, TEXT("SETTINGS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->OpenSettings(); } });
 	AddButton(Column, TEXT("QUIT"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->QuitGame(); } });
 	RefreshHeroLabel();

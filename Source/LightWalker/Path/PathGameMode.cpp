@@ -291,6 +291,7 @@ void APathGameMode::LoseLife(const FVector& Location)
 	{
 		SetEnemiesActive(false);
 		SetPhase(EPathPhase::GameOver);
+		EndRun(2.6f);
 		if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
 		{
 			Music->PlaySting(ELWSting::GameOver);
@@ -367,7 +368,7 @@ void APathGameMode::RequestRestart()
 {
 	if (IsRunOver() && GetPhaseAge() >= RestartLockout)
 	{
-		RestartRun();
+		ShowRunEnd();
 	}
 }
 

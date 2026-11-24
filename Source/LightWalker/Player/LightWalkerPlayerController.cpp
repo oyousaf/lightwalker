@@ -9,11 +9,13 @@
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "Core/LWFeel.h"
+#include "Core/LWScoreboard.h"
 #include "Core/LWSound.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Player/LightWalkerPawn.h"
 #include "UI/LWMenuWidgets.h"
+#include "UI/LWScoreWidgets.h"
 
 namespace
 {
@@ -327,13 +329,21 @@ void ALightWalkerPlayerController::HandlePause(const FInputActionValue& Value)
 	{
 		CloseSettings();
 	}
+	else if (IsRunEndShown())
+	{
+		// The buttons decide.
+	}
+	else if (Leaderboard && Leaderboard->IsInViewport())
+	{
+		CloseLeaderboard();
+	}
 	else if (GameMode->IsInMenu())
 	{
 		// Nothing to pause on the main menu.
 	}
 	else if (GameMode->IsRunOver())
 	{
-		// Start doubles as "play again" on the end screens.
+		// Start skips the wait for the leaderboard.
 		GameMode->RequestRestart();
 	}
 	else
@@ -352,6 +362,10 @@ void ALightWalkerPlayerController::HandleBack(const FInputActionValue& Value)
 	{
 		CloseSettings();
 	}
+	else if (Leaderboard && Leaderboard->IsInViewport() && !IsRunEndShown())
+	{
+		CloseLeaderboard();
+	}
 	else if (IsPaused())
 	{
 		SetMenuPaused(false);
@@ -360,7 +374,7 @@ void ALightWalkerPlayerController::HandleBack(const FInputActionValue& Value)
 
 void ALightWalkerPlayerController::ShowMenu(ULWMenuWidget* Menu)
 {
-	for (ULWMenuWidget* Other : { (ULWMenuWidget*)IntroScreen.Get(), (ULWMenuWidget*)MainMenu.Get(), (ULWMenuWidget*)PauseMenu.Get(), (ULWMenuWidget*)SettingsMenu.Get(), (ULWMenuWidget*)ControlsMenu.Get() })
+	for (ULWMenuWidget* Other : { (ULWMenuWidget*)IntroScreen.Get(), (ULWMenuWidget*)MainMenu.Get(), (ULWMenuWidget*)PauseMenu.Get(), (ULWMenuWidget*)SettingsMenu.Get(), (ULWMenuWidget*)ControlsMenu.Get(), (ULWMenuWidget*)NameEntry.Get(), (ULWMenuWidget*)Leaderboard.Get() })
 	{
 		if (Other && Other != Menu && Other->IsInViewport())
 		{
@@ -426,14 +440,84 @@ void ALightWalkerPlayerController::ShowMainMenu()
 	ShowMenu(MainMenu);
 }
 
-void ALightWalkerPlayerController::StartGameFromMenu()
+void ALightWalkerPlayerController::StartGameFromMenu(ERunMode Mode)
 {
+	if (ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>())
+	{
+		Run->SetRunMode(Mode);
+	}
 	ULWSoundSubsystem::Play(this, ELWSound::UIPlay);
 	ShowMenu(nullptr);
 	if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 	{
 		GameMode->StartFromMenu();
 	}
+}
+
+void ALightWalkerPlayerController::OpenLeaderboard()
+{
+	if (!Leaderboard)
+	{
+		Leaderboard = CreateWidget<ULWLeaderboard>(this, ULWLeaderboard::StaticClass());
+	}
+	Leaderboard->OnBack = [this]() { CloseLeaderboard(); };
+	Leaderboard->Begin(ERunMode::Endless, -1, false, 0);
+	ShowMenu(Leaderboard);
+	Leaderboard->FocusButton(2);
+}
+
+void ALightWalkerPlayerController::CloseLeaderboard()
+{
+	ShowMainMenu();
+}
+
+bool ALightWalkerPlayerController::IsRunEndShown() const
+{
+	const ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>();
+	return GameMode && GameMode->IsRunOver() && ((NameEntry && NameEntry->IsInViewport()) || (Leaderboard && Leaderboard->IsInViewport()));
+}
+
+void ALightWalkerPlayerController::ShowRunEnd()
+{
+	const ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>();
+	ULWScoreboard* Scores = ULWScoreboard::Get(this);
+	if (!Run || !Scores || IsRunEndShown())
+	{
+		return;
+	}
+	if (!Scores->Qualifies(Run->GetRunMode(), Run->GetScore()))
+	{
+		ShowRunBoard(-1);
+		return;
+	}
+
+	if (!NameEntry)
+	{
+		NameEntry = CreateWidget<ULWNameEntry>(this, ULWNameEntry::StaticClass());
+		NameEntry->OnDone = [this](const FString& Name)
+		{
+			const ULightWalkerGameInstance* Ended = GetGameInstance<ULightWalkerGameInstance>();
+			const ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>();
+			ULWScoreboard* Board = ULWScoreboard::Get(this);
+			ShowRunBoard(Board->Add(Ended->GetRunMode(), Name, Ended->GetScore(), GameMode ? GameMode->GetReached() : FString()));
+		};
+	}
+	NameEntry->Begin(Run->GetScore(), Scores->GetLastName());
+	ShowMenu(NameEntry);
+}
+
+void ALightWalkerPlayerController::ShowRunBoard(int32 Place)
+{
+	const ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>();
+	if (!Leaderboard)
+	{
+		Leaderboard = CreateWidget<ULWLeaderboard>(this, ULWLeaderboard::StaticClass());
+	}
+	Leaderboard->OnBack = [this]() { QuitToMenu(); };
+	Leaderboard->OnPlayAgain = [this]() { RestartRun(); };
+	Leaderboard->Begin(Run->GetRunMode(), Place, true, Run->GetScore());
+	ShowMenu(Leaderboard);
+	Leaderboard->FocusButton(0);
 }
 
 void ALightWalkerPlayerController::CycleHero()

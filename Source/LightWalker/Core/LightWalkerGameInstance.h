@@ -27,6 +27,14 @@ struct FRunUpgrades
 	float MoveSpeed = 1.f;
 };
 
+/** What's being played: the story (every mode, to the boss) or the arena without end. */
+UENUM()
+enum class ERunMode : uint8
+{
+	Story,
+	Endless
+};
+
 /** How the arena map should begin when it loads. */
 enum class EArenaStart : uint8
 {
@@ -66,7 +74,11 @@ public:
 
 	int32 GetScore() const { return Score; }
 	int32 GetLives() const { return Lives; }
-	int32 GetBestScore() const { return BestScore; }
+	/** The best of this kind of run, this session or on the leaderboard. */
+	int32 GetBestScore() const { return BestScore[static_cast<int32>(RunMode)]; }
+
+	ERunMode GetRunMode() const { return RunMode; }
+	void SetRunMode(ERunMode Mode) { RunMode = Mode; }
 	const FRunUpgrades& GetUpgrades() const { return Upgrades; }
 
 	/** Set before travelling to the arena; read once by its game mode. */
@@ -86,7 +98,8 @@ private:
 
 	int32 Score = 0;
 	int32 Lives = 0;
-	int32 BestScore = 0;
+	int32 BestScore[2] = { 0, 0 };
+	ERunMode RunMode = ERunMode::Story;
 	FRunUpgrades Upgrades;
 
 	/** Wisdom lines not yet shown this run, so they don't repeat until all have been read. */

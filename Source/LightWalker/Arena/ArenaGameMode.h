@@ -69,6 +69,8 @@ public:
 	virtual void RestartRun() override { StartRun(); }
 
 	virtual bool IsInMenu() const override { return Phase == EArenaPhase::Menu; }
+	virtual FString GetReached() const override;
+	bool IsEndless() const;
 	virtual void AddCameraTrauma(float Amount) override;
 
 	/** The wave just cleared leads into The Path, or The Shield, rather than straight to the next wave. */
@@ -76,7 +78,7 @@ public:
 	bool LeadsToShield() const;
 
 	EArenaPhase GetPhase() const { return Phase; }
-	int32 GetWaveNumber() const { return FMath::Min(WaveIndex + 1, GetWaveCount()); }
+	int32 GetWaveNumber() const { return IsEndless() ? WaveIndex + 1 : FMath::Min(WaveIndex + 1, GetWaveCount()); }
 	int32 GetWaveCount() const { return GetWaves().Num(); }
 	int32 GetEnemiesRemaining() const { return Enemies.Num(); }
 	AArena* GetArena() const { return Arena; }
@@ -135,6 +137,13 @@ protected:
 	/** The One-Eyed Liar, after the last wave. */
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss")
 	TSubclassOf<AOneEyedLiar> BossClass;
+
+	/** In the endless arena it comes back this often, with this much more health each time. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Endless")
+	int32 EndlessBossEvery = 10;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Endless")
+	float EndlessBossGrowth = 0.35f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss")
 	int32 PointsForBoss = 10000;
@@ -209,7 +218,10 @@ private:
 	void HandleBossStage(int32 Stage);
 	void SummonForBoss(int32 Shaytaan, int32 Dajjal);
 	void DropBossPickup();
-	bool IsBossWave() const { return BossClass && WaveIndex >= GetWaveCount(); }
+	bool IsBossWave() const;
+	/** This wave's make-up; false past the last one. In the endless arena there is always another. */
+	bool FindWave(int32 Index, FArenaWave& OutWave) const;
+	FArenaWave CurrentWave;
 	void BeginFighting();
 	void SpawnWave(const FArenaWave& Wave);
 	void ApplyChaserSpeed();

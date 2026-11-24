@@ -46,6 +46,7 @@ public:
 	virtual void RestartRun() override;
 	virtual void ReturnToMenu() override;
 	virtual bool IsRunOver() const override { return Phase == EPathPhase::GameOver; }
+	virtual FString GetReached() const override { return TEXT("THE PATH"); }
 	virtual void AddCameraTrauma(float Amount) override;
 	virtual bool BlocksShot(const FVector& Location) const override;
 	virtual bool UsesJump() const override { return true; }

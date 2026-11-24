@@ -68,7 +68,6 @@ AArenaHUD::FBanner AShieldHUD::GetBanner() const
 	case EShieldPhase::GameOver:
 		Banner.Title = TEXT("GAME OVER");
 		Banner.Color = LWStyle::Danger;
-		Banner.Detail = TEXT("PRESS ENTER, A OR START TO PLAY AGAIN");
 		break;
 	default:
 		break;

@@ -37,6 +37,9 @@ public:
 	virtual bool IsRunOver() const { return false; }
 	virtual bool IsInMenu() const { return false; }
 
+	/** How far the run has got, for the leaderboard. */
+	virtual FString GetReached() const { return FString(); }
+
 	/** Shakes this mode's camera (0-1). */
 	virtual void AddCameraTrauma(float Amount) {}
 
@@ -50,6 +53,12 @@ protected:
 	ULightWalkerGameInstance* GetRun() const;
 	ALightWalkerPawn* GetLightWalker() const;
 
+	/** The run is over: after a moment for the banner, the name entry or the leaderboard comes up. */
+	void EndRun(float Delay);
+	/** Straight to it (confirm pressed), or not at all (a new run). */
+	void ShowRunEnd();
+	void CancelRunEnd();
+
 	/** Fades to black and loads another mode's map. */
 	void TravelTo(const TCHAR* Map, const TCHAR* GameMode);
 	static bool MapExists(const TCHAR* Map);
@@ -59,6 +68,7 @@ private:
 	FString TravelMap;
 	FString TravelOptions;
 	FTimerHandle TravelTimer;
+	FTimerHandle RunEndTimer;
 
 #if !UE_BUILD_SHIPPING
 	/** Dev only: -LWShots=N takes N high-res screenshots, three seconds apart (or -LWShotEvery=S), then quits. */
