@@ -20,6 +20,7 @@ import math
 import os
 import sys
 
+import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
@@ -47,19 +48,23 @@ COMMON = {
     "calf_r": ((-0.055, 0.05, -0.23), (-0.06, 0.07, -0.45), "thigh_r"),
     "foot_r": ((-0.06, 0.07, -0.45), (-0.065, -0.02, -0.49), "calf_r"),
 }
+# "staff" is its line from the hand up; below the hand it's a separate piece of the mesh, found by connectivity between
+# the two "staff_below" heights (the male's tip is fused to the shoe under the second).
 HEROES = {
     "Lightwalker": {
         "source": "lightwalker.glb",
         "grip": (-0.17, -0.10, 0.11),
         "elbow_r": (-0.15, 0.07, 0.14),
-        "staff": ((-0.17, -0.01, -0.49), (-0.18, -0.14, 0.40)),
+        "staff": ((-0.166, -0.089, 0.0), (-0.175, -0.126, 0.16), (-0.18, -0.145, 0.50)),
+        "staff_below": (0.02, -0.445),
         "hem_z": -0.42,
     },
     "LightwalkerFemale": {
         "source": "lightwalker_female.glb",
         "grip": (-0.18, -0.12, 0.17),
         "elbow_r": (-0.15, 0.06, 0.17),
-        "staff": ((-0.17, 0.0, -0.49), (-0.18, -0.14, 0.42)),
+        "staff": ((-0.178, -0.084, 0.0), (-0.178, -0.120, 0.12), (-0.184, -0.14, 0.50)),
+        "staff_below": (0.03, -0.51),
         "hem_z": -0.40,
     },
 }
@@ -88,12 +93,41 @@ def smoothstep(e0, e1, x):
     return t * t * (3 - 2 * t)
 
 
+def lower_staff(mesh, hero):
+    """The vertices of the staff below the hand: the piece of mesh that contains the point on it nearest mid-height."""
+    top, bottom = hero["staff_below"]
+    vertices = mesh.data.vertices
+    inside = {v.index for v in vertices if bottom <= v.co.z <= top}
+    # The model splits vertices at texture seams, so join by position.
+    by_place, parent = {}, {}
+    place = {i: by_place.setdefault(tuple(round(c, 5) for c in vertices[i].co), i) for i in inside}
+
+    def find(i):
+        while parent.setdefault(i, i) != i:
+            i = parent[i]
+        return i
+
+    for edge in mesh.data.edges:
+        a, b = edge.vertices
+        if a in inside and b in inside:
+            parent[find(place[a])] = find(place[b])
+    seed = min(inside, key=lambda i: (vertices[i].co - Vector((-0.172, -0.02, -0.25))).length)
+    staff = {i for i in inside if find(place[i]) == find(place[seed])}
+    if len(staff) > 2500:
+        raise RuntimeError(f"Lower staff spread into the body ({len(staff)} vertices)")
+    # A fused tip: everything within the staff's thickness of its lowest found ring.
+    if bottom > -0.5:
+        low = [vertices[i].co for i in staff if vertices[i].co.z < bottom + 0.03]
+        centre = sum(low, Vector()) / len(low)
+        staff |= {v.index for v in vertices if v.co.z < bottom and math.hypot(v.co.x - centre.x, v.co.y - centre.y) < 0.026}
+    return staff
+
+
 def weights_for(p, bones, hero):
-    staff_a, staff_b = (Vector(v) for v in hero["staff"])
     grip = Vector(hero["grip"])
-    # The staff (and the lantern on top, which is wider) follows the right hand rigidly.
-    staff_radius = 0.065 if p.z > 0.25 else 0.045
-    if segment_distance(p, staff_a, staff_b + Vector((0, 0, 0.1))) < staff_radius and (p.x < -0.145 or p.z > 0.25):
+    staff = [Vector(v) for v in hero["staff"]]
+    # The staff from the hand up (and the lantern on top, which is wider) follows the right hand rigidly.
+    if min(segment_distance(p, a, b) for a, b in zip(staff, staff[1:])) < (0.065 if p.z > 0.25 else 0.03):
         return {"hand_r": 1.0}
     if (p - grip).length < 0.05:
         return {"hand_r": 1.0}
@@ -119,6 +153,29 @@ def weights_for(p, bones, hero):
             foot = smoothstep(-0.43, -0.46, p.z)
             weights = {f"calf_{side}": 1 - foot, f"foot_{side}": foot}
     return {k: v for k, v in weights.items() if v > 1e-4}
+
+
+def cut_tears(name, mesh, weights):
+    """Removes the few faces where the staff's tip is fused to the shoe: they'd stretch as the hero runs, and they're
+    hidden between the two. The faces are near the ground, so anything higher is a skinning fault and stops the run."""
+    torn = []
+    for face in mesh.data.polygons:
+        staff = [i for i in face.vertices if weights[i] == {"hand_r": 1.0}]
+        loose = [i for i in face.vertices if any(k.startswith(("pelvis", "thigh", "calf", "foot")) for k in weights[i])]
+        if staff and loose:
+            torn.append(face)
+    high = [tuple(round(c, 3) for c in face.center) for face in torn if face.center.z > -0.44]
+    if high:
+        raise RuntimeError(f"{name}: staff and robe share faces at {high}")
+    cut = {face.index for face in torn}
+    if cut:
+        edit = bmesh.new()
+        edit.from_mesh(mesh.data)
+        edit.faces.ensure_lookup_table()
+        bmesh.ops.delete(edit, geom=[edit.faces[i] for i in cut], context="FACES_ONLY")
+        edit.to_mesh(mesh.data)
+        edit.free()
+    print(f"[LW] {name}: cut {len(cut)} faces fusing the staff's tip to the shoe")
 
 
 def rig(name, preview_dir=None):
@@ -147,9 +204,13 @@ def rig(name, preview_dir=None):
     bpy.ops.object.mode_set(mode="OBJECT")
 
     groups = {bone_name: mesh.vertex_groups.new(name=bone_name) for bone_name in bones}
-    for vertex in mesh.data.vertices:
-        for bone_name, weight in weights_for(vertex.co, bones, hero).items():
-            groups[bone_name].add([vertex.index], weight, "REPLACE")
+    staff = lower_staff(mesh, hero)
+    weights = [{"hand_r": 1.0} if v.index in staff else weights_for(v.co, bones, hero) for v in mesh.data.vertices]
+    print(f"[LW] {name}: {len(staff)} vertices in the lower staff")
+    for index, vertex_weights in enumerate(weights):
+        for bone_name, weight in vertex_weights.items():
+            groups[bone_name].add([index], weight, "REPLACE")
+    cut_tears(name, mesh, weights)
     mesh.parent = armature
     modifier = mesh.modifiers.new("Armature", "ARMATURE")
     modifier.object = armature
