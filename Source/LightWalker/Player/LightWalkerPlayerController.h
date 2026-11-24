@@ -46,6 +46,7 @@ public:
 
 	/** The Path's controls, with the player's own jump key. */
 	FString GetPathHint() const;
+	FString GetShieldHint() const;
 
 	/** Rebuilds the input mappings from the saved bindings (after Settings > Controls changes them). */
 	void ApplyBindings();

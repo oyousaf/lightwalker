@@ -68,7 +68,7 @@ public:
 	bool HasHeroModel(int32 Index) const;
 
 	/** Walked over a pickup: starts a power-up, raises the shield, or reads the book. */
-	void CollectPickup(EPickupType Type);
+	virtual void CollectPickup(EPickupType Type);
 
 	/** Uses up the shield to survive a hit, with a moment of grace. False if there was no shield. */
 	bool TryBlockHit();
@@ -111,6 +111,12 @@ protected:
 	virtual float GetLightStrength() const { return GetLightScale(); }
 
 	virtual void FaceDirection(const FVector& Direction);
+
+	/** Whether firing shoots bolts (on The Shield it launches the beam instead). */
+	virtual bool ShootsBolts() const { return true; }
+
+	void ShowPickupMessage(const FString& Title, const FString& Detail);
+	void StartPowerUp(EPickupType Type, float Seconds) { PowerTime[static_cast<int32>(Type)] = Seconds; }
 
 	class ULightWalkerGameInstance* GetRun() const;
 
@@ -304,8 +310,6 @@ private:
 	float GlideTime = 0.f;
 	float TrailTimer = 0.f;
 	FVector LastTrailLocation = FVector::ZeroVector;
-	void ShowPickupMessage(const FString& Title, const FString& Detail);
-
 	float PowerTime[static_cast<int32>(EPickupType::Count)] = {};
 	bool bShield = false;
 	FString PickupTitle;

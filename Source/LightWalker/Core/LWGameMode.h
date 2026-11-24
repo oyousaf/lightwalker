@@ -73,4 +73,6 @@ namespace LWMaps
 	inline const TCHAR* const ArenaMode = TEXT("/Script/LightWalker.ArenaGameMode");
 	inline const TCHAR* const Path = TEXT("/Game/Maps/L_Path");
 	inline const TCHAR* const PathMode = TEXT("/Script/LightWalker.PathGameMode");
+	inline const TCHAR* const Shield = TEXT("/Game/Maps/L_Shield");
+	inline const TCHAR* const ShieldMode = TEXT("/Script/LightWalker.ShieldGameMode");
 }

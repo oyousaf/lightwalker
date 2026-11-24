@@ -37,6 +37,9 @@ public:
 	/** Moves the camera between the low menu close-up of Lightwalker and the top-down game view. */
 	void SetMenuView(bool bMenu, bool bInstant = false);
 
+	/** Another mode's colours for this arena, and no bottom edge (The Shield). Call before play begins. */
+	void SetLook(const FLinearColor& TopEdge, const FLinearColor& SideEdges, const FLinearColor& GridLines, bool bOpenBottom);
+
 	/** Shakes the camera: trauma (0-1) adds up, decays over time, and the shake grows with its square. */
 	void AddTrauma(float Amount) { Trauma = FMath::Min(1.f, Trauma + Amount); }
 

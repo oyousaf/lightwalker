@@ -14,7 +14,4 @@ protected:
 	virtual bool IsShown() const override;
 	virtual void DrawTopCentre(const FLayout& Layout) override;
 	virtual FBanner GetBanner() const override;
-
-private:
-	void DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color);
 };

@@ -5,6 +5,7 @@ Creates the few editor assets the C++ code expects. Safe to run again: existing 
   /Game/Materials/M_ModelGlow  lit, glowing with its BaseColor texture * Glow (imported enemy models)
   /Game/Maps/L_Arena       empty level; ArenaGameMode spawns the arena into it
   /Game/Maps/L_Path        empty level; PathGameMode spawns The Path into it
+  /Game/Maps/L_Shield      empty level; ShieldGameMode spawns The Shield into it
 
 Run headless with the editor closed:
   UnrealEditor-Cmd.exe "<path>/LightWalker.uproject" -run=pythonscript -script="<path>/Tools/create_content.py"
@@ -114,3 +115,4 @@ create_neon_material()
 create_model_glow_material()
 create_map("L_Arena")
 create_map("L_Path")
+create_map("L_Shield")

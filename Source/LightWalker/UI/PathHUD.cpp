@@ -1,6 +1,5 @@
 #include "UI/PathHUD.h"
 
-#include "CanvasItem.h"
 #include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "Path/PathGameMode.h"
@@ -10,13 +9,6 @@
 bool APathHUD::IsShown() const
 {
 	return GetWorld()->GetAuthGameMode<APathGameMode>() != nullptr;
-}
-
-void APathHUD::DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color)
-{
-	FCanvasTileItem Tile(FVector2D(X, Y), FVector2D(Width, Height), Color);
-	Tile.BlendMode = SE_BLEND_Translucent;
-	Canvas->DrawItem(Tile);
 }
 
 void APathHUD::DrawTopCentre(const FLayout& Layout)
@@ -82,7 +74,7 @@ AArenaHUD::FBanner APathHUD::GetBanner() const
 		Banner.Glow = LWStyle::Magenta;
 		break;
 	case EPathPhase::Finished:
-		Banner.Title = TEXT("THE PATH IS WALKED");
+		Banner.Title = TEXT("PATH CLEARED");
 		Banner.Height = 0.72f;  // clear of the gate
 		Banner.Detail = FString::Printf(TEXT("LIGHT BONUS  +%d"), GameMode->GetFinishBonus());
 		break;

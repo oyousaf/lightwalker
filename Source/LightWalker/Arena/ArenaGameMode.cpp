@@ -280,6 +280,11 @@ bool AArenaGameMode::LeadsToPath() const
 	return PathAfterWave > 0 && WaveIndex + 1 == PathAfterWave && MapExists(LWMaps::Path);
 }
 
+bool AArenaGameMode::LeadsToShield() const
+{
+	return ShieldAfterWave > 0 && WaveIndex + 1 == ShieldAfterWave && MapExists(LWMaps::Shield);
+}
+
 void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArenaGameMode::*Next)())
 {
 	Phase = NewPhase;
@@ -567,7 +572,7 @@ void AArenaGameMode::FinishWave()
 
 void AArenaGameMode::AdvanceWave()
 {
-	if (LeadsToPath())
+	if (LeadsToPath() || LeadsToShield())
 	{
 		if (ALightWalkerPawn* LightWalker = GetLightWalker())
 		{
@@ -575,7 +580,14 @@ void AArenaGameMode::AdvanceWave()
 		}
 		SetPhase(EArenaPhase::Travelling, 0.f, nullptr);
 		GetRun()->SetArenaStart(EArenaStart::Continue, WaveIndex + 1);
-		TravelTo(LWMaps::Path, LWMaps::PathMode);
+		if (LeadsToPath())
+		{
+			TravelTo(LWMaps::Path, LWMaps::PathMode);
+		}
+		else
+		{
+			TravelTo(LWMaps::Shield, LWMaps::ShieldMode);
+		}
 		return;
 	}
 

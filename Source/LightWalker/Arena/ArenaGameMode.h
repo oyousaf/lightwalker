@@ -65,8 +65,9 @@ public:
 	virtual bool IsInMenu() const override { return Phase == EArenaPhase::Menu; }
 	virtual void AddCameraTrauma(float Amount) override;
 
-	/** The wave just cleared leads into The Path rather than straight to the next wave. */
+	/** The wave just cleared leads into The Path, or The Shield, rather than straight to the next wave. */
 	bool LeadsToPath() const;
+	bool LeadsToShield() const;
 
 	EArenaPhase GetPhase() const { return Phase; }
 	int32 GetWaveNumber() const { return FMath::Min(WaveIndex + 1, GetWaveCount()); }
@@ -114,6 +115,10 @@ protected:
 	/** Arena 1 is waves 1 to this; then comes The Path, and the arena picks up at the next wave. 0 = never. */
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
 	int32 PathAfterWave = 5;
+
+	/** Arena 2 runs to this wave; then comes The Shield. 0 = never. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
+	int32 ShieldAfterWave = 10;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
 	int32 PointsPerKill = 100;

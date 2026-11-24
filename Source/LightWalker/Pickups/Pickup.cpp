@@ -146,6 +146,7 @@ void APickup::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	Age += DeltaSeconds;
+	AddActorWorldOffset(Drift * DeltaSeconds);
 	if (!bPersistent && Age >= Lifetime)
 	{
 		Destroy();

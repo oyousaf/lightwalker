@@ -422,7 +422,7 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 	if (!FireDirection.IsNearlyZero())
 	{
 		FaceDirection(FireDirection);
-		if (FireCooldown <= 0.f)
+		if (FireCooldown <= 0.f && ShootsBolts())
 		{
 			Fire(FireDirection);
 			const float Rate = Upgrades.FireRate * (GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f ? LightOrbFireRate : 1.f);

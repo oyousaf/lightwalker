@@ -298,6 +298,50 @@ def gate():
     return mix(gain(swell, 0.14), gain(mix(*bells), 0.35))
 
 
+def deflect():
+    # The beam ringing off the shield: a clear struck-glass note.
+    ring = partials(0.5, 1046.5, [1, 2.0, 2.99, 4.2], [8, 11, 16, 24], [1, 0.45, 0.25, 0.12])
+    strike = apply(highpass(noise(0.012, 40), 3500), env_exp(int(0.012 * RATE), 260))
+    return mix(ring, gain(strike, 0.5))
+
+
+def wall_hit():
+    # A dull knock: stone that held.
+    knock = apply(sweep_osc(0.14, 320, 120, "triangle"), env_exp(int(0.14 * RATE), 26))
+    grit = apply(bandpass(noise(0.1, 41), 1800, 700, q=1.5), env_exp(int(0.1 * RATE), 40))
+    return mix(knock, gain(grit, 0.6))
+
+
+def wall_break():
+    # Darkness giving way: a crumble with a spark of light let out of it.
+    crumble = apply(lowpass(noise(0.28, 42), 2600, 500), env_exp(int(0.28 * RATE), 14))
+    thump = apply(sweep_osc(0.18, 180, 60, "sine"), env_exp(int(0.18 * RATE), 18))
+    spark = delay(partials(0.3, 2093, [1, 1.5, 2.0], [14, 18, 22], [0.6, 0.4, 0.3]), 0.02)
+    return mix(gain(crumble, 0.8), thump, gain(spark, 0.35))
+
+
+def dark_bolt():
+    # A low hollow pulse from the wall.
+    count = int(0.45 * RATE)
+    return lowpass(apply(mix(sweep_osc(0.45, 300, 90, "saw", curve=2), sweep_osc(0.45, 304, 92, "saw", curve=2)), env_adsr(count, 0.01, 0.35)), 1500, 300)
+
+
+def beam_lost():
+    # The light falling away: a glassy slide down into nothing.
+    count = int(0.9 * RATE)
+    slide = apply(sweep_osc(0.9, 1400, 120, "triangle", curve=1.3), env_adsr(count, 0.005, 0.6))
+    air = apply(bandpass(noise(0.9, 43), 2400, 250, q=2), env_adsr(count, 0.05, 0.6))
+    return mix(slide, gain(air, 0.6))
+
+
+def eye_break():
+    # The great eye: a deep blow, a long shatter, then a rising chord.
+    boom = apply(sweep_osc(1.0, 110, 32, "sine"), env_exp(int(1.0 * RATE), 4))
+    shatter = apply(highpass(noise(1.1, 44), 1800), env_exp(int(1.1 * RATE), 4.5))
+    chord = [delay(partials(1.6, f, [1, 2.01, 3], [3, 5, 8], [1, 0.35, 0.15]), 0.3 + i * 0.09) for i, f in enumerate((440, 554.37, 659.25, 880, 1318.5))]
+    return saturate(mix(boom, gain(shatter, 0.4), gain(mix(*chord), 0.3)), 1.2)
+
+
 def ui_move():
     return apply(sweep_osc(0.035, 1900, 1700, "triangle"), env_exp(int(0.035 * RATE), 90))
 
@@ -322,6 +366,8 @@ SOUNDS = {
     "PowerUp": power_up, "PowerDown": power_down, "Book": book, "WaveStart": wave_start,
     "Jump": jump, "DoubleJump": double_jump, "Land": land, "Orb": orb,
     "Checkpoint": checkpoint, "LightLow": light_low, "Gate": gate,
+    "Deflect": deflect, "WallHit": wall_hit, "WallBreak": wall_break,
+    "DarkBolt": dark_bolt, "BeamLost": beam_lost, "EyeBreak": eye_break,
     "UIMove": ui_move, "UISelect": ui_select, "UIPlay": ui_play,
 }
 

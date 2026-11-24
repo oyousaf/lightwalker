@@ -183,6 +183,14 @@ void AArena::ApplyCamera()
 	}
 }
 
+void AArena::SetLook(const FLinearColor& TopEdge, const FLinearColor& SideEdges, const FLinearColor& GridLines, bool bOpenBottom)
+{
+	EdgeColor = TopEdge;
+	SideEdgeColor = SideEdges;
+	GridColor = GridLines;
+	EdgeBottom->SetVisibility(!bOpenBottom);
+}
+
 void AArena::SetMenuView(bool bMenu, bool bInstant)
 {
 	MenuBlendTarget = bMenu ? 1.f : 0.f;

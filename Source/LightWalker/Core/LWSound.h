@@ -14,6 +14,7 @@ enum class ELWSound : uint8
 	LifeLost, Respawn, ShieldBlock, Glide,
 	PowerUp, PowerDown, Book, WaveStart,
 	Jump, DoubleJump, Land, Orb, Checkpoint, LightLow, Gate,
+	Deflect, WallHit, WallBreak, DarkBolt, BeamLost, EyeBreak,
 	UIMove, UISelect, UIPlay,
 	Count
 };

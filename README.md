@@ -16,7 +16,7 @@ The originals are in [legacy/](legacy/).
 
 ## Status
 
-Milestones 1 to 4: the arena (15 waves, power-ups, two animated heroes, music and menus) and The Path, the run-and-jump stage between arenas. Next up are The Shield, the last mode built from the 2014 games, then the boss, an endless mode and the packaged build.
+Milestones 1 to 5: the arena (15 waves, power-ups, two animated heroes, music and menus), The Path (a run-and-jump stage after wave 5) and The Shield (a beam-deflecting wall breaker after wave 10). Next up are the boss, an endless mode and the packaged build.
 
 ## Building
 

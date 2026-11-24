@@ -48,11 +48,14 @@ protected:
 	virtual bool IsShown() const;
 	virtual void DrawTopCentre(const FLayout& Layout);
 	virtual FBanner GetBanner() const;
+	/** How far down the screen pickup messages show, 0-1. */
+	virtual float GetMessageHeight() const { return 0.17f; }
 
 	/** Draws text with a coloured glow-shadow; returns its width. */
 	float DrawLine(const FString& Text, const FSlateFontInfo& Font, const FLinearColor& Color, float X, float Y, EAlign Align,
 		const FLinearColor& Shadow = FLinearColor(0.f, 0.f, 0.f, 0.6f));
 
 	float MeasureWidth(const FString& Text, const FSlateFontInfo& Font) const;
+	void DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color);
 	void DrawIcon(UTexture2D* Texture, float X, float Y, float Size, float Alpha = 1.f);
 };

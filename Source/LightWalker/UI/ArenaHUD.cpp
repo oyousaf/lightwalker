@@ -59,6 +59,13 @@ float AArenaHUD::DrawLine(const FString& Text, const FSlateFontInfo& Font, const
 	return Width;
 }
 
+void AArenaHUD::DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color)
+{
+	FCanvasTileItem Tile(FVector2D(X, Y), FVector2D(Width, Height), Color);
+	Tile.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Tile);
+}
+
 void AArenaHUD::DrawIcon(UTexture2D* Texture, float X, float Y, float Size, float Alpha)
 {
 	if (!Texture || !Texture->GetResource())
@@ -171,7 +178,7 @@ void AArenaHUD::DrawHUD()
 		if (Age < ShowTime && !LightWalker->GetPickupTitle().IsEmpty())
 		{
 			const float Alpha = FMath::Clamp((ShowTime - Age) / 0.6f, 0.f, 1.f);
-			const float MessageY = Canvas->ClipY * 0.17f;
+			const float MessageY = Canvas->ClipY * GetMessageHeight();
 			const FLinearColor TitleColor = WithAlpha(bBook ? LWStyle::Gold : LWStyle::Cyan, Alpha);
 			DrawLine(LightWalker->GetPickupTitle(), LWStyle::Display(Size(30), 80), TitleColor, CentreX, MessageY, EAlign::Centre, WithAlpha(bBook ? LWStyle::Orange : LWStyle::Magenta, 0.6f));
 			DrawLine(LightWalker->GetPickupDetail(), LWStyle::Body(Size(bBook ? 28 : 22), true, 40), WithAlpha(LWStyle::Text, Alpha), CentreX, MessageY + Px(44.f), EAlign::Centre);
@@ -236,6 +243,10 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		if (GameMode->LeadsToPath())
 		{
 			Banner.Detail = TEXT("THE PATH OPENS");
+		}
+		else if (GameMode->LeadsToShield())
+		{
+			Banner.Detail = TEXT("RAISE THE SHIELD");
 		}
 		Banner.Color = LWStyle::Cyan;
 		Banner.Glow = LWStyle::Pink;

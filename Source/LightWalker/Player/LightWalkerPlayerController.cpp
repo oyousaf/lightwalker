@@ -473,6 +473,16 @@ FString ALightWalkerPlayerController::GetPathHint() const
 		*Name(ELWBinding::Jump, false), bShared ? TEXT("F") : *Name(ELWBinding::Fire, false), *Name(ELWBinding::Jump, true), *Name(ELWBinding::Fire, true));
 }
 
+FString ALightWalkerPlayerController::GetShieldHint() const
+{
+	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+	auto Fire = [Settings](bool bGamepad)
+	{
+		return ULightWalkerUserSettings::GetKeyLabel(Settings ? Settings->GetBinding(ELWBinding::Fire, bGamepad) : ULightWalkerUserSettings::GetDefaultBinding(ELWBinding::Fire, bGamepad));
+	};
+	return FString::Printf(TEXT("%s OR %s RELEASES THE BEAM     LEFT AND RIGHT MOVE     HOLD THE MOUSE OR RIGHT STICK TO TILT"), *Fire(false), *Fire(true));
+}
+
 void ALightWalkerPlayerController::OpenSettings()
 {
 	if (!SettingsMenu)

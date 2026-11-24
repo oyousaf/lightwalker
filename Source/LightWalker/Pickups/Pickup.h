@@ -56,6 +56,9 @@ public:
 	/** Placed in a level rather than dropped: it waits to be found instead of blinking out. */
 	void SetPersistent() { bPersistent = true; }
 
+	/** Drifts across the play plane (on The Shield they fall towards Lightwalker), and is easier to catch. */
+	void SetDrift(const FVector& Velocity, float InCollectRadius) { Drift = Velocity; CollectRadius = InCollectRadius; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USceneComponent> Root;
@@ -107,6 +110,7 @@ private:
 	TWeakObjectPtr<ALightWalkerPawn> Player;
 	EPickupType Type = EPickupType::LightOrb;
 	bool bPersistent = false;
+	FVector Drift = FVector::ZeroVector;
 	float Age = 0.f;
 	float SparkleTimer = 0.f;
 	float LightIntensity = 12.f;
