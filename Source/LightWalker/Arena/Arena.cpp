@@ -173,12 +173,22 @@ void AArena::ApplyCamera()
 	{
 		GridMaterial->SetScalarParameterValue(FName(TEXT("Intensity")), FMath::Lerp(GridGlowIntensity, GridGlowIntensity * 0.3f, Alpha));
 	}
-	Moonlight->SetIntensity(FMath::Lerp(MoonlightIntensity, MoonlightIntensity * 0.08f, Alpha));
+	const float Gloom = FMath::Max(0.f, Mood);
+	const float Dawn = FMath::Max(0.f, -Mood);
+	Moonlight->SetIntensity(FMath::Lerp(MoonlightIntensity, MoonlightIntensity * 0.08f, Alpha) * (1.f - 0.75f * Gloom) * (1.f + 2.5f * Dawn));
+	Moonlight->SetLightColor(FMath::Lerp(FMath::Lerp(FLinearColor(0.45f, 0.5f, 1.f), FLinearColor(1.f, 0.2f, 0.15f), Gloom), FLinearColor(1.f, 0.72f, 0.4f), Dawn));
+	if (GridMaterial)
+	{
+		GridMaterial->SetVectorParameterValue(FName(TEXT("Color")), FMath::Lerp(FMath::Lerp(GridColor, FLinearColor(0.9f, 0.06f, 0.12f), Gloom), FLinearColor(1.f, 0.6f, 0.2f), Dawn));
+	}
 	for (UMaterialInstanceDynamic* Material : EdgeMaterials)
 	{
 		if (Material)
 		{
 			Material->SetScalarParameterValue(FName(TEXT("Intensity")), FMath::Lerp(EdgeGlowIntensity, 0.f, Alpha));
+			// Top and bottom first, then the sides (see BeginPlay).
+			const FLinearColor Usual = EdgeMaterials.IndexOfByKey(Material) < 2 ? EdgeColor : SideEdgeColor;
+			Material->SetVectorParameterValue(FName(TEXT("Color")), FMath::Lerp(FMath::Lerp(Usual, FLinearColor(1.f, 0.05f, 0.08f), Gloom), FLinearColor(1.f, 0.65f, 0.2f), Dawn));
 		}
 	}
 }
@@ -225,13 +235,16 @@ void AArena::Tick(float DeltaSeconds)
 		Trauma = FMath::Max(0.f, Trauma - TraumaDecay * DeltaSeconds);
 	}
 
+	const bool bMoodChanging = Mood != MoodTarget;
+	Mood = FMath::FInterpConstantTo(Mood, MoodTarget, DeltaSeconds, 0.6f);
+
 	if (MenuBlend != MenuBlendTarget)
 	{
 		const float Step = DeltaSeconds / FMath::Max(CameraBlendTime, KINDA_SMALL_NUMBER);
 		MenuBlend = MenuBlendTarget > MenuBlend ? FMath::Min(MenuBlend + Step, MenuBlendTarget) : FMath::Max(MenuBlend - Step, MenuBlendTarget);
 		ApplyCamera();
 	}
-	else if (bShaking || bAspectChanged)
+	else if (bShaking || bAspectChanged || bMoodChanging)
 	{
 		ApplyCamera();
 	}

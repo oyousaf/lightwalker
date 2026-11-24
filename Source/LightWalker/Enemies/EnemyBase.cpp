@@ -251,10 +251,10 @@ void AEnemyBase::UpdateHitFlash(float DeltaSeconds)
 
 	// A white-hot flash and a quick swell that both fade out, so a hit that doesn't kill still lands.
 	HitFlash = FMath::Max(HitFlash - DeltaSeconds / FMath::Max(HitFlashTime, KINDA_SMALL_NUMBER), 0.f);
-	Visual->SetRelativeScale3D(FVector(1.f + 0.15f * HitFlash));
+	Visual->SetRelativeScale3D(FVector(1.f + HitSwell * HitFlash));
 	for (UMaterialInstanceDynamic* Material : ModelMaterials)
 	{
-		Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (1.f + 4.f * HitFlash));
+		Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (1.f + HitGlow * HitFlash));
 	}
 }
 

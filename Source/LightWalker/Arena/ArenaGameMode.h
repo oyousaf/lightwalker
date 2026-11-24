@@ -7,6 +7,7 @@
 
 class AArena;
 class ADajjal;
+class AOneEyedLiar;
 class AEnemyBase;
 class ALightWalkerPawn;
 class APickup;
@@ -26,6 +27,10 @@ enum class EArenaPhase : uint8
 	WaveCleared,
 	/** Fading out to the next mode. */
 	Travelling,
+	/** The One-Eyed Liar is coming down. */
+	BossIntro,
+	/** The One-Eyed Liar is falling. */
+	BossFalling,
 	GameOver,
 	Victory
 };
@@ -42,6 +47,7 @@ public:
 	AArenaGameMode();
 
 	virtual void StartPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
 	virtual void HandleEnemyKilled(AEnemyBase* Enemy) override;
@@ -73,6 +79,12 @@ public:
 	int32 GetWaveNumber() const { return FMath::Min(WaveIndex + 1, GetWaveCount()); }
 	int32 GetWaveCount() const { return GetWaves().Num(); }
 	int32 GetEnemiesRemaining() const { return Enemies.Num(); }
+	AArena* GetArena() const { return Arena; }
+	const TArray<TObjectPtr<AEnemyBase>>& GetEnemies() const { return Enemies; }
+
+	/** Null except during the boss fight. */
+	AOneEyedLiar* GetBoss() const { return Boss; }
+	int32 GetBossBonus() const { return BossBonus; }
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Arena")
@@ -119,6 +131,28 @@ protected:
 	/** Arena 2 runs to this wave; then comes The Shield. 0 = never. */
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
 	int32 ShieldAfterWave = 10;
+
+	/** The One-Eyed Liar, after the last wave. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss")
+	TSubclassOf<AOneEyedLiar> BossClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss")
+	int32 PointsForBoss = 10000;
+
+	/** For each life left when it falls. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss")
+	int32 PointsPerLife = 1000;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss", meta = (Units = "s"))
+	float BossIntroDuration = 4.2f;
+
+	/** Speed of the shaytaan and dajjal it summons. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss")
+	float SummonSpeed = 240.f;
+
+	/** Seconds between power-ups that appear by themselves during the fight. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Boss", meta = (Units = "s"))
+	float BossPickupInterval = 16.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
 	int32 PointsPerKill = 100;
@@ -168,6 +202,14 @@ private:
 	void ContinueRun(int32 FromWaveIndex);
 	void EnterMenu(bool bInstantCamera);
 	void BeginWaveIntro();
+	void BeginBossIntro();
+	void BeginBossFight();
+	void HandleBossDefeated();
+	void HandleBossGone();
+	void HandleBossStage(int32 Stage);
+	void SummonForBoss(int32 Shaytaan, int32 Dajjal);
+	void DropBossPickup();
+	bool IsBossWave() const { return BossClass && WaveIndex >= GetWaveCount(); }
 	void BeginFighting();
 	void SpawnWave(const FArenaWave& Wave);
 	void ApplyChaserSpeed();
@@ -188,6 +230,12 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AEnemyBase>> Enemies;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AOneEyedLiar> Boss;
+
+	FTimerHandle BossPickupTimer;
+	int32 BossBonus = 0;
 
 	EArenaPhase Phase = EArenaPhase::Menu;
 	float PhaseStartTime = 0.f;

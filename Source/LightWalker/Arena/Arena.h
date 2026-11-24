@@ -40,6 +40,9 @@ public:
 	/** Another mode's colours for this arena, and no bottom edge (The Shield). Call before play begins. */
 	void SetLook(const FLinearColor& TopEdge, const FLinearColor& SideEdges, const FLinearColor& GridLines, bool bOpenBottom);
 
+	/** The arena's mood, eased into: 1 is the boss's gloom (dark and red), -1 the dawn after it, 0 as normal. */
+	void SetMood(float InMood) { MoodTarget = InMood; }
+
 	/** Shakes the camera: trauma (0-1) adds up, decays over time, and the shake grows with its square. */
 	void AddTrauma(float Amount) { Trauma = FMath::Min(1.f, Trauma + Amount); }
 
@@ -159,6 +162,9 @@ private:
 
 	/** The game window's width over height; the camera widens past 16:9 so ultrawide screens keep the whole arena. */
 	float ViewAspect = 16.f / 9.f;
+
+	float Mood = 0.f;
+	float MoodTarget = 0.f;
 
 	/** 0 = game view, 1 = menu view. */
 	float MenuBlend = 0.f;

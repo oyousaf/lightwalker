@@ -49,6 +49,7 @@ namespace
 		{ TEXT("DarkBolt"),      0.45f, 0.05f, 0.05f, false },
 		{ TEXT("BeamLost"),      0.75f, 0.f,   0.f,   false },
 		{ TEXT("EyeBreak"),      0.85f, 0.f,   0.f,   false },
+		{ TEXT("BossArrive"),    0.85f, 0.f,   0.f,   false },
 		{ TEXT("UIMove"),        0.35f, 0.02f, 0.03f, true },
 		{ TEXT("UISelect"),      0.50f, 0.f,   0.f,   true },
 		{ TEXT("UIPlay"),        0.60f, 0.f,   0.f,   true },

@@ -36,6 +36,8 @@ namespace
 		/* Pickup      */ { 0.f,   0.2f,  0.08f, false, 0.f,   FLinearColor::Transparent, 0.f },
 		/* Book        */ { 0.15f, 0.45f, 0.3f,  true,  0.f,   FLinearColor(1.f, 0.8f, 0.3f, 0.35f), 0.7f },
 		/* WaveCleared */ { 0.2f,  0.3f,  0.2f,  true,  0.f,   FLinearColor(0.25f, 0.9f, 1.f, 0.12f), 0.5f },
+		/* BossHit     */ { 0.03f, 0.15f, 0.04f, false, 0.f,   FLinearColor::Transparent, 0.f },
+		/* BossDown    */ { 0.9f,  1.f,   0.5f,  true,  0.12f, FLinearColor(1.f, 0.85f, 0.5f, 0.45f), 0.9f },
 	};
 	static_assert(UE_ARRAY_COUNT(Moments) == static_cast<int32>(ELWFeel::Count), "One entry per ELWFeel");
 

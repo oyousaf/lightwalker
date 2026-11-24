@@ -6,7 +6,9 @@
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
 #include "Core/LightWalkerGameInstance.h"
+#include "Arena/ArenaAutoPlay.h"
 #include "Enemies/Dajjal.h"
+#include "Enemies/OneEyedLiar.h"
 #include "Enemies/Shaytaan.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -70,6 +72,8 @@ AArenaGameMode::AArenaGameMode()
 	ShaytaanClass = AShaytaan::StaticClass();
 	DajjalClass = ADajjal::StaticClass();
 
+	PrimaryActorTick.bCanEverTick = true;
+	BossClass = AOneEyedLiar::StaticClass();
 	DefaultWaves = MakeDefaultWaves();
 	PickupClass = APickup::StaticClass();
 }
@@ -199,6 +203,7 @@ void AArenaGameMode::EnterMenu(bool bInstantCamera)
 {
 	GetWorldTimerManager().ClearTimer(PhaseTimer);
 	ClearField();
+	Arena->SetMood(0.f);
 	Arena->SetMenuView(true, bInstantCamera);
 
 	if (ALightWalkerPawn* LightWalker = GetLightWalker())
@@ -233,6 +238,7 @@ void AArenaGameMode::ReturnToMenu()
 void AArenaGameMode::StartRun()
 {
 	ClearField();
+	Arena->SetMood(0.f);
 	GetRun()->StartRun(StartingLives);
 	Arena->SetMenuView(false);
 	if (ALightWalkerPawn* LightWalker = GetLightWalker())
@@ -251,7 +257,8 @@ void AArenaGameMode::StartRun()
 	int32 StartWave = 1;
 	if (FParse::Value(FCommandLine::Get(), TEXT("LWStartWave="), StartWave))
 	{
-		WaveIndex = FMath::Clamp(StartWave - 1, 0, FMath::Max(0, GetWaveCount() - 1));
+		// One past the last wave is the boss.
+		WaveIndex = FMath::Clamp(StartWave - 1, 0, GetWaveCount());
 	}
 #endif
 	BeginWaveIntro();
@@ -299,6 +306,11 @@ void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArena
 void AArenaGameMode::BeginWaveIntro()
 {
 	const TArray<FArenaWave>& Waves = GetWaves();
+	if (IsBossWave())
+	{
+		BeginBossIntro();
+		return;
+	}
 	if (!Waves.IsValidIndex(WaveIndex))
 	{
 		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
@@ -318,6 +330,173 @@ void AArenaGameMode::BeginWaveIntro()
 		Music->SetCombatWave(WaveIndex + 1);
 	}
 	SetPhase(EArenaPhase::WaveIntro, WaveIntroDuration, &AArenaGameMode::BeginFighting);
+}
+
+void AArenaGameMode::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+#if !UE_BUILD_SHIPPING
+	// Dev only: -LWAutoFight plays the arena and the boss by itself, to test them.
+	static const bool bAutoFight = FParse::Param(FCommandLine::Get(), TEXT("LWAutoFight"));
+	if (bAutoFight)
+	{
+		LWAutoPlay::Fight(*this, GetLightWalker());
+	}
+#endif
+}
+
+void AArenaGameMode::BeginBossIntro()
+{
+	ClearField();
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->SetPlayBounds(Arena->GetPlayBounds(LightWalker->GetContactRadius()));
+		LightWalker->Revive(Arena->GetCentre() - FVector(Arena->GetHalfExtent().X * 0.55f, 0.f, 0.f), 0.f);
+	}
+	bBookDroppedThisWave = false;
+	BossBonus = 0;
+	Arena->SetMood(1.f);
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Boss = GetWorld()->SpawnActor<AOneEyedLiar>(BossClass, Arena->GetCentre() + FVector(520.f, 0.f, PlaneHeight), FRotator(0.f, 0.f, 0.f), Params);
+	if (!Boss)
+	{
+		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+		return;
+	}
+	Boss->InitEnemy(GetLightWalker(), Arena->GetPlayBounds(0.f), 0.f);
+	Boss->Arrive(Arena->GetCentre(), BossIntroDuration - 0.8f);
+	Boss->OnSummon = [this](int32 Shaytaan, int32 Dajjal) { SummonForBoss(Shaytaan, Dajjal); };
+	Boss->OnStage = [this](int32 Stage) { HandleBossStage(Stage); };
+	Boss->OnDefeated = [this]() { HandleBossDefeated(); };
+	Boss->OnGone = [this]() { HandleBossGone(); };
+	Boss->OnSpawn = [this](TSubclassOf<AEnemyBase> Class, const FVector& Where) -> AEnemyBase*
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AEnemyBase* Enemy = GetWorld()->SpawnActor<AEnemyBase>(Class, Where, FRotator::ZeroRotator, SpawnParams);
+		if (Enemy)
+		{
+			Enemy->InitEnemy(GetLightWalker(), Arena->GetPlayBounds(50.f), 0.f);
+			Enemy->SetActive(Phase == EArenaPhase::Fighting || Phase == EArenaPhase::PlayerDown);
+			Enemies.Add(Enemy);
+		}
+		return Enemy;
+	};
+	Enemies.Add(Boss);
+
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->EnsureCombat();
+		Music->SetCombatWave(GetWaveCount());
+		Music->DuckCombat(BossIntroDuration - 1.f);
+	}
+	ULWSoundSubsystem::Play(this, ELWSound::BossArrive);
+	SetPhase(EArenaPhase::BossIntro, BossIntroDuration, &AArenaGameMode::BeginBossFight);
+}
+
+void AArenaGameMode::BeginBossFight()
+{
+	SetEnemiesActive(true);
+	SetPhase(EArenaPhase::Fighting, 0.f, nullptr);
+	ULWSoundSubsystem::Play(this, ELWSound::WaveStart);
+	GetWorldTimerManager().SetTimer(BossPickupTimer, this, &AArenaGameMode::DropBossPickup, BossPickupInterval, true, BossPickupInterval * 0.5f);
+}
+
+void AArenaGameMode::SummonForBoss(int32 Shaytaan, int32 Dajjal)
+{
+	// Never more than a handful at once: the boss is the fight.
+	const int32 Room = FMath::Max(0, 14 - Enemies.Num());
+	const FBox2D Bounds = Arena->GetPlayBounds(60.f);
+	const ALightWalkerPawn* LightWalker = GetLightWalker();
+	const FVector2D Player = LightWalker ? FVector2D(LightWalker->GetActorLocation()) : FVector2D::ZeroVector;
+	for (int32 Index = 0; Index < FMath::Min(Shaytaan + Dajjal, Room); ++Index)
+	{
+		FVector2D Point = Bounds.GetCenter();
+		for (int32 Attempt = 0; Attempt < 30; ++Attempt)
+		{
+			Point = FVector2D(FMath::FRandRange(Bounds.Min.X, Bounds.Max.X), FMath::FRandRange(Bounds.Min.Y, Bounds.Max.Y));
+			if (FVector2D::Distance(Point, Player) > 800.f)
+			{
+				break;
+			}
+		}
+		const FVector Where(Point.X, Point.Y, Arena->GetCentre().Z + PlaneHeight);
+		if (AEnemyBase* Enemy = Boss->OnSpawn(Index < Dajjal ? TSubclassOf<AEnemyBase>(DajjalClass) : TSubclassOf<AEnemyBase>(ShaytaanClass), Where))
+		{
+			Enemy->SetMoveSpeed(Index < Dajjal ? SummonSpeed * 0.6f : SummonSpeed);
+			LWFX::ShaytaanDeath(GetWorld(), Where);
+		}
+	}
+}
+
+void AArenaGameMode::DropBossPickup()
+{
+	if (Phase != EArenaPhase::Fighting || !PickupClass)
+	{
+		return;
+	}
+	const FBox2D Bounds = Arena->GetPlayBounds(250.f);
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector Where(FMath::FRandRange(Bounds.Min.X, Bounds.GetCenter().X), FMath::FRandRange(Bounds.Min.Y, Bounds.Max.Y), Arena->GetCentre().Z + PlaneHeight);
+	if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, Where, FRotator::ZeroRotator, Params))
+	{
+		Pickup->InitPickup(static_cast<EPickupType>(FMath::RandRange(0, static_cast<int32>(EPickupType::Shield))), GetLightWalker());
+		LWFX::Respawn(GetWorld(), Where);
+	}
+}
+
+void AArenaGameMode::HandleBossStage(int32 Stage)
+{
+	UE_LOG(LogLightWalker, Log, TEXT("[Boss] Stage %d, %d lives, %.1f s"), Stage, GetRun()->GetLives(), GetWorld()->GetTimeSeconds() - PhaseStartTime);
+	ULWSoundSubsystem::Play(this, ELWSound::BossArrive);
+	ULWFeelSubsystem::Play(this, ELWFeel::BossDown);
+	DropBossPickup();
+}
+
+void AArenaGameMode::HandleBossDefeated()
+{
+	GetWorldTimerManager().ClearTimer(BossPickupTimer);
+	BossBonus = PointsForBoss + PointsPerLife * GetRun()->GetLives();
+	GetRun()->AddScore(BossBonus);
+	UE_LOG(LogLightWalker, Log, TEXT("[Boss] Defeated with %d lives, score %d"), GetRun()->GetLives(), GetRun()->GetScore());
+
+	// Everything it called goes with it.
+	const TArray<TObjectPtr<AEnemyBase>> All = Enemies;
+	for (AEnemyBase* Enemy : All)
+	{
+		if (Enemy && Enemy != Boss)
+		{
+			LWFX::ShaytaanDeath(GetWorld(), Enemy->GetActorLocation());
+			Enemies.Remove(Enemy);
+			Enemy->Destroy();
+		}
+	}
+	// Lightwalker sees it fall, even if it took them down with its last blow.
+	ALightWalkerPawn* LightWalker = GetLightWalker();
+	if (LightWalker && LightWalker->IsDowned())
+	{
+		LightWalker->Revive(FindRespawnPoint(), 0.f);
+	}
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->StopAll(3.f);
+	}
+	SetPhase(EArenaPhase::BossFalling, 0.f, nullptr);
+}
+
+void AArenaGameMode::HandleBossGone()
+{
+	Enemies.Remove(Boss);
+	Boss = nullptr;
+	Arena->SetMood(-1.f);
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->PlaySting(ELWSting::WaveCleared);
+	}
+	SetPhase(EArenaPhase::Victory, 0.f, nullptr);
 }
 
 void AArenaGameMode::BeginFighting()
@@ -459,6 +638,10 @@ void AArenaGameMode::HandleEnemyKilled(AEnemyBase* Enemy)
 		TryDropPickup(Enemy->GetActorLocation(), bDajjal);
 	}
 
+	if (Boss)
+	{
+		return;  // the fight ends with the boss, not with what it summons
+	}
 	const bool bWaveRunning = Phase == EArenaPhase::WaveIntro || Phase == EArenaPhase::Fighting || Phase == EArenaPhase::PlayerDown;
 	if (Enemies.Num() == 0 && bWaveRunning)
 	{
@@ -487,6 +670,10 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 
 	LightWalker->SetDowned(true);
 	LightWalker->ClearPowerUps();
+	if (Boss)
+	{
+		Boss->ClearAttacks();
+	}
 
 	if (GetRun()->LoseLife() <= 0)
 	{
@@ -510,7 +697,7 @@ void AArenaGameMode::RespawnLightWalker()
 {
 	if (ALightWalkerPawn* LightWalker = GetLightWalker())
 	{
-		LightWalker->Revive(FindRespawnPoint(), RespawnGrace);
+		LightWalker->Revive(FindRespawnPoint(), Boss ? RespawnGrace * 2.f : RespawnGrace);
 		ULWSoundSubsystem::Play(this, ELWSound::Respawn);
 		LWFX::Respawn(GetWorld(), LightWalker->GetActorLocation());
 	}
@@ -537,7 +724,8 @@ FVector AArenaGameMode::FindRespawnPoint() const
 			if (Enemy)
 			{
 				const FVector Location = Enemy->GetActorLocation();
-				Clearance = FMath::Min(Clearance, FVector2D::Distance(Point, FVector2D(Location.X, Location.Y)));
+				const float Size = Enemy == Boss ? Boss->GetBossRadius() * 1.5f : 0.f;
+				Clearance = FMath::Min(Clearance, FVector2D::Distance(Point, FVector2D(Location.X, Location.Y)) - Size);
 			}
 		}
 
@@ -592,7 +780,7 @@ void AArenaGameMode::AdvanceWave()
 	}
 
 	++WaveIndex;
-	if (GetWaves().IsValidIndex(WaveIndex))
+	if (GetWaves().IsValidIndex(WaveIndex) || IsBossWave())
 	{
 		BeginWaveIntro();
 	}
@@ -635,6 +823,8 @@ void AArenaGameMode::ClearField()
 		}
 	}
 	Enemies.Reset();
+	Boss = nullptr;
+	GetWorldTimerManager().ClearTimer(BossPickupTimer);
 
 	for (TActorIterator<ALaser> It(GetWorld()); It; ++It)
 	{

@@ -58,10 +58,10 @@ public:
 	void SetModelGlow(float Glow);
 
 	/** Shot by a laser: flashes and loses a hit point, and dies on the last one. */
-	void TakeHit();
+	virtual void TakeHit();
 
 	/** Tells the game mode, then removes itself. */
-	void Kill();
+	virtual void Kill();
 	bool IsDead() const { return bDead; }
 
 protected:
@@ -149,6 +149,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float HitFlashTime = 0.18f;
 
+	/** How much a hit swells the body and brightens the model (the boss takes so many that it must be slight). */
+	float HitSwell = 0.15f;
+	float HitGlow = 4.f;
+	float HitFlash = 0.f;
+	bool bDead = false;
+
 	/** Radius used for the laser overlap and the player contact check. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float Radius = 50.f;
@@ -174,8 +180,6 @@ private:
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> ModelMaterials;
 
 	void UpdateHitFlash(float DeltaSeconds);
-	float HitFlash = 0.f;
 
 	bool bActive = false;
-	bool bDead = false;
 };

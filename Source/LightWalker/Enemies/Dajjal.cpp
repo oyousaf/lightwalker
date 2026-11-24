@@ -87,6 +87,8 @@ ADajjal::ADajjal()
 
 	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Dajjal.SM_Dajjal"));
 	ModelSize = 100.f;
+	// This model's eye is on the far side from the others' faces.
+	ModelYaw = 90.f;
 	HitPoints = 3;
 	DeathSound = ELWSound::DajjalDeath;
 	AddPlaceholder(Pyramid);

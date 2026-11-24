@@ -342,6 +342,15 @@ def eye_break():
     return saturate(mix(boom, gain(shatter, 0.4), gain(mix(*chord), 0.3)), 1.2)
 
 
+def boss_arrive():
+    # Something vast coming down: a deep swelling growl under a beating drone, ending in a blow.
+    count = int(2.6 * RATE)
+    drone = mix(*[sweep_osc(2.6, f, f * 0.72, "saw", curve=1.1) for f in (55.0, 55.7, 82.4, 110.6)])
+    growl = apply(lowpass(mix(gain(drone, 0.4), gain(noise(2.6, 50), 0.5)), 180, 900), env_adsr(count, 1.3, 0.9))
+    blow = delay(apply(sweep_osc(1.0, 95, 28, "sine"), env_exp(int(1.0 * RATE), 4.5)), 1.7)
+    return saturate(mix(growl, gain(blow, 1.2)), 1.5)
+
+
 def ui_move():
     return apply(sweep_osc(0.035, 1900, 1700, "triangle"), env_exp(int(0.035 * RATE), 90))
 
@@ -368,6 +377,7 @@ SOUNDS = {
     "Checkpoint": checkpoint, "LightLow": light_low, "Gate": gate,
     "Deflect": deflect, "WallHit": wall_hit, "WallBreak": wall_break,
     "DarkBolt": dark_bolt, "BeamLost": beam_lost, "EyeBreak": eye_break,
+    "BossArrive": boss_arrive,
     "UIMove": ui_move, "UISelect": ui_select, "UIPlay": ui_play,
 }
 

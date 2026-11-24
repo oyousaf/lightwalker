@@ -19,7 +19,7 @@ namespace
 	constexpr float ColumnWidth = 200.f;
 	constexpr float RowHeight = 128.f;
 	constexpr float BlockHeight = 62.f;
-	constexpr int32 Columns = 14;
+	constexpr int32 WallColumns = 14;
 
 	/**
 	 * The walls, top row first, 14 blocks across:
@@ -141,11 +141,11 @@ void AShieldField::AddBlock(EWallBlock Kind, float Column, float Row, float Acro
 	Block.Half = FVector2D(RowHeight * DownRows * 0.5f - 7.f, ColumnWidth * AcrossColumns * 0.5f - 7.f);
 	Block.Centre = FVector2D(
 		Bounds.Max.X - 150.f - RowHeight * (Row + DownRows * 0.5f),
-		(Bounds.Min.Y + Bounds.Max.Y) * 0.5f + ColumnWidth * (Column + AcrossColumns * 0.5f - Columns * 0.5f));
+		(Bounds.Min.Y + Bounds.Max.Y) * 0.5f + ColumnWidth * (Column + AcrossColumns * 0.5f - WallColumns * 0.5f));
 	Block.HitsLeft = HitsFor(Kind);
 	Block.Color = ColorFor(Kind);
 	Block.FireTimer = FMath::FRandRange(EyeInterval.X, EyeInterval.Y);
-	Block.RiseDelay = 0.05f * FMath::Abs(Column + AcrossColumns * 0.5f - Columns * 0.5f) + 0.06f * Row;
+	Block.RiseDelay = 0.05f * FMath::Abs(Column + AcrossColumns * 0.5f - WallColumns * 0.5f) + 0.06f * Row;
 	BuildBlockMeshes(Block);
 	Blocks.Add(MoveTemp(Block));
 }

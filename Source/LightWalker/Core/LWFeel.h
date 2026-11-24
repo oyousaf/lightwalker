@@ -17,6 +17,8 @@ enum class ELWFeel : uint8
 	Pickup,
 	Book,
 	WaveCleared,
+	BossHit,
+	BossDown,
 	Count
 };
 

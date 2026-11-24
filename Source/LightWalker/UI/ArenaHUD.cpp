@@ -4,6 +4,7 @@
 #include "CanvasItem.h"
 #include "Core/LWFeel.h"
 #include "Core/LightWalkerGameInstance.h"
+#include "Enemies/OneEyedLiar.h"
 #include "Engine/Canvas.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
@@ -212,6 +213,30 @@ bool AArenaHUD::IsShown() const
 void AArenaHUD::DrawTopCentre(const FLayout& Layout)
 {
 	const AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
+	if (const AOneEyedLiar* Boss = GameMode->GetBoss())
+	{
+		// The boss's health, marked where its stages change.
+		const float Width = Layout.Px(640.f);
+		const float Height = Layout.Px(18.f);
+		const float Left = Layout.CentreX - Width * 0.5f;
+		const float Top = Layout.Margin + Layout.Px(34.f);
+		const bool bGuarded = Boss->IsGuarded();
+		const FLinearColor Colour = bGuarded ? LWStyle::Muted : (Boss->GetStage() == 3 ? LWStyle::Danger : LWStyle::Gold);
+		DrawLine(bGuarded ? TEXT("THE ONE-EYED LIAR     BREAK THE GUARDIANS") : TEXT("THE ONE-EYED LIAR"), LWStyle::Body(Layout.Size(20), true, 300),
+			bGuarded ? LWStyle::Orange : LWStyle::Text, Layout.CentreX, Layout.Margin - Layout.Px(2.f), EAlign::Centre, WithAlpha(LWStyle::Danger, 0.6f));
+		DrawBox(Left - Layout.Px(3.f), Top - Layout.Px(3.f), Width + Layout.Px(6.f), Height + Layout.Px(6.f), WithAlpha(Colour, 0.25f));
+		DrawBox(Left, Top, Width, Height, FLinearColor(0.02f, 0.f, 0.02f, 0.85f));
+		DrawBox(Left, Top, Width * Boss->GetHealth(), Height, Colour);
+		for (const float Mark : { AOneEyedLiar::StageThreeAt, AOneEyedLiar::StageTwoAt })
+		{
+			DrawBox(Left + Width * Mark - Layout.Px(1.f), Top, Layout.Px(2.f), Height, FLinearColor(0.f, 0.f, 0.f, 0.8f));
+		}
+		return;
+	}
+	if (GameMode->GetPhase() == EArenaPhase::Victory)
+	{
+		return;
+	}
 	DrawLine(TEXT("WAVE"), LWStyle::Body(Layout.Size(18), true, 300), LWStyle::Muted, Layout.CentreX, Layout.Margin, EAlign::Centre);
 	DrawLine(FString::Printf(TEXT("%d / %d"), GameMode->GetWaveNumber(), GameMode->GetWaveCount()), LWStyle::Body(Layout.Size(44), true, 80), LWStyle::Text,
 		Layout.CentreX, Layout.Margin + Layout.Px(22.f), EAlign::Centre, WithAlpha(LWStyle::Cyan, 0.6f));
@@ -256,6 +281,19 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
 		Banner.Detail = TEXT("PRESS ENTER, A OR START TO PLAY AGAIN");
+		break;
+	case EArenaPhase::BossIntro:
+		Banner.Title = TEXT("THE ONE-EYED LIAR");
+		Banner.Color = LWStyle::Danger;
+		Banner.Glow = LWStyle::Orange;
+		Banner.Height = 0.56f;
+		break;
+	case EArenaPhase::BossFalling:
+		Banner.Title = TEXT("BOSS CLEARED");
+		Banner.Detail = FString::Printf(TEXT("+%d"), GameMode->GetBossBonus());
+		Banner.Color = LWStyle::Gold;
+		Banner.Glow = LWStyle::Pink;
+		Banner.Height = 0.62f;
 		break;
 	case EArenaPhase::Victory:
 		Banner.Title = TEXT("THE LIGHT PREVAILS");
