@@ -1,4 +1,4 @@
-# Lightwalker
+# LightWalker
 
 A neon arena shooter in Unreal Engine 5, remaking a Flash game I made in 2014. Lightwalker holds the centre of a dark arena while waves of shaytaan close in and dajjal drift around the edges, and fights back with bolts of light.
 
