@@ -23,7 +23,6 @@ A dark UK drill instrumental for the waves.
   | 89 | Drop | Three bars of near silence, a roll, then everything slams back in. |
   | 97 | C3 | The new section again. |
   | 105 | Turn | The hook thinning out, then the turnaround back to A. |
-- **Rough preview:** `CombatTheme_Preview.wav` uses crude built-in synths. It's only there to judge the groove and melody.
 
 The MIDI comes from `Tools/music/compose_combat_theme.py`. If you change the notes there and re-run it, the files update.
 

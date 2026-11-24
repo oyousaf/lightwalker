@@ -24,7 +24,6 @@ An original tune in the style of early-90s 16-bit platformers (Mega Drive FM, Am
     | 93 | C3 | The bridge again. |
     | 101 | Tag | Long notes over the hook's chords, a pickup back to A. |
   - The lead's two-note pickups lead back into the hook.
-- **Rough preview:** `MenuTheme_Preview.wav` uses crude built-in synths. It's only there to judge the tune.
 
 The MIDI comes from `Tools/music/compose_menu_theme.py`. If you change the notes there and re-run it, the files update.
 

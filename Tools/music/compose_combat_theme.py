@@ -1,5 +1,5 @@
 """
-Writes the combat theme, a dark UK drill instrumental, as MIDI stems for building in FL Studio, plus a rough preview.
+Writes the combat theme, a dark UK drill instrumental, as MIDI stems for building in FL Studio.
 
 142 BPM, half-time (snare on beat three), C# minor with the harmonic minor's B# leading tone. About 3 minutes: a
 112-bar loop of 8-bar sections that vary so it doesn't feel like a loop:
@@ -43,9 +43,8 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from midi_writer import BAR, PPQ, STEP, TRIPLET_16, note, track_chunk, write  # noqa: E402
+from midi_writer import BAR, STEP, TRIPLET_16, note, track_chunk, write  # noqa: E402
 import midi_writer as kit  # noqa: E402
-import synth  # noqa: E402
 
 BPM = 142
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "SourceArt", "Music", "CombatTheme")
@@ -374,18 +373,6 @@ PARTS = [
 ]
 
 
-def render_preview(path):
-    mix = synth.Mix(BARS * 4 * 60 / BPM + 1.0, BPM, PPQ)
-    mix.add(strings(), synth.pad, 0.07)
-    mix.add(melody(), synth.bell, 0.22)
-    mix.add(bass808(), synth.sub808, 0.45)
-    drum_voice = lambda pitch, count: synth.drum(pitch, count, kit)  # noqa: E731
-    mix.add(drums(), drum_voice, 0.34)
-    mix.add(counter(), synth.bell, 0.12)
-    mix.add(hat_rolls(), drum_voice, 0.22)
-    mix.save(path)
-
-
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
     markers = [(0, "Loop start"), (BARS * BAR, "Loop end")]
@@ -401,7 +388,4 @@ if __name__ == "__main__":
     write(os.path.join(OUT_DIR, "CombatTheme_AllParts.mid"), BPM, chunks, markers)
     write(os.path.join(OUT_DIR, "Sting_WaveCleared.mid"), BPM, [track_chunk("WaveCleared", sting_wave_cleared(), 1)])
     write(os.path.join(OUT_DIR, "Sting_GameOver.mid"), BPM, [track_chunk("GameOver", sting_game_over(), 1)])
-
-    if "--no-preview" not in sys.argv:
-        render_preview(os.path.join(OUT_DIR, "CombatTheme_Preview.wav"))
-    print(f"Wrote {len(PARTS)} stems, 2 stings and a preview to {os.path.abspath(OUT_DIR)} ({BARS} bars, {BARS * 4 * 60 / BPM:.1f} s)")
+    print(f"Wrote {len(PARTS)} stems and 2 stings to {os.path.abspath(OUT_DIR)} ({BARS} bars, {BARS * 4 * 60 / BPM:.1f} s)")
