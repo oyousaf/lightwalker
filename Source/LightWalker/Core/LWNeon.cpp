@@ -1,6 +1,7 @@
 #include "Core/LWNeon.h"
 
 #include "Components/MeshComponent.h"
+#include "Engine/Scene.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/PackageName.h"
@@ -64,4 +65,24 @@ UMaterialInstanceDynamic* LWNeon::ApplyGlow(UMeshComponent* Mesh, const FLinearC
 UMaterialInstanceDynamic* LWNeon::ApplySurface(UMeshComponent* Mesh, const FLinearColor& Color)
 {
 	return Apply(Mesh, LoadSurfaceMaterial(), Color, 1.f);
+}
+
+void LWNeon::SetupPostProcess(FPostProcessSettings& Settings, float BloomIntensity, float ExposureCompensation)
+{
+	Settings.bOverride_AutoExposureMethod = true;
+	Settings.AutoExposureMethod = AEM_Manual;
+	Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+	Settings.AutoExposureApplyPhysicalCameraExposure = false;
+	Settings.bOverride_AutoExposureBias = true;
+	Settings.AutoExposureBias = ExposureCompensation;
+
+	Settings.bOverride_BloomIntensity = true;
+	Settings.BloomIntensity = BloomIntensity;
+
+	Settings.bOverride_VignetteIntensity = true;
+	Settings.VignetteIntensity = 0.5f;
+
+	// Motion blur smears the spinning, overlapping glow shapes into blobs.
+	Settings.bOverride_MotionBlurAmount = true;
+	Settings.MotionBlurAmount = 0.f;
 }

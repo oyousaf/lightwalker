@@ -4,6 +4,7 @@
 
 class UMeshComponent;
 class UMaterialInstanceDynamic;
+struct FPostProcessSettings;
 
 /**
  * Shared look for every glowing object in the game.
@@ -18,4 +19,7 @@ namespace LWNeon
 
 	/** Ordinary lit surface (the arena floor), so it picks up light from the glowing objects. */
 	LIGHTWALKER_API UMaterialInstanceDynamic* ApplySurface(UMeshComponent* Mesh, const FLinearColor& Color);
+
+	/** The post-processing every mode shares: fixed exposure (so the dark doesn't brighten itself up), bloom, no motion blur. */
+	LIGHTWALKER_API void SetupPostProcess(FPostProcessSettings& Settings, float BloomIntensity = 1.2f, float ExposureCompensation = 0.f);
 }

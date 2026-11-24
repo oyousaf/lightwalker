@@ -13,6 +13,7 @@ enum class ELWSound : uint8
 	ShaytaanDeath, DajjalHit, DajjalDeath,
 	LifeLost, Respawn, ShieldBlock, Glide,
 	PowerUp, PowerDown, Book, WaveStart,
+	Jump, DoubleJump, Land, Orb, Checkpoint, LightLow, Gate,
 	UIMove, UISelect, UIPlay,
 	Count
 };

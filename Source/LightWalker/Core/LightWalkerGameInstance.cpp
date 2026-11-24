@@ -34,6 +34,7 @@ void ULightWalkerGameInstance::StartRun(int32 StartingLives)
 	Lives = FMath::Max(1, StartingLives);
 	Upgrades = FRunUpgrades();
 	UnreadWisdom.Reset();
+	bCarriedShield = false;
 }
 
 void ULightWalkerGameInstance::AddScore(int32 Points)

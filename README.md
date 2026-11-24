@@ -16,7 +16,7 @@ The originals are in [legacy/](legacy/).
 
 ## Status
 
-Milestone 1, the arena slice: both 2014 waves, three lives, scoring and respawning, with placeholder shapes. Next up is the polish pass (effects, sound, menus), then two more modes built from the other 2014 games.
+Milestones 1 to 4: the arena (15 waves, power-ups, two animated heroes, music and menus) and The Path, the run-and-jump stage between arenas. Next up are The Shield, the last mode built from the 2014 games, then the boss, an endless mode and the packaged build.
 
 ## Building
 

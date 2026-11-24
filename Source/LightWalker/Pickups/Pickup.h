@@ -53,6 +53,9 @@ public:
 
 	EPickupType GetType() const { return Type; }
 
+	/** Placed in a level rather than dropped: it waits to be found instead of blinking out. */
+	void SetPersistent() { bPersistent = true; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USceneComponent> Root;
@@ -103,6 +106,7 @@ private:
 
 	TWeakObjectPtr<ALightWalkerPawn> Player;
 	EPickupType Type = EPickupType::LightOrb;
+	bool bPersistent = false;
 	float Age = 0.f;
 	float SparkleTimer = 0.f;
 	float LightIntensity = 12.f;

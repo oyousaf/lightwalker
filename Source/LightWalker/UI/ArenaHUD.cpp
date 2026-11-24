@@ -74,9 +74,8 @@ void AArenaHUD::DrawHUD()
 {
 	Super::DrawHUD();
 
-	const AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
 	const ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>();
-	if (!Canvas || !GameMode || !Run || GameMode->GetPhase() == EArenaPhase::Menu)
+	if (!Canvas || !Run || !IsShown())
 	{
 		return;
 	}
@@ -105,16 +104,17 @@ void AArenaHUD::DrawHUD()
 	const float SafeRight = (Canvas->ClipX + SafeWidth) * 0.5f - Margin;
 	const float CentreX = Canvas->ClipX * 0.5f;
 	const FLinearColor PinkGlow = WithAlpha(LWStyle::Pink, 0.7f);
-	const FLinearColor CyanGlow = WithAlpha(LWStyle::Cyan, 0.6f);
+	FLayout Layout;
+	Layout.Scale = Scale;
+	Layout.Margin = Margin;
+	Layout.CentreX = CentreX;
 
 	// Score and best, top left.
 	DrawLine(TEXT("SCORE"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, SafeLeft, Margin, EAlign::Left);
 	DrawLine(FString::Printf(TEXT("%06d"), Run->GetScore()), LWStyle::Body(Size(44), true, 120), LWStyle::Text, SafeLeft, Margin + Px(22.f), EAlign::Left, PinkGlow);
 	DrawLine(FString::Printf(TEXT("BEST  %06d"), Run->GetBestScore()), LWStyle::Body(Size(18), true, 150), LWStyle::Cyan, SafeLeft, Margin + Px(74.f), EAlign::Left);
 
-	// Wave, top centre.
-	DrawLine(TEXT("WAVE"), LWStyle::Body(Size(18), true, 300), LWStyle::Muted, CentreX, Margin, EAlign::Centre);
-	DrawLine(FString::Printf(TEXT("%d / %d"), GameMode->GetWaveNumber(), GameMode->GetWaveCount()), LWStyle::Body(Size(44), true, 80), LWStyle::Text, CentreX, Margin + Px(22.f), EAlign::Centre, CyanGlow);
+	DrawTopCentre(Layout);
 
 	// Lives, top right: one hooded figure each, or a number when there's no icon art or too many to show.
 	const int32 Lives = Run->GetLives();
@@ -184,52 +184,76 @@ void AArenaHUD::DrawHUD()
 		return;
 	}
 
-	FString Banner;
-	FString Detail;
-	FLinearColor BannerColor = LWStyle::Pink;
-	FLinearColor BannerGlow = LWStyle::Cyan;
+	const FBanner Banner = GetBanner();
+	const float BannerY = Canvas->ClipY * Banner.Height;
+	if (!Banner.Title.IsEmpty())
+	{
+		DrawLine(Banner.Title, LWStyle::Display(Size(72), 200), Banner.Color, CentreX, BannerY, EAlign::Centre, WithAlpha(Banner.Glow, 0.75f));
+	}
+	if (!Banner.Detail.IsEmpty())
+	{
+		DrawLine(Banner.Detail, LWStyle::Body(Size(22), true, 200), LWStyle::Muted, CentreX, BannerY + Px(110.f), EAlign::Centre);
+	}
+}
+
+bool AArenaHUD::IsShown() const
+{
+	const AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
+	return GameMode && GameMode->GetPhase() != EArenaPhase::Menu;
+}
+
+void AArenaHUD::DrawTopCentre(const FLayout& Layout)
+{
+	const AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
+	DrawLine(TEXT("WAVE"), LWStyle::Body(Layout.Size(18), true, 300), LWStyle::Muted, Layout.CentreX, Layout.Margin, EAlign::Centre);
+	DrawLine(FString::Printf(TEXT("%d / %d"), GameMode->GetWaveNumber(), GameMode->GetWaveCount()), LWStyle::Body(Layout.Size(44), true, 80), LWStyle::Text,
+		Layout.CentreX, Layout.Margin + Layout.Px(22.f), EAlign::Centre, WithAlpha(LWStyle::Cyan, 0.6f));
+}
+
+AArenaHUD::FBanner AArenaHUD::GetBanner() const
+{
+	const AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
+	const ULightWalkerGameInstance* Run = GetGameInstance<ULightWalkerGameInstance>();
+	FBanner Banner;
+	Banner.Color = LWStyle::Pink;
+	Banner.Glow = LWStyle::Cyan;
 	switch (GameMode->GetPhase())
 	{
 	case EArenaPhase::WaveIntro:
-		Banner = FString::Printf(TEXT("WAVE %d"), GameMode->GetWaveNumber());
+		Banner.Title = FString::Printf(TEXT("WAVE %d"), GameMode->GetWaveNumber());
 		if (GameMode->GetWaveNumber() == 1)
 		{
-			Detail = TEXT("WASD OR ARROWS TO MOVE     SPACE OR CLICK TO FIRE     GAMEPAD: TWIN STICKS, RT TO FIRE");
+			Banner.Detail = TEXT("WASD OR ARROWS TO MOVE     SPACE OR CLICK TO FIRE     GAMEPAD: TWIN STICKS, RT TO FIRE");
 		}
 		break;
 	case EArenaPhase::PlayerDown:
-		Banner = TEXT("PACIFIED");
-		BannerColor = LWStyle::Danger;
-		BannerGlow = LWStyle::Magenta;
+		Banner.Title = TEXT("PACIFIED");
+		Banner.Color = LWStyle::Danger;
+		Banner.Glow = LWStyle::Magenta;
 		break;
 	case EArenaPhase::WaveCleared:
-		Banner = TEXT("WAVE CLEARED");
-		BannerColor = LWStyle::Cyan;
-		BannerGlow = LWStyle::Pink;
+		Banner.Title = TEXT("WAVE CLEARED");
+		if (GameMode->LeadsToPath())
+		{
+			Banner.Detail = TEXT("THE PATH OPENS");
+		}
+		Banner.Color = LWStyle::Cyan;
+		Banner.Glow = LWStyle::Pink;
 		break;
 	case EArenaPhase::GameOver:
-		Banner = TEXT("GAME OVER");
-		BannerColor = LWStyle::Danger;
-		BannerGlow = LWStyle::Magenta;
-		Detail = TEXT("PRESS ENTER, A OR START TO PLAY AGAIN");
+		Banner.Title = TEXT("GAME OVER");
+		Banner.Color = LWStyle::Danger;
+		Banner.Glow = LWStyle::Magenta;
+		Banner.Detail = TEXT("PRESS ENTER, A OR START TO PLAY AGAIN");
 		break;
 	case EArenaPhase::Victory:
-		Banner = TEXT("THE LIGHT PREVAILS");
-		BannerColor = LWStyle::Gold;
-		BannerGlow = LWStyle::Pink;
-		Detail = FString::Printf(TEXT("FINAL SCORE %d     PRESS ENTER, A OR START TO PLAY AGAIN"), Run->GetScore());
+		Banner.Title = TEXT("THE LIGHT PREVAILS");
+		Banner.Color = LWStyle::Gold;
+		Banner.Glow = LWStyle::Pink;
+		Banner.Detail = FString::Printf(TEXT("FINAL SCORE %d     PRESS ENTER, A OR START TO PLAY AGAIN"), Run->GetScore());
 		break;
 	default:
 		break;
 	}
-
-	const float BannerY = Canvas->ClipY * 0.38f;
-	if (!Banner.IsEmpty())
-	{
-		DrawLine(Banner, LWStyle::Display(Size(72), 200), BannerColor, CentreX, BannerY, EAlign::Centre, WithAlpha(BannerGlow, 0.75f));
-	}
-	if (!Detail.IsEmpty())
-	{
-		DrawLine(Detail, LWStyle::Body(Size(22), true, 200), LWStyle::Muted, CentreX, BannerY + Px(110.f), EAlign::Centre);
-	}
+	return Banner;
 }

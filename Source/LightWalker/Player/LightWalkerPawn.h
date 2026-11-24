@@ -36,9 +36,16 @@ public:
 	void SetMoveInput(const FVector2D& ScreenInput) { MoveInput = ScreenInput; }
 	void SetAimInput(const FVector2D& ScreenInput) { AimInput = ScreenInput; }
 	void SetFireHeld(bool bHeld) { bFireHeld = bHeld; }
+	virtual void SetJumpHeld(bool bHeld) {}
 
 	/** Mouse aiming: fire towards a world point while active. */
 	void SetCursorAim(bool bActive, const FVector& WorldTarget = FVector::ZeroVector) { bCursorAim = bActive; CursorTarget = WorldTarget; }
+
+	/** Where a ray from the camera meets the plane the pawn moves in. */
+	virtual bool ProjectCursor(const FVector& Origin, const FVector& Direction, FVector& OutPoint) const;
+
+	/** True when a point is within Distance of Lightwalker (enemy contact and collecting). */
+	virtual bool IsWithin(const FVector& Point, float Distance) const;
 
 	/** World-space XY area the pawn's centre must stay inside. */
 	void SetPlayBounds(const FBox2D& Bounds) { PlayBounds = Bounds; }
@@ -73,6 +80,9 @@ public:
 	float GetPowerUpTimeLeft(EPickupType Type) const;
 	bool HasShield() const { return bShield; }
 
+	/** Raises the shield kept from the mode before, if there was one. */
+	void GiveCarriedShield();
+
 	/** The latest pickup's banner (name, then what it did or the book's wisdom), and how long it has been up. */
 	const FString& GetPickupTitle() const { return PickupTitle; }
 	const FString& GetPickupDetail() const { return PickupDetail; }
@@ -83,6 +93,40 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/** Moves the pawn for this frame and returns the direction it's moving (zero when standing). */
+	virtual FVector UpdateMovement(const FVector2D& Input, float DeltaSeconds);
+
+	/** The aim stick, and the mouse cursor, as world directions. */
+	virtual FVector AimToWorld(const FVector2D& Screen) const { return ScreenToWorld(Screen); }
+	virtual FVector GetCursorDirection() const { return (CursorTarget - GetActorLocation()).GetSafeNormal2D(); }
+
+	/** Where bolts start, the axis a spread fans about, and the area they live in. */
+	virtual FVector GetMuzzle(const FVector& Direction) const;
+	virtual FVector GetFanAxis() const { return FVector::UpVector; }
+	virtual FBox2D GetShotBounds() const { return PlayBounds; }
+
+	/** Scales the lantern's light (The Path's fades). */
+	virtual float GetLightScale() const { return 1.f; }
+	virtual float GetLightStrength() const { return GetLightScale(); }
+
+	virtual void FaceDirection(const FVector& Direction);
+
+	class ULightWalkerGameInstance* GetRun() const;
+
+	/** 0 on the ground, 1 in the air; AirRise is 1 going up and -1 falling. Posed in AnimateRig. */
+	float AirBlend = 0.f;
+	float AirRise = 0.f;
+
+	FVector2D MoveInput = FVector2D::ZeroVector;
+	FVector2D AimInput = FVector2D::ZeroVector;
+	bool bFireHeld = false;
+	bool bCursorAim = false;
+	FVector CursorTarget = FVector::ZeroVector;
+
+	/** Last movement direction; starts facing screen up. */
+	FVector Heading = FVector::ForwardVector;
+	FBox2D PlayBounds = FBox2D(ForceInit);
 
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USphereComponent> Collision;
@@ -261,25 +305,14 @@ private:
 	float TrailTimer = 0.f;
 	FVector LastTrailLocation = FVector::ZeroVector;
 	void ShowPickupMessage(const FString& Title, const FString& Detail);
-	class ULightWalkerGameInstance* GetRun() const;
 
 	float PowerTime[static_cast<int32>(EPickupType::Count)] = {};
 	bool bShield = false;
 	FString PickupTitle;
 	FString PickupDetail;
 	float PickupMessageAge = 1000.f;
-	void FaceDirection(const FVector& Direction);
 	void SetBodyVisible(bool bVisible);
 
-	FVector2D MoveInput = FVector2D::ZeroVector;
-	FVector2D AimInput = FVector2D::ZeroVector;
-	bool bFireHeld = false;
-	bool bCursorAim = false;
-	FVector CursorTarget = FVector::ZeroVector;
-
-	/** Last movement direction; starts facing screen up. */
-	FVector Heading = FVector::ForwardVector;
-	FBox2D PlayBounds = FBox2D(ForceInit);
 	float FireCooldown = 0.f;
 	float GraceRemaining = 0.f;
 	bool bDowned = false;

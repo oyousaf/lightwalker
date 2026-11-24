@@ -4,6 +4,7 @@ Creates the few editor assets the C++ code expects. Safe to run again: existing 
   /Game/Materials/M_Neon   unlit, emissive = Color * Intensity (used by LWNeon::ApplyGlow)
   /Game/Materials/M_ModelGlow  lit, glowing with its BaseColor texture * Glow (imported enemy models)
   /Game/Maps/L_Arena       empty level; ArenaGameMode spawns the arena into it
+  /Game/Maps/L_Path        empty level; PathGameMode spawns The Path into it
 
 Run headless with the editor closed:
   UnrealEditor-Cmd.exe "<path>/LightWalker.uproject" -run=pythonscript -script="<path>/Tools/create_content.py"
@@ -98,17 +99,18 @@ def create_model_glow_material():
     unreal.log("Created M_ModelGlow")
 
 
-def create_arena_map():
-    path = "/Game/Maps/L_Arena"
+def create_map(name):
+    path = f"/Game/Maps/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
-        unreal.log("L_Arena already exists")
+        unreal.log(f"{name} already exists")
         return
 
-    asset_tools.create_asset("L_Arena", "/Game/Maps", unreal.World, unreal.WorldFactory())
+    asset_tools.create_asset(name, "/Game/Maps", unreal.World, unreal.WorldFactory())
     unreal.EditorAssetLibrary.save_asset(path, only_if_is_dirty=False)
-    unreal.log("Created L_Arena")
+    unreal.log(f"Created {name}")
 
 
 create_neon_material()
 create_model_glow_material()
-create_arena_map()
+create_map("L_Arena")
+create_map("L_Path")

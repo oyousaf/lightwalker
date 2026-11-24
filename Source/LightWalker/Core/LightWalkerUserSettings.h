@@ -15,6 +15,8 @@ enum class ELWBinding : uint8
 	MoveRight,
 	Fire,
 	Pause,
+	/** Only used on The Path, where it takes the space bar it shares with Fire by default. */
+	Jump,
 	Count UMETA(Hidden)
 };
 
@@ -65,7 +67,8 @@ public:
 
 	/**
 	 * Binds Key to a control, on the keyboard or gamepad side depending on the key. A control that already had
-	 * the key takes this one's old key instead, so no key ever does two things. False if the key can't be bound.
+	 * the key takes this one's old key instead, so no key ever does two things (except that
+	 * jump and fire may share one: on The Path jump takes it). False if the key can't be bound.
 	 */
 	bool SetBinding(ELWBinding Binding, const FKey& Key);
 	void ResetBindings();

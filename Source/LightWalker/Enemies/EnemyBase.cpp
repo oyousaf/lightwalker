@@ -1,6 +1,6 @@
 #include "Enemies/EnemyBase.h"
 
-#include "Arena/ArenaGameMode.h"
+#include "Core/LWGameMode.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
@@ -201,10 +201,9 @@ void AEnemyBase::CheckPlayerContact()
 		return;
 	}
 
-	const float ContactDistance = Radius + LightWalker->GetContactRadius();
-	if (FVector::DistSquared2D(GetActorLocation(), LightWalker->GetActorLocation()) <= FMath::Square(ContactDistance))
+	if (LightWalker->IsWithin(GetActorLocation(), Radius + LightWalker->GetContactRadius()))
 	{
-		if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+		if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 		{
 			GameMode->HandlePlayerTouched(LightWalker);
 		}
@@ -270,7 +269,7 @@ void AEnemyBase::Kill()
 	ULWSoundSubsystem::Play(this, DeathSound);
 	ULWFeelSubsystem::Play(this, DeathSound == ELWSound::DajjalDeath ? ELWFeel::DajjalKill : ELWFeel::Kill);
 	SpawnDeathEffect();
-	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 	{
 		GameMode->HandleEnemyKilled(this);
 	}

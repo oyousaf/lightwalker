@@ -231,24 +231,7 @@ void AArena::Tick(float DeltaSeconds)
 
 void AArena::ApplyPostProcess()
 {
-	FPostProcessSettings& Settings = PostProcess->Settings;
-
-	Settings.bOverride_AutoExposureMethod = true;
-	Settings.AutoExposureMethod = AEM_Manual;
-	Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
-	Settings.AutoExposureApplyPhysicalCameraExposure = false;
-	Settings.bOverride_AutoExposureBias = true;
-	Settings.AutoExposureBias = ExposureCompensation;
-
-	Settings.bOverride_BloomIntensity = true;
-	Settings.BloomIntensity = BloomIntensity;
-
-	Settings.bOverride_VignetteIntensity = true;
-	Settings.VignetteIntensity = 0.5f;
-
-	// Motion blur smears the spinning, overlapping glow shapes into blobs.
-	Settings.bOverride_MotionBlurAmount = true;
-	Settings.MotionBlurAmount = 0.f;
+	LWNeon::SetupPostProcess(PostProcess->Settings, BloomIntensity, ExposureCompensation);
 }
 
 FBox2D AArena::GetPlayBounds(float Radius) const

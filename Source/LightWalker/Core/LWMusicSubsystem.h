@@ -32,6 +32,9 @@ public:
 	void PlayMenu();
 	void PlayCombat();
 
+	/** Starts the combat music unless it's already playing (arriving from another mode). */
+	void EnsureCombat();
+
 	/** Brings in the stem layers for this wave: 1-3 strings and melody, 4-7 + 808, 8-11 + drums, 12+ + counter and hat rolls. */
 	void SetCombatWave(int32 WaveNumber);
 
@@ -61,6 +64,10 @@ private:
 	UAudioComponent* StartTrack(const TCHAR* AssetPath, float StartVolume);
 	void FadeTo(FTrack& Track, float Target, float Seconds);
 	float GetUserVolume() const;
+
+	/** Keeps the playing components from being garbage collected; the tracks only point at them. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAudioComponent>> Playing;
 
 	FTrack MenuIntro;
 	FTrack MenuLoop;

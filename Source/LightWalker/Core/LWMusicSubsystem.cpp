@@ -59,6 +59,8 @@ UAudioComponent* ULWMusicSubsystem::StartTrack(const TCHAR* AssetPath, float Sta
 		Component->bIsUISound = true;
 		Component->SetVolumeMultiplier(FMath::Max(StartVolume * GetUserVolume(), 0.001f));
 		Component->Play();
+		Playing.RemoveAll([](const UAudioComponent* Other) { return !Other || !Other->IsPlaying(); });
+		Playing.Add(Component);
 	}
 	return Component;
 }
@@ -119,6 +121,18 @@ void ULWMusicSubsystem::PlayCombat()
 	}
 	DuckRemaining = 0.f;
 	SetCombatWave(1);
+}
+
+void ULWMusicSubsystem::EnsureCombat()
+{
+	const bool bPlaying = CombatStems.ContainsByPredicate([](const FTrack& Stem)
+	{
+		return Stem.Component.IsValid() && Stem.Component->IsPlaying();
+	});
+	if (!bPlaying)
+	{
+		PlayCombat();
+	}
 }
 
 void ULWMusicSubsystem::SetCombatWave(int32 WaveNumber)

@@ -79,16 +79,6 @@ const TArray<FArenaWave>& AArenaGameMode::GetWaves() const
 	return (WaveSet && WaveSet->Waves.Num() > 0) ? WaveSet->Waves : DefaultWaves;
 }
 
-ULightWalkerGameInstance* AArenaGameMode::GetRun() const
-{
-	return GetGameInstance<ULightWalkerGameInstance>();
-}
-
-ALightWalkerPawn* AArenaGameMode::GetLightWalker() const
-{
-	return Cast<ALightWalkerPawn>(UGameplayStatics::GetPlayerPawn(this, 0));
-}
-
 void AArenaGameMode::RestartPlayer(AController* NewPlayer)
 {
 	if (!NewPlayer || NewPlayer->IsPendingKillPending())
@@ -131,14 +121,31 @@ void AArenaGameMode::StartPlay()
 		return;
 	}
 
+	// Travelled here from another mode: pick the run up, or start a new one.
+	const EArenaStart Start = GetRun()->TakeArenaStart();
+	if (Start != EArenaStart::Menu)
+	{
+		FadeIn();
+		if (Start == EArenaStart::Continue)
+		{
+			ContinueRun(GetRun()->GetNextWave());
+		}
+		else
+		{
+			StartRun();
+		}
+		return;
+	}
+
 	// Launch into the intro and main menu. Dev runs that ask for a wave skip straight to it.
 	bool bSkipMenu = false;
 #if !UE_BUILD_SHIPPING
 	int32 RequestedWave = 0;
-	bSkipMenu = FParse::Value(FCommandLine::Get(), TEXT("LWStartWave="), RequestedWave);
+	bSkipMenu = !GetRun()->bIntroSeen && FParse::Value(FCommandLine::Get(), TEXT("LWStartWave="), RequestedWave);
 #endif
 	if (bSkipMenu)
 	{
+		GetRun()->bIntroSeen = true;
 		StartRun();
 	}
 	else
@@ -165,42 +172,28 @@ void AArenaGameMode::StartPlay()
 			}
 			else
 #endif
+			if (GetRun()->bIntroSeen)
+			{
+				FadeIn();
+				Controller->ShowMainMenu();
+			}
+			else
 			{
 				Controller->ShowIntro();
 			}
+			GetRun()->bIntroSeen = true;
 		}
 	}
 
-#if !UE_BUILD_SHIPPING
-	if (FParse::Value(FCommandLine::Get(), TEXT("LWShots="), DevShotsRemaining) && DevShotsRemaining > 0)
-	{
-		GetWorldTimerManager().SetTimer(DevShotTimer, this, &AArenaGameMode::TakeDevScreenshot, 3.f, true, FParse::Param(FCommandLine::Get(), TEXT("LWEarlyShot")) ? 1.5f : 8.f);
-	}
-#endif
 }
 
-#if !UE_BUILD_SHIPPING
-void AArenaGameMode::TakeDevScreenshot()
+void AArenaGameMode::AddCameraTrauma(float Amount)
 {
-	if (DevShotsRemaining-- <= 0)
+	if (Arena)
 	{
-		FPlatformMisc::RequestExit(false);
-		return;
-	}
-	if (APlayerController* Controller = GetWorld()->GetFirstPlayerController())
-	{
-		// HighResShot renders the scene only; the menu needs a normal screenshot with the UI.
-		if (Phase == EArenaPhase::Menu)
-		{
-			FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("LWShot_%d"), ++DevShotIndex), true, false);
-		}
-		else
-		{
-			Controller->ConsoleCommand(FString::Printf(TEXT("HighResShot 2 filename=LWShot_%d"), ++DevShotIndex));
-		}
+		Arena->AddTrauma(Amount);
 	}
 }
-#endif
 
 void AArenaGameMode::EnterMenu(bool bInstantCamera)
 {
@@ -264,6 +257,29 @@ void AArenaGameMode::StartRun()
 	BeginWaveIntro();
 }
 
+void AArenaGameMode::ContinueRun(int32 FromWaveIndex)
+{
+	ClearField();
+	Arena->SetMenuView(false, true);
+	if (ALightWalkerPawn* LightWalker = GetLightWalker())
+	{
+		LightWalker->ClearPowerUps();
+		LightWalker->SetFrozen(false);
+		LightWalker->GiveCarriedShield();
+	}
+	if (ULWMusicSubsystem* Music = ULWMusicSubsystem::Get(this))
+	{
+		Music->EnsureCombat();
+	}
+	WaveIndex = FromWaveIndex;
+	BeginWaveIntro();
+}
+
+bool AArenaGameMode::LeadsToPath() const
+{
+	return PathAfterWave > 0 && WaveIndex + 1 == PathAfterWave && MapExists(LWMaps::Path);
+}
+
 void AArenaGameMode::SetPhase(EArenaPhase NewPhase, float Duration, void (AArenaGameMode::*Next)())
 {
 	Phase = NewPhase;
@@ -306,6 +322,23 @@ void AArenaGameMode::BeginFighting()
 	ULWSoundSubsystem::Play(this, ELWSound::WaveStart);
 
 #if !UE_BUILD_SHIPPING
+	// Dev only: -LWAutoWin clears each wave a moment after it starts, to test what follows.
+	if (FParse::Param(FCommandLine::Get(), TEXT("LWAutoWin")))
+	{
+		FTimerHandle Handle;
+		GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			const TArray<TObjectPtr<AEnemyBase>> Wave = Enemies;
+			for (AEnemyBase* Enemy : Wave)
+			{
+				if (Enemy)
+				{
+					Enemy->Kill();
+				}
+			}
+		}), 1.f, false);
+	}
+
 	// Dev only: -LWDrops also lays out one of each pickup around the centre, to check how they look.
 	if (FParse::Param(FCommandLine::Get(), TEXT("LWDrops")) && PickupClass)
 	{
@@ -534,6 +567,18 @@ void AArenaGameMode::FinishWave()
 
 void AArenaGameMode::AdvanceWave()
 {
+	if (LeadsToPath())
+	{
+		if (ALightWalkerPawn* LightWalker = GetLightWalker())
+		{
+			GetRun()->bCarriedShield = LightWalker->HasShield();
+		}
+		SetPhase(EArenaPhase::Travelling, 0.f, nullptr);
+		GetRun()->SetArenaStart(EArenaStart::Continue, WaveIndex + 1);
+		TravelTo(LWMaps::Path, LWMaps::PathMode);
+		return;
+	}
+
 	++WaveIndex;
 	if (GetWaves().IsValidIndex(WaveIndex))
 	{

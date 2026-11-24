@@ -2,6 +2,7 @@
 
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/LWGameMode.h"
 #include "Core/LWNeon.h"
 #include "Effects/LWParticles.h"
 #include "Enemies/EnemyBase.h"
@@ -40,7 +41,7 @@ void ALaser::BeginPlay()
 
 void ALaser::Launch(const FVector& InDirection, const FBox2D& InBounds)
 {
-	Direction = InDirection.GetSafeNormal2D();
+	Direction = InDirection.GetSafeNormal();
 	Bounds = InBounds;
 	SetActorRotation(Direction.Rotation());
 }
@@ -55,6 +56,15 @@ void ALaser::Tick(float DeltaSeconds)
 	// Leaving the arena on any side ends the laser (the 2014 left-firing laser checked the wrong axis here).
 	if (Bounds.bIsValid && !Bounds.IsInside(FVector2D(Location.X, Location.Y)))
 	{
+		Destroy();
+		return;
+	}
+
+	// Solid ground stops a bolt (The Path).
+	const ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>();
+	if (GameMode && GameMode->BlocksShot(Location))
+	{
+		LWFX::HitSpark(GetWorld(), Location, Direction);
 		Destroy();
 	}
 }

@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Arena/ArenaWaveSet.h"
-#include "GameFramework/GameModeBase.h"
+#include "Core/LWGameMode.h"
 #include "ArenaGameMode.generated.h"
 
 class AArena;
@@ -24,6 +24,8 @@ enum class EArenaPhase : uint8
 	/** Lightwalker was pacified and is waiting to respawn. */
 	PlayerDown,
 	WaveCleared,
+	/** Fading out to the next mode. */
+	Travelling,
 	GameOver,
 	Victory
 };
@@ -32,7 +34,7 @@ enum class EArenaPhase : uint8
  * Arena mode: the original Lightwalker. Clear every wave of shaytaan and dajjal with three lives.
  */
 UCLASS()
-class LIGHTWALKER_API AArenaGameMode : public AGameModeBase
+class LIGHTWALKER_API AArenaGameMode : public ALWGameMode
 {
 	GENERATED_BODY()
 
@@ -42,23 +44,29 @@ public:
 	virtual void StartPlay() override;
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
-	void HandleEnemyKilled(AEnemyBase* Enemy);
-	void HandlePlayerTouched(ALightWalkerPawn* LightWalker);
+	virtual void HandleEnemyKilled(AEnemyBase* Enemy) override;
+	virtual void HandlePlayerTouched(ALightWalkerPawn* LightWalker) override;
 
 	/** Confirm pressed: starts a new run after a game over or a win (ignored for a moment after it ends,
 	    so fire buttons still held from the last fight don't skip the end screen). */
-	void RequestRestart();
+	virtual void RequestRestart() override;
 
-	bool IsRunOver() const { return Phase == EArenaPhase::GameOver || Phase == EArenaPhase::Victory; }
+	virtual bool IsRunOver() const override { return Phase == EArenaPhase::GameOver || Phase == EArenaPhase::Victory; }
 
 	/** Play pressed: the camera sweeps up to the game view and wave 1 begins. */
-	void StartFromMenu();
+	virtual void StartFromMenu() override;
 
 	/** Back to the main menu from a run. */
-	void ReturnToMenu();
+	virtual void ReturnToMenu() override;
 
 	/** Starts the run again from wave 1 (pause menu). */
-	void RestartRun() { StartRun(); }
+	virtual void RestartRun() override { StartRun(); }
+
+	virtual bool IsInMenu() const override { return Phase == EArenaPhase::Menu; }
+	virtual void AddCameraTrauma(float Amount) override;
+
+	/** The wave just cleared leads into The Path rather than straight to the next wave. */
+	bool LeadsToPath() const;
 
 	EArenaPhase GetPhase() const { return Phase; }
 	int32 GetWaveNumber() const { return FMath::Min(WaveIndex + 1, GetWaveCount()); }
@@ -103,6 +111,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
 	int32 StartingLives = 3;
 
+	/** Arena 1 is waves 1 to this; then comes The Path, and the arena picks up at the next wave. 0 = never. */
+	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
+	int32 PathAfterWave = 5;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Rules")
 	int32 PointsPerKill = 100;
 
@@ -146,10 +158,9 @@ protected:
 
 private:
 	const TArray<FArenaWave>& GetWaves() const;
-	ULightWalkerGameInstance* GetRun() const;
-	ALightWalkerPawn* GetLightWalker() const;
-
 	void StartRun();
+	/** Picks the run up again at a wave (back from The Path). */
+	void ContinueRun(int32 FromWaveIndex);
 	void EnterMenu(bool bInstantCamera);
 	void BeginWaveIntro();
 	void BeginFighting();
@@ -172,14 +183,6 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AEnemyBase>> Enemies;
-
-#if !UE_BUILD_SHIPPING
-	/** Dev only: -LWShots=N takes N high-res screenshots three seconds apart, then quits. */
-	void TakeDevScreenshot();
-	int32 DevShotsRemaining = 0;
-	int32 DevShotIndex = 0;
-	FTimerHandle DevShotTimer;
-#endif
 
 	EArenaPhase Phase = EArenaPhase::Menu;
 	float PhaseStartTime = 0.f;

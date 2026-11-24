@@ -45,6 +45,7 @@ FKey ULightWalkerUserSettings::GetDefaultBinding(ELWBinding Binding, bool bGamep
 	case ELWBinding::MoveRight: return bGamepad ? EKeys::Gamepad_DPad_Right : EKeys::D;
 	case ELWBinding::Fire:      return bGamepad ? EKeys::Gamepad_RightTrigger : EKeys::SpaceBar;
 	case ELWBinding::Pause:     return bGamepad ? EKeys::Gamepad_Special_Right : EKeys::P;
+	case ELWBinding::Jump:      return bGamepad ? EKeys::Gamepad_FaceButton_Bottom : EKeys::SpaceBar;
 	default:                    return EKeys::Invalid;
 	}
 }
@@ -77,11 +78,14 @@ bool ULightWalkerUserSettings::SetBinding(ELWBinding Binding, const FKey& Key)
 	// Whatever had the key takes over this control's old one.
 	const int32 Target = static_cast<int32>(Binding);
 	const FKey Old = Current[Target];
-	for (FKey& Other : Current)
+	const int32 Jump = static_cast<int32>(ELWBinding::Jump);
+	const int32 Fire = static_cast<int32>(ELWBinding::Fire);
+	for (int32 Index = 0; Index < Current.Num(); ++Index)
 	{
-		if (Other == Key)
+		const bool bMayShare = (Index == Jump && Target == Fire) || (Index == Fire && Target == Jump);
+		if (Current[Index] == Key && !bMayShare)
 		{
-			Other = Old;
+			Current[Index] = Old;
 		}
 	}
 	Current[Target] = Key;
@@ -150,6 +154,7 @@ FString ULightWalkerUserSettings::GetBindingLabel(ELWBinding Binding)
 	case ELWBinding::MoveRight: return TEXT("MOVE RIGHT");
 	case ELWBinding::Fire:      return TEXT("FIRE");
 	case ELWBinding::Pause:     return TEXT("PAUSE");
+	case ELWBinding::Jump:      return TEXT("JUMP (THE PATH)");
 	default:                    return FString();
 	}
 }

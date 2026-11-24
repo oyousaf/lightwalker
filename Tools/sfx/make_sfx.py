@@ -246,6 +246,58 @@ def wave_start():
     return lowpass(mix(rise, gain(sweep_osc(0.7, 90, 450, "square", curve=0.8), 0.4)), 600, 6000)
 
 
+def jump():
+    # A soft springy rise: robes and air rather than an arcade boing.
+    tone = apply(sweep_osc(0.16, 240, 620, "triangle", curve=1.4), env_exp(int(0.16 * RATE), 16))
+    air = apply(bandpass(noise(0.14, 30), 500, 1800, q=1.5), env_adsr(int(0.14 * RATE), 0.03, 0.1))
+    return mix(tone, gain(air, 0.7))
+
+
+def double_jump():
+    # The same push, with a sparkle of light under it.
+    tone = apply(sweep_osc(0.2, 340, 900, "triangle", curve=1.4), env_exp(int(0.2 * RATE), 13))
+    sparkle = mix(*[delay(partials(0.22, f, [1, 2.01], [16, 24], [1, 0.3]), i * 0.025) for i, f in enumerate((1568, 2093, 2637))])
+    return mix(tone, gain(sparkle, 0.3))
+
+
+def land():
+    thump = apply(sweep_osc(0.13, 130, 50, "sine"), env_exp(int(0.13 * RATE), 28))
+    scuff = apply(lowpass(noise(0.09, 31), 1600, 500), env_exp(int(0.09 * RATE), 38))
+    return mix(thump, gain(scuff, 0.5))
+
+
+def orb():
+    # A small glassy chime.
+    return mix(partials(0.35, 1760, [1, 2.0, 3.01], [11, 16, 24], [1, 0.35, 0.15]),
+               delay(partials(0.4, 2637, [1, 2.0], [10, 16], [0.7, 0.2]), 0.045))
+
+
+def checkpoint():
+    # The lantern catching: a breath of flame, then a warm open chord.
+    flame = apply(bandpass(noise(0.5, 32), 300, 1400, q=1.2), env_adsr(int(0.5 * RATE), 0.12, 0.35))
+    chord = [delay(partials(1.1, f, [1, 2, 3], [3.5, 5, 8], [1, 0.3, 0.1]), 0.1 + i * 0.07) for i, f in enumerate((440, 554.37, 659.25, 880))]
+    return mix(gain(flame, 0.8), gain(mix(*chord), 0.45))
+
+
+def light_low():
+    # A heartbeat: two low thuds.
+    def thud(level):
+        return gain(apply(sweep_osc(0.2, 85, 42, "sine"), env_exp(int(0.2 * RATE), 20)), level)
+    return saturate(mix(thud(1.0), delay(thud(0.7), 0.17)), 1.5)
+
+
+def gate():
+    # Walking into the light: a slow swell that opens up over a rising chord.
+    count = int(2.4 * RATE)
+    voices = []
+    for f in (220, 277.18, 329.63, 440, 659.25):
+        for detune in (0.995, 1.005):
+            voices.append(sweep_osc(2.4, f * detune, f * detune, "saw"))
+    swell = apply(lowpass(mix(*voices), 400, 5000), env_adsr(count, 0.9, 1.2))
+    bells = [delay(partials(1.4, f, [1, 2.01, 3.0], [3, 5, 8], [1, 0.4, 0.2]), 0.35 + i * 0.16) for i, f in enumerate((880, 1108.7, 1318.5, 1760, 2217.5))]
+    return mix(gain(swell, 0.14), gain(mix(*bells), 0.35))
+
+
 def ui_move():
     return apply(sweep_osc(0.035, 1900, 1700, "triangle"), env_exp(int(0.035 * RATE), 90))
 
@@ -268,6 +320,8 @@ SOUNDS = {
     "ShaytaanDeath": shaytaan_death, "DajjalHit": dajjal_hit, "DajjalDeath": dajjal_death,
     "LifeLost": life_lost, "Respawn": respawn, "ShieldBlock": shield_block, "Glide": glide,
     "PowerUp": power_up, "PowerDown": power_down, "Book": book, "WaveStart": wave_start,
+    "Jump": jump, "DoubleJump": double_jump, "Land": land, "Orb": orb,
+    "Checkpoint": checkpoint, "LightLow": light_low, "Gate": gate,
     "UIMove": ui_move, "UISelect": ui_select, "UIPlay": ui_play,
 }
 

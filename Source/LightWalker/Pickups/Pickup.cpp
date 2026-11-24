@@ -146,7 +146,7 @@ void APickup::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	Age += DeltaSeconds;
-	if (Age >= Lifetime)
+	if (!bPersistent && Age >= Lifetime)
 	{
 		Destroy();
 		return;
@@ -157,7 +157,7 @@ void APickup::Tick(float DeltaSeconds)
 
 	// Pulse faster and faster as it's about to vanish. A smooth pulse rather than a hard on/off blink: flicking the
 	// light and glow off every few frames leaves dark smears in the temporal lighting and anti-aliasing.
-	const float Left = Lifetime - Age;
+	const float Left = bPersistent ? BlinkTime : Lifetime - Age;
 	float Pulse = 1.f;
 	if (Left < BlinkTime)
 	{
@@ -186,8 +186,7 @@ void APickup::Tick(float DeltaSeconds)
 	Light->SetIntensity(LightIntensity * Pulse * Pulse);
 
 	ALightWalkerPawn* LightWalker = Player.Get();
-	if (LightWalker && !LightWalker->IsDowned() &&
-		FVector::DistSquared2D(GetActorLocation(), LightWalker->GetActorLocation()) <= FMath::Square(CollectRadius))
+	if (LightWalker && !LightWalker->IsDowned() && LightWalker->IsWithin(GetActorLocation(), CollectRadius))
 	{
 		LWFX::PickupCollect(GetWorld(), GetActorLocation(), LWPickups::GetColor(Type), Type == EPickupType::Book);
 		LightWalker->CollectPickup(Type);

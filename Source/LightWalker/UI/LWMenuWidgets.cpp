@@ -857,6 +857,16 @@ void ULWControlsMenu::Build(UCanvasPanel* Root)
 	});
 	AddButton(Column, TEXT("BACK"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->CloseControls(); } });
 
+	// The longest page: rows sit closer together so the title stays on screen.
+	for (UPanelSlot* Row : Column->GetSlots())
+	{
+		UVerticalBoxSlot* RowSlot = Cast<UVerticalBoxSlot>(Row);
+		if (RowSlot && Cast<UButton>(RowSlot->Content))
+		{
+			RowSlot->SetPadding(FMargin(0.f, 1.f));
+		}
+	}
+
 	// What stays fixed, along the bottom of the screen like the main menu's footer.
 	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -24.f));
 	Footer->AddChildToVerticalBox(MakeBody(TEXT("ARROW KEYS AND LEFT STICK ALSO MOVE       MOUSE OR RIGHT STICK AIMS       ESC PAUSES"), 18, LWStyle::Muted, 200));

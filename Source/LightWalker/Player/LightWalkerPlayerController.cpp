@@ -1,6 +1,6 @@
 #include "Player/LightWalkerPlayerController.h"
 
-#include "Arena/ArenaGameMode.h"
+#include "Core/LWGameMode.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
@@ -91,6 +91,7 @@ void ALightWalkerPlayerController::BuildInput()
 	MoveAction = MakeAction(TEXT("IA_Move"), EInputActionValueType::Axis2D);
 	AimAction = MakeAction(TEXT("IA_Aim"), EInputActionValueType::Axis2D);
 	FireAction = MakeAction(TEXT("IA_Fire"), EInputActionValueType::Boolean);
+	JumpAction = MakeAction(TEXT("IA_Jump"), EInputActionValueType::Boolean);
 	MouseFireAction = MakeAction(TEXT("IA_MouseFire"), EInputActionValueType::Boolean);
 	ConfirmAction = MakeAction(TEXT("IA_Confirm"), EInputActionValueType::Boolean, true);
 	PauseAction = MakeAction(TEXT("IA_Pause"), EInputActionValueType::Boolean, true);
@@ -107,6 +108,8 @@ void ALightWalkerPlayerController::ApplyBindings()
 		return;
 	}
 	MappingContext->UnmapAll();
+	const ALWGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<ALWGameMode>() : nullptr;
+	const bool bJumping = GameMode && GameMode->UsesJump();
 
 	// The player's bindings (Settings > Controls), keyboard and gamepad.
 	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
@@ -118,8 +121,23 @@ void ALightWalkerPlayerController::ApplyBindings()
 		};
 		MapDirectionalKeys(MappingContext, MoveAction,
 			Bound(ELWBinding::MoveUp), Bound(ELWBinding::MoveLeft), Bound(ELWBinding::MoveDown), Bound(ELWBinding::MoveRight));
-		MapKeys(MappingContext, FireAction, { Bound(ELWBinding::Fire) });
 		MapKeys(MappingContext, PauseAction, { Bound(ELWBinding::Pause) });
+
+		FKey Fire = Bound(ELWBinding::Fire);
+		if (bJumping)
+		{
+			// On The Path, jump wins a key it shares with fire (the space bar by default), and fire moves to F.
+			MapKeys(MappingContext, JumpAction, { Bound(ELWBinding::Jump) });
+			if (Fire == Bound(ELWBinding::Jump))
+			{
+				Fire = bGamepad ? EKeys::Gamepad_RightTrigger : EKeys::F;
+			}
+			if (!bGamepad && Bound(ELWBinding::MoveUp) != Bound(ELWBinding::Jump))
+			{
+				MapKeys(MappingContext, JumpAction, { Bound(ELWBinding::MoveUp), EKeys::Up });
+			}
+		}
+		MapKeys(MappingContext, FireAction, { Fire });
 	}
 
 	// Fixed: the arrow keys and sticks always move and aim, the mouse always aims, Esc always pauses.
@@ -149,6 +167,8 @@ void ALightWalkerPlayerController::SetupInputComponent()
 	Input->BindAction(AimAction, ETriggerEvent::Completed, this, &ALightWalkerPlayerController::HandleAimReleased);
 	Input->BindAction(FireAction, ETriggerEvent::Triggered, this, &ALightWalkerPlayerController::HandleFire);
 	Input->BindAction(FireAction, ETriggerEvent::Completed, this, &ALightWalkerPlayerController::HandleFireReleased);
+	Input->BindAction(JumpAction, ETriggerEvent::Started, this, &ALightWalkerPlayerController::HandleJump);
+	Input->BindAction(JumpAction, ETriggerEvent::Completed, this, &ALightWalkerPlayerController::HandleJumpReleased);
 	Input->BindAction(MouseFireAction, ETriggerEvent::Triggered, this, &ALightWalkerPlayerController::HandleMouseFire);
 	Input->BindAction(MouseFireAction, ETriggerEvent::Completed, this, &ALightWalkerPlayerController::HandleMouseFireReleased);
 	Input->BindAction(ConfirmAction, ETriggerEvent::Started, this, &ALightWalkerPlayerController::HandleConfirm);
@@ -188,7 +208,7 @@ void ALightWalkerPlayerController::PlayerTick(float DeltaTime)
 	}
 
 	FVector Target;
-	if (bMouseFireHeld && GetCursorOnPlane(LightWalker->GetActorLocation().Z, Target))
+	if (bMouseFireHeld && GetCursorTarget(*LightWalker, Target))
 	{
 		LightWalker->SetCursorAim(true, Target);
 	}
@@ -198,23 +218,11 @@ void ALightWalkerPlayerController::PlayerTick(float DeltaTime)
 	}
 }
 
-bool ALightWalkerPlayerController::GetCursorOnPlane(float PlaneZ, FVector& OutPoint) const
+bool ALightWalkerPlayerController::GetCursorTarget(const ALightWalkerPawn& LightWalker, FVector& OutPoint) const
 {
 	FVector Origin;
 	FVector Direction;
-	if (!DeprojectMousePositionToWorld(Origin, Direction) || FMath::IsNearlyZero(Direction.Z))
-	{
-		return false;
-	}
-
-	const float Distance = (PlaneZ - Origin.Z) / Direction.Z;
-	if (Distance <= 0.f)
-	{
-		return false;
-	}
-
-	OutPoint = Origin + Direction * Distance;
-	return true;
+	return DeprojectMousePositionToWorld(Origin, Direction) && LightWalker.ProjectCursor(Origin, Direction, OutPoint);
 }
 
 void ALightWalkerPlayerController::HandleMove(const FInputActionValue& Value)
@@ -265,6 +273,22 @@ void ALightWalkerPlayerController::HandleFireReleased(const FInputActionValue& V
 	}
 }
 
+void ALightWalkerPlayerController::HandleJump(const FInputActionValue& Value)
+{
+	if (ALightWalkerPawn* LightWalker = GetPawn<ALightWalkerPawn>())
+	{
+		LightWalker->SetJumpHeld(true);
+	}
+}
+
+void ALightWalkerPlayerController::HandleJumpReleased(const FInputActionValue& Value)
+{
+	if (ALightWalkerPawn* LightWalker = GetPawn<ALightWalkerPawn>())
+	{
+		LightWalker->SetJumpHeld(false);
+	}
+}
+
 void ALightWalkerPlayerController::HandleMouseFire(const FInputActionValue& Value)
 {
 	bMouseFireHeld = true;
@@ -277,7 +301,7 @@ void ALightWalkerPlayerController::HandleMouseFireReleased(const FInputActionVal
 
 void ALightWalkerPlayerController::HandleConfirm(const FInputActionValue& Value)
 {
-	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 	{
 		GameMode->RequestRestart();
 	}
@@ -285,7 +309,7 @@ void ALightWalkerPlayerController::HandleConfirm(const FInputActionValue& Value)
 
 void ALightWalkerPlayerController::HandlePause(const FInputActionValue& Value)
 {
-	AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>();
+	ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>();
 	if (!GameMode)
 	{
 		return;
@@ -303,7 +327,7 @@ void ALightWalkerPlayerController::HandlePause(const FInputActionValue& Value)
 	{
 		CloseSettings();
 	}
-	else if (GameMode->GetPhase() == EArenaPhase::Menu)
+	else if (GameMode->IsInMenu())
 	{
 		// Nothing to pause on the main menu.
 	}
@@ -371,6 +395,7 @@ void ALightWalkerPlayerController::ShowMenu(ULWMenuWidget* Menu)
 		LightWalker->SetMoveInput(FVector2D::ZeroVector);
 		LightWalker->SetAimInput(FVector2D::ZeroVector);
 		LightWalker->SetFireHeld(false);
+		LightWalker->SetJumpHeld(false);
 	}
 	bMouseFireHeld = false;
 
@@ -405,7 +430,7 @@ void ALightWalkerPlayerController::StartGameFromMenu()
 {
 	ULWSoundSubsystem::Play(this, ELWSound::UIPlay);
 	ShowMenu(nullptr);
-	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 	{
 		GameMode->StartFromMenu();
 	}
@@ -434,6 +459,18 @@ FString ALightWalkerPlayerController::GetHeroName() const
 		return LightWalker && LightWalker->HasHeroModel(1) ? TEXT("FEMALE") : TEXT("FEMALE (COMING SOON)");
 	}
 	return TEXT("MALE");
+}
+
+FString ALightWalkerPlayerController::GetPathHint() const
+{
+	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+	auto Name = [Settings](ELWBinding Binding, bool bGamepad)
+	{
+		return ULightWalkerUserSettings::GetKeyLabel(Settings ? Settings->GetBinding(Binding, bGamepad) : ULightWalkerUserSettings::GetDefaultBinding(Binding, bGamepad));
+	};
+	const bool bShared = Name(ELWBinding::Fire, false) == Name(ELWBinding::Jump, false);
+	return FString::Printf(TEXT("%s TO JUMP, AGAIN IN THE AIR     %s OR CLICK TO FIRE     GAMEPAD: %s TO JUMP, %s TO FIRE"),
+		*Name(ELWBinding::Jump, false), bShared ? TEXT("F") : *Name(ELWBinding::Fire, false), *Name(ELWBinding::Jump, true), *Name(ELWBinding::Fire, true));
 }
 
 void ALightWalkerPlayerController::OpenSettings()
@@ -498,7 +535,7 @@ void ALightWalkerPlayerController::SetMenuPaused(bool bPaused)
 void ALightWalkerPlayerController::RestartRun()
 {
 	SetMenuPaused(false);
-	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 	{
 		GameMode->RestartRun();
 	}
@@ -507,7 +544,7 @@ void ALightWalkerPlayerController::RestartRun()
 void ALightWalkerPlayerController::QuitToMenu()
 {
 	SetPause(false);
-	if (AArenaGameMode* GameMode = GetWorld()->GetAuthGameMode<AArenaGameMode>())
+	if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
 	{
 		GameMode->ReturnToMenu();
 	}

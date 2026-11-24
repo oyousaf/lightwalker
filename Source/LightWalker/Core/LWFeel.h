@@ -5,8 +5,6 @@
 #include "Tickable.h"
 #include "LWFeel.generated.h"
 
-class AArena;
-
 /** Moments that should be felt, not just seen. */
 enum class ELWFeel : uint8
 {
@@ -23,7 +21,7 @@ enum class ELWFeel : uint8
 };
 
 /**
- * Game feel: camera shake (trauma that decays, applied by AArena), controller rumble, hit-stop (a split second of
+ * Game feel: camera shake (trauma that decays, applied by each mode's camera), controller rumble, hit-stop (a split second of
  * slow motion on the big moments) and full-screen colour flashes (drawn by AArenaHUD). Each moment is one call;
  * the strengths live in a table in LWFeel.cpp. Shake and rumble respect the Screen Shake and Vibration settings.
  */
@@ -53,10 +51,6 @@ public:
 	virtual ETickableTickType GetTickableTickType() const override { return IsTemplate() ? ETickableTickType::Never : ETickableTickType::Always; }
 
 private:
-	AArena* FindArena();
-
-	TWeakObjectPtr<AArena> Arena;
-
 	/** Real time (not game time, which hit-stop slows) when the current hit-stop and flash end. */
 	double HitStopEnd = 0.0;
 	double FlashStart = 0.0;

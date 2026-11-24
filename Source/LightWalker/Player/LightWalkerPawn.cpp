@@ -303,7 +303,7 @@ void ALightWalkerPawn::AnimateRig(float DeltaSeconds)
 
 	// The run: legs swing opposite each other, each knee bending as its leg comes through, the free arm swinging
 	// against its leg, the hips and shoulders twisting against each other. The staff arm only bobs.
-	const float Run = StrideBlend * (1.f - GlideBlend);
+	const float Run = StrideBlend * (1.f - GlideBlend) * (1.f - AirBlend);
 	const float S = FMath::Sin(StrideTime);
 	const float C = FMath::Cos(StrideTime);
 	Turn(TEXT("thigh_l"), Side, RunLegSwing * S * Run);
@@ -321,7 +321,7 @@ void ALightWalkerPawn::AnimateRig(float DeltaSeconds)
 	Turn(TEXT("upperarm_r"), Side, 4.f * S * Run);
 
 	// Standing: slow breathing and the odd glance about.
-	const float Still = 1.f - StrideBlend;
+	const float Still = (1.f - StrideBlend) * (1.f - AirBlend);
 	Turn(TEXT("spine_02"), Side, 1.5f * FMath::Sin(IdleTime * 2.2f) * Still);
 	Turn(TEXT("head"), Up, 6.f * FMath::Sin(IdleTime * 0.45f) * Still);
 	Turn(TEXT("upperarm_r"), Side, 1.5f * FMath::Sin(IdleTime * 2.2f + 0.6f) * Still);
@@ -332,6 +332,17 @@ void ALightWalkerPawn::AnimateRig(float DeltaSeconds)
 	Turn(TEXT("calf_l"), Side, -22.f * GlideBlend);
 	Turn(TEXT("calf_r"), Side, -16.f * GlideBlend);
 	Turn(TEXT("upperarm_l"), Side, -22.f * GlideBlend);
+
+	// Jumping (The Path): the leading knee drives up on the way up, and the legs reach for the ground on the way down.
+	const float Rising = AirBlend * FMath::Clamp(0.5f + 0.5f * AirRise, 0.f, 1.f);
+	const float Falling = AirBlend - Rising;
+	Turn(TEXT("thigh_l"), Side, 30.f * Rising + 16.f * Falling);
+	Turn(TEXT("calf_l"), Side, -44.f * Rising - 12.f * Falling);
+	Turn(TEXT("thigh_r"), Side, -18.f * Rising - 6.f * Falling);
+	Turn(TEXT("calf_r"), Side, -22.f * Rising - 14.f * Falling);
+	Turn(TEXT("upperarm_l"), Side, 26.f * Rising - 20.f * Falling);
+	Turn(TEXT("lowerarm_l"), Side, 16.f * AirBlend);
+	Turn(TEXT("spine_01"), Side, -5.f * Rising + 3.f * Falling);
 
 	Rig->MarkRefreshTransformDirty();
 }
@@ -380,16 +391,10 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 		MoveInput = FVector2D(FMath::Cos(Angle), FMath::Sin(Angle));
 	}
 
-	const FVector Move = ScreenToWorld(MoveInput.GetClampedToMaxSize(1.f));
-	if (!Move.IsNearlyZero() && !IsDevAutoRun())
+	const FVector Move = UpdateMovement(MoveInput.GetClampedToMaxSize(1.f), DeltaSeconds);
+	if (bDowned)
 	{
-		FVector Location = GetActorLocation() + Move * MoveSpeed * Upgrades.MoveSpeed * DeltaSeconds;
-		if (PlayBounds.bIsValid)
-		{
-			Location.X = FMath::Clamp(Location.X, PlayBounds.Min.X, PlayBounds.Max.X);
-			Location.Y = FMath::Clamp(Location.Y, PlayBounds.Min.Y, PlayBounds.Max.Y);
-		}
-		SetActorLocation(Location);
+		return;  // fell, or was caught, while moving
 	}
 
 	FireCooldown = FMath::Max(0.f, FireCooldown - DeltaSeconds);
@@ -403,11 +408,11 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 	FVector FireDirection = FVector::ZeroVector;
 	if (AimInput.Size() >= AimThreshold)
 	{
-		FireDirection = ScreenToWorld(AimInput).GetSafeNormal();
+		FireDirection = AimToWorld(AimInput).GetSafeNormal();
 	}
 	else if (bCursorAim)
 	{
-		FireDirection = (CursorTarget - GetActorLocation()).GetSafeNormal2D();
+		FireDirection = GetCursorDirection();
 	}
 	else if (bFireHeld)
 	{
@@ -430,6 +435,58 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 	}
 }
 
+FVector ALightWalkerPawn::UpdateMovement(const FVector2D& Input, float DeltaSeconds)
+{
+	const FVector Move = ScreenToWorld(Input);
+	if (!Move.IsNearlyZero() && !IsDevAutoRun())
+	{
+		const float Speed = MoveSpeed * (GetRun() ? GetRun()->GetUpgrades().MoveSpeed : 1.f);
+		FVector Location = GetActorLocation() + Move * Speed * DeltaSeconds;
+		if (PlayBounds.bIsValid)
+		{
+			Location.X = FMath::Clamp(Location.X, PlayBounds.Min.X, PlayBounds.Max.X);
+			Location.Y = FMath::Clamp(Location.Y, PlayBounds.Min.Y, PlayBounds.Max.Y);
+		}
+		SetActorLocation(Location);
+	}
+	return Move;
+}
+
+bool ALightWalkerPawn::IsWithin(const FVector& Point, float Distance) const
+{
+	return FVector::DistSquared2D(Point, GetActorLocation()) <= FMath::Square(Distance);
+}
+
+bool ALightWalkerPawn::ProjectCursor(const FVector& Origin, const FVector& Direction, FVector& OutPoint) const
+{
+	// The arena plane, at the pawn's height.
+	const float Distance = FMath::IsNearlyZero(Direction.Z) ? -1.f : (GetActorLocation().Z - Origin.Z) / Direction.Z;
+	OutPoint = Origin + Direction * Distance;
+	return Distance > 0.f;
+}
+
+FVector ALightWalkerPawn::GetMuzzle(const FVector& Direction) const
+{
+	// The lantern, pulled in line with the centre so close-range shots still land.
+	const FVector Lantern2D = HeadingPivot->GetComponentTransform().TransformPosition(FVector(LanternOffset.X, LanternOffset.Y * 0.4f, 0.f));
+	return FVector(Lantern2D.X, Lantern2D.Y, GetActorLocation().Z);
+}
+
+void ALightWalkerPawn::GiveCarriedShield()
+{
+	ULightWalkerGameInstance* Run = GetRun();
+	if (!Run || !Run->bCarriedShield)
+	{
+		return;
+	}
+	Run->bCarriedShield = false;
+	bShield = true;
+	for (UStaticMeshComponent* Mote : ShieldMotes)
+	{
+		Mote->SetVisibility(true);
+	}
+}
+
 void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
 {
 	bool bExpired = false;
@@ -447,9 +504,10 @@ void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
 	// The light grows with the light orb and with book upgrades, and eases back when the orb runs out.
 	const float RunScale = GetRun() ? GetRun()->GetUpgrades().LightRadius : 1.f;
 	const float OrbScale = GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f ? LightOrbScale : 1.f;
-	const float TargetRadius = LightRadius * RunScale * OrbScale;
+	const float LightScale = GetLightScale();
+	const float TargetRadius = LightRadius * RunScale * OrbScale * LightScale;
 	Glow->SetAttenuationRadius(FMath::FInterpTo(Glow->AttenuationRadius, TargetRadius, DeltaSeconds, 4.f));
-	Glow->SetIntensity(30.f * OrbScale);
+	Glow->SetIntensity(30.f * OrbScale * GetLightStrength());
 	Lantern->SetRelativeScale3D(FVector(0.26f * FMath::Sqrt(OrbScale)));
 
 	// The light orb lifts Lightwalker off the ground: rise, hover gently, and settle back when it runs out.
@@ -502,16 +560,14 @@ void ALightWalkerPawn::Fire(const FVector& Direction)
 	const float BoltSpeed = GetRun() ? GetRun()->GetUpgrades().BoltSpeed : 1.f;
 	const bool bPowered = bOrb || bPiercing || BoltSpeed > 1.f;
 
-	// Bolts leave from the lantern, pulled in line with the centre so close-range shots still land.
-	const FVector Lantern2D = HeadingPivot->GetComponentTransform().TransformPosition(FVector(LanternOffset.X, LanternOffset.Y * 0.4f, 0.f));
-	const FVector Start(Lantern2D.X, Lantern2D.Y, GetActorLocation().Z);
+	const FVector Start = GetMuzzle(Direction);
 
 	for (const float Yaw : bSpread ? TArray<float>{ -SpreadAngle, 0.f, SpreadAngle } : TArray<float>{ 0.f })
 	{
-		const FVector BoltDirection = FRotator(0.f, Yaw, 0.f).RotateVector(Direction);
+		const FVector BoltDirection = FQuat(GetFanAxis(), FMath::DegreesToRadians(Yaw)).RotateVector(Direction);
 		if (ALaser* Laser = World->SpawnActor<ALaser>(LaserClass, Start, BoltDirection.Rotation(), Params))
 		{
-			Laser->Launch(BoltDirection, PlayBounds);
+			Laser->Launch(BoltDirection, GetShotBounds());
 			if (bPowered)
 			{
 				Laser->SetPower(bOrb ? LightOrbScale : 1.f, BoltSpeed, bPiercing,

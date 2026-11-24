@@ -27,6 +27,17 @@ struct FRunUpgrades
 	float MoveSpeed = 1.f;
 };
 
+/** How the arena map should begin when it loads. */
+enum class EArenaStart : uint8
+{
+	/** The main menu (after the intro, the first time). */
+	Menu,
+	/** A new run from wave 1. */
+	NewRun,
+	/** The run in progress, at GetNextWave. */
+	Continue
+};
+
 /** What a book of knowledge gave and said. */
 struct FBookReading
 {
@@ -58,7 +69,21 @@ public:
 	int32 GetBestScore() const { return BestScore; }
 	const FRunUpgrades& GetUpgrades() const { return Upgrades; }
 
+	/** Set before travelling to the arena; read once by its game mode. */
+	void SetArenaStart(EArenaStart Start, int32 WaveIndex = 0) { ArenaStart = Start; NextWave = WaveIndex; }
+	EArenaStart TakeArenaStart() { const EArenaStart Start = ArenaStart; ArenaStart = EArenaStart::Menu; return Start; }
+	int32 GetNextWave() const { return NextWave; }
+
+	/** The intro plays once per launch, not every time the arena map loads. */
+	bool bIntroSeen = false;
+
+	/** An unused shield comes along between modes. */
+	bool bCarriedShield = false;
+
 private:
+	EArenaStart ArenaStart = EArenaStart::Menu;
+	int32 NextWave = 0;
+
 	int32 Score = 0;
 	int32 Lives = 0;
 	int32 BestScore = 0;

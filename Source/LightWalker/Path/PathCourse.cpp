@@ -1,0 +1,661 @@
+#include "Path/PathCourse.h"
+
+#include "Camera/CameraComponent.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/PostProcessComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Core/LWNeon.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	/** Half the depth of the course, towards and away from the camera. */
+	constexpr float PathDepth = 130.f;
+	constexpr float LedgeThickness = 36.f;
+	/** The neon grid at the bottom of the abyss. */
+	constexpr float AbyssZ = -1500.f;
+
+	const FLinearColor GroundEdge(1.f, 0.1f, 0.45f);
+	const FLinearColor LedgeEdge(0.2f, 0.85f, 1.f);
+	const FLinearColor CrumbleEdge(1.f, 0.42f, 0.1f);
+	const FLinearColor MovingEdge(0.75f, 0.2f, 1.f);
+	const FLinearColor SpikeColor(1.f, 0.08f, 0.2f);
+	const FLinearColor GateColor(1.f, 0.8f, 0.35f);
+
+	const FName IntensityName(TEXT("Intensity"));
+
+	FLinearColor EdgeColorFor(EPathBlock Kind)
+	{
+		switch (Kind)
+		{
+		case EPathBlock::Ledge:     return LedgeEdge;
+		case EPathBlock::Crumbling: return CrumbleEdge;
+		case EPathBlock::Moving:    return MovingEdge;
+		default:                    return GroundEdge;
+		}
+	}
+}
+
+APathCourse::APathCourse()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cone(TEXT("/Engine/BasicShapes/Cone.Cone"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	CubeMesh = Cube.Object;
+	ConeMesh = Cone.Object;
+	SphereMesh = Sphere.Object;
+	CylinderMesh = Cylinder.Object;
+
+	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	Camera->SetupAttachment(RootComponent);
+	Camera->bConstrainAspectRatio = false;
+
+	Moonlight = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("Moonlight"));
+	Moonlight->SetupAttachment(RootComponent);
+	Moonlight->SetRelativeRotation(FRotator(-50.f, 25.f, 0.f));
+	Moonlight->SetIntensity(MoonlightIntensity);
+	Moonlight->SetLightColor(FLinearColor(0.45f, 0.5f, 1.f));
+	Moonlight->SetCastShadows(false);
+
+	PostProcess = CreateDefaultSubobject<UPostProcessComponent>(TEXT("PostProcess"));
+	PostProcess->SetupAttachment(RootComponent);
+	PostProcess->bUnbound = true;
+	LWNeon::SetupPostProcess(PostProcess->Settings);
+
+	Sky = CreateDefaultSubobject<USceneComponent>(TEXT("Sky"));
+	Sky->SetupAttachment(RootComponent);
+	Sun = CreateDefaultSubobject<USceneComponent>(TEXT("Sun"));
+	Sun->SetupAttachment(Sky);
+
+	// Built here rather than in BeginPlay, so the game mode can read the layout as soon as the course exists.
+	BuildCourse();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The layout
+
+void APathCourse::Ground(float Length)
+{
+	AddBlock(EPathBlock::Ground, 0.f, Length, 0.f);
+	CursorY += Length;
+}
+
+void APathCourse::AddBlock(EPathBlock Kind, float FromCursor, float Width, float Height, const FVector2D& Travel, float Period)
+{
+	FPathBlock& Block = Blocks.AddDefaulted_GetRef();
+	Block.Kind = Kind;
+	Block.Left = CursorY + FromCursor;
+	Block.Right = Block.Left + Width;
+	Block.Top = CursorZ + Height;
+	Block.Travel = Travel;
+	Block.Period = Period;
+}
+
+void APathCourse::SpikesBack(float Back, float Width)
+{
+	Spikes.Add({ CursorY - Back, CursorY - Back + Width, CursorZ });
+}
+
+void APathCourse::Orbs(float FromCursor, int32 Count, float Span, float Height, float Arc)
+{
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float T = Count > 1 ? static_cast<float>(Index) / (Count - 1) : 0.5f;
+		OrbSpots.Add(FVector2D(CursorY + FromCursor + Span * T, CursorZ + Height + Arc * FMath::Sin(PI * T)));
+	}
+}
+
+void APathCourse::Enemy(EPathSpawn Kind, float Back, float Height, float PatrolBack, float PatrolFront)
+{
+	Spawns.Add({ Kind, CursorY - Back, CursorZ + Height, CursorY - PatrolBack, CursorY - PatrolFront });
+}
+
+void APathCourse::Checkpoint(float Back)
+{
+	Checkpoints.Add(FVector2D(CursorY - Back, CursorZ));
+}
+
+void APathCourse::BuildCourse()
+{
+	// Lightwalker runs at 640 cm/s. One jump clears about 250 up and 440 across; two clear about 420 up and 720 across.
+	// Nothing below asks for more than 80% of that.
+
+	// 1. Spikes (the first level of the 2014 Green Ball plan): one jump at a time, then gaps.
+	Ground(1300.f);
+	Checkpoint(1050.f);
+	Orbs(-500.f, 3, 240.f, 90.f);
+	Ground(700.f);
+	SpikesBack(380.f, 70.f);
+	Orbs(-345.f, 1, 0.f, 260.f);
+	Ground(700.f);
+	SpikesBack(420.f, 140.f);
+	Orbs(-350.f, 1, 0.f, 290.f);
+	Gap(230.f);
+	Ground(740.f);
+	SpikesBack(460.f, 70.f);
+	Orbs(40.f, 3, 180.f, 130.f, 90.f);
+	Gap(270.f);
+	Rise(90.f);
+	Ground(640.f);
+	SpikesBack(390.f, 140.f);
+	Gap(280.f);
+	Rise(-150.f);
+	Orbs(-150.f, 1, 0.f, 300.f);
+	Ground(700.f);
+	Checkpoint(350.f);
+
+	// 2. Double jumps (the second level of the plan).
+	Orbs(90.f, 4, 330.f, 190.f, 120.f);
+	Gap(510.f);
+	Ground(520.f);
+	Rise(320.f);
+	Orbs(-60.f, 1, 0.f, 80.f);
+	Ground(700.f);
+	SpikesBack(420.f, 140.f);
+	AddBlock(EPathBlock::Ledge, 260.f, 240.f, 60.f);
+	Orbs(380.f, 1, 0.f, 150.f);
+	AddBlock(EPathBlock::Ledge, 800.f, 220.f, 180.f);
+	Orbs(910.f, 1, 0.f, 270.f);
+	Gap(1300.f);
+	Rise(60.f);
+	Ground(660.f);
+	SpikesBack(420.f, 70.f);
+	Gap(300.f);
+	Rise(-320.f);
+	Ground(420.f);
+	// Carried across: the moving ledge.
+	AddBlock(EPathBlock::Moving, 120.f, 260.f, 0.f, FVector2D(620.f, 0.f), 5.f);
+	Orbs(560.f, 2, 220.f, 130.f);
+	Gap(1120.f);
+	Ground(760.f);
+	SpikesBack(520.f, 200.f);
+	Orbs(-420.f, 1, 0.f, 330.f);
+	Checkpoint(170.f);
+
+	// 3. The enemies 2014 never managed.
+	Gap(260.f);
+	Ground(1700.f);
+	Enemy(EPathSpawn::Shaytaan, 1000.f, 0.f, 1350.f, 750.f);
+	Enemy(EPathSpawn::Shaytaan, 450.f, 0.f, 650.f, 60.f);
+	// The book of knowledge, off the main way: two ledges up.
+	AddBlock(EPathBlock::Ledge, -1250.f, 220.f, 230.f);
+	AddBlock(EPathBlock::Ledge, -880.f, 220.f, 440.f);
+	Orbs(-1140.f, 1, 0.f, 320.f);
+	Spawns.Add({ EPathSpawn::Book, CursorY - 770.f, CursorZ + 440.f });
+	Orbs(-420.f, 2, 220.f, 110.f);
+	Gap(280.f);
+	Ground(900.f);
+	Enemy(EPathSpawn::Dajjal, 320.f, 110.f);
+	SpikesBack(640.f, 70.f);
+	Orbs(-760.f, 1, 0.f, 100.f);
+	// Crumbling ledges: keep moving.
+	AddBlock(EPathBlock::Crumbling, 170.f, 230.f, 0.f);
+	AddBlock(EPathBlock::Crumbling, 560.f, 230.f, 40.f);
+	AddBlock(EPathBlock::Crumbling, 950.f, 230.f, 0.f);
+	Orbs(285.f, 3, 780.f, 150.f);
+	Gap(1350.f);
+	Ground(760.f);
+	Enemy(EPathSpawn::Shaytaan, 380.f, 0.f, 600.f, 250.f);
+	Checkpoint(130.f);
+
+	// 4. Everything together.
+	AddBlock(EPathBlock::Moving, 90.f, 280.f, -20.f, FVector2D(0.f, 520.f), 5.f);
+	Orbs(230.f, 2, 0.f, 330.f, 0.f);
+	Gap(460.f);
+	Rise(500.f);
+	Ground(720.f);
+	SpikesBack(430.f, 140.f);
+	Orbs(80.f, 3, 340.f, 190.f, 120.f);
+	Gap(500.f);
+	Rise(-120.f);
+	AddBlock(EPathBlock::Crumbling, 0.f, 260.f, 0.f);
+	Gap(560.f);
+	Ground(620.f);
+	SpikesBack(420.f, 70.f);
+	AddBlock(EPathBlock::Ledge, 420.f, 240.f, 40.f);
+	Orbs(540.f, 1, 0.f, 140.f);
+	AddBlock(EPathBlock::Crumbling, 960.f, 230.f, 60.f);
+	Orbs(1075.f, 1, 0.f, 160.f);
+	Gap(1400.f);
+	Rise(-120.f);
+	Ground(1500.f);
+	Enemy(EPathSpawn::Shaytaan, 1050.f, 0.f, 1250.f, 800.f);
+	Enemy(EPathSpawn::Dajjal, 680.f, 120.f);
+	Enemy(EPathSpawn::Shaytaan, 380.f, 0.f, 620.f, 60.f);
+	Orbs(-300.f, 2, 180.f, 110.f);
+	Gap(300.f);
+	Ground(1800.f);
+	SpikesBack(1500.f, 140.f);
+	Orbs(-1100.f, 5, 480.f, 110.f);
+	GateY = CursorY - 620.f;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Meshes
+
+UStaticMeshComponent* APathCourse::AddMesh(UStaticMesh* Mesh, USceneComponent* Parent, const FVector& Location, const FVector& Scale, const FRotator& Rotation)
+{
+	UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this);
+	Part->SetupAttachment(Parent);
+	Part->SetStaticMesh(Mesh);
+	Part->SetRelativeLocation(Location);
+	Part->SetRelativeRotation(Rotation);
+	Part->SetRelativeScale3D(Scale);
+	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Part->SetCastShadow(false);
+	Part->bAffectDynamicIndirectLighting = false;
+	Part->bAffectDistanceFieldLighting = false;
+	Part->RegisterComponent();
+	Built.Add(Part);
+	return Part;
+}
+
+UInstancedStaticMeshComponent* APathCourse::AddInstances(UStaticMesh* Mesh, USceneComponent* Parent)
+{
+	UInstancedStaticMeshComponent* Part = NewObject<UInstancedStaticMeshComponent>(this);
+	Part->SetupAttachment(Parent);
+	Part->SetStaticMesh(Mesh);
+	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Part->SetCastShadow(false);
+	Part->bAffectDynamicIndirectLighting = false;
+	Part->bAffectDistanceFieldLighting = false;
+	Part->bVisibleInRayTracing = false;
+	Part->RegisterComponent();
+	Built.Add(Part);
+	return Part;
+}
+
+void APathCourse::BeginPlay()
+{
+	Super::BeginPlay();
+	BuildMeshes();
+	BuildBackdrop();
+}
+
+void APathCourse::BuildMeshes()
+{
+	for (FPathBlock& Block : Blocks)
+	{
+		const float Width = Block.Right - Block.Left;
+		const float Middle = (Block.Left + Block.Right) * 0.5f;
+		const float Bottom = Block.Kind == EPathBlock::Ground ? AbyssZ : Block.Top - LedgeThickness;
+
+		FPart Part;
+		Part.BodyStart = FVector(0.f, Middle, (Block.Top + Bottom) * 0.5f);
+		UStaticMeshComponent* Body = AddMesh(CubeMesh, RootComponent, Part.BodyStart, FVector(PathDepth * 2.f, Width, Block.Top - Bottom) / 100.f);
+		LWNeon::ApplySurface(Body, GroundColor);
+
+		// The glowing lip along the front edge.
+		Part.EdgeStart = FVector(-PathDepth - 2.f, Middle, Block.Top - 5.f);
+		UStaticMeshComponent* Edge = AddMesh(CubeMesh, RootComponent, Part.EdgeStart, FVector(0.05f, Width / 100.f, 0.1f));
+		if (Block.Kind == EPathBlock::Ground)
+		{
+			// Faint lines down the rock face, fading into the abyss.
+			for (int32 Line = 0; Line < 5; ++Line)
+			{
+				UStaticMeshComponent* Seam = AddMesh(CubeMesh, RootComponent, FVector(-PathDepth - 1.f, Middle, Block.Top - 70.f - Line * (70.f + Line * 26.f)), FVector(0.03f, Width / 100.f, 0.02f));
+				LWNeon::ApplyGlow(Seam, FLinearColor(0.75f, 0.1f, 0.6f), 0.16f - Line * 0.028f);
+			}
+		}
+		Part.Body = Body;
+		Part.Edge = Edge;
+		Part.EdgeMaterial = LWNeon::ApplyGlow(Edge, EdgeColorFor(Block.Kind), EdgeGlowInDark);
+		Block.Part = Parts.Add(Part);
+	}
+
+	for (const FPathSpikes& Row : Spikes)
+	{
+		UInstancedStaticMeshComponent* Cones = AddInstances(ConeMesh, RootComponent);
+		const int32 Count = FMath::Max(1, FMath::RoundToInt((Row.Right - Row.Left) / 68.f));
+		const float Step = (Row.Right - Row.Left) / Count;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			for (const float Depth : { -70.f, 0.f, 70.f })
+			{
+				Cones->AddInstance(FTransform(FRotator::ZeroRotator, FVector(Depth, Row.Left + Step * (Index + 0.5f), Row.Base + 44.f), FVector(0.55f, 0.6f, 0.9f)));
+			}
+		}
+		SpikeRows.Add({ LWNeon::ApplyGlow(Cones, SpikeColor, EdgeGlowInDark), (Row.Left + Row.Right) * 0.5f, Row.Base });
+	}
+
+	// Checkpoint lanterns: a post at the back of the path with a flame that lights as you pass.
+	for (const FVector2D& Spot : Checkpoints)
+	{
+		const FVector Foot(70.f, Spot.X, Spot.Y);
+		UStaticMeshComponent* Post = AddMesh(CylinderMesh, RootComponent, Foot + FVector(0.f, 0.f, 110.f), FVector(0.08f, 0.08f, 2.2f));
+		LWNeon::ApplySurface(Post, FLinearColor(0.12f, 0.07f, 0.16f));
+		UStaticMeshComponent* Arm = AddMesh(CubeMesh, RootComponent, Foot + FVector(-30.f, 0.f, 216.f), FVector(0.7f, 0.06f, 0.06f));
+		LWNeon::ApplySurface(Arm, FLinearColor(0.12f, 0.07f, 0.16f));
+		UStaticMeshComponent* Flame = AddMesh(SphereMesh, RootComponent, Foot + FVector(-58.f, 0.f, 186.f), FVector(0.26f, 0.26f, 0.34f));
+
+		UPointLightComponent* Light = NewObject<UPointLightComponent>(this);
+		Light->SetupAttachment(RootComponent);
+		Light->SetRelativeLocation(Foot + FVector(-90.f, 0.f, 190.f));
+		Light->SetIntensityUnits(ELightUnits::Candelas);
+		Light->SetIntensity(0.f);
+		Light->SetAttenuationRadius(650.f);
+		Light->SetLightColor(FLinearColor(1.f, 0.75f, 0.4f));
+		Light->SetCastShadows(false);
+		Light->RegisterComponent();
+		Built.Add(Light);
+
+		FLantern& Lantern = Lanterns.AddDefaulted_GetRef();
+		Lantern.Flame = LWNeon::ApplyGlow(Flame, FLinearColor(1.f, 0.7f, 0.3f), 0.15f);
+		Lantern.Light = Light;
+	}
+
+	// The gate of light, facing the camera from the back of the path: two pillars, an arch of stones and a bright veil.
+	float GateZ = 0.f;
+	for (const FPathBlock& Block : Blocks)
+	{
+		if (Block.Kind == EPathBlock::Ground && Block.Left <= GateY && Block.Right >= GateY)
+		{
+			GateZ = Block.Top;
+		}
+	}
+	constexpr float GateX = 95.f;
+	constexpr float GateHalf = 130.f;
+	constexpr float PillarHeight = 300.f;
+	for (const float Side : { -1.f, 1.f })
+	{
+		UStaticMeshComponent* Pillar = AddMesh(CubeMesh, RootComponent, FVector(GateX, GateY + Side * GateHalf, GateZ + PillarHeight * 0.5f), FVector(0.5f, 0.42f, PillarHeight / 100.f));
+		LWNeon::ApplyGlow(Pillar, FLinearColor(1.f, 0.5f, 0.1f), 0.9f);
+		UStaticMeshComponent* Cap = AddMesh(CubeMesh, RootComponent, FVector(GateX, GateY + Side * GateHalf, GateZ + PillarHeight), FVector(0.6f, 0.6f, 0.16f));
+		LWNeon::ApplyGlow(Cap, GateColor, 1.6f);
+	}
+	constexpr int32 Stones = 13;
+	for (int32 Stone = 0; Stone < Stones; ++Stone)
+	{
+		const float Angle = PI * Stone / (Stones - 1);
+		UStaticMeshComponent* Part = AddMesh(CubeMesh, RootComponent, FVector(GateX, GateY - FMath::Cos(Angle) * GateHalf, GateZ + PillarHeight + FMath::Sin(Angle) * GateHalf),
+			FVector(0.5f, 0.28f, 0.4f), FRotator(0.f, 0.f, FMath::RadiansToDegrees(Angle) - 90.f));
+		LWNeon::ApplyGlow(Part, Stone % 2 == 0 ? FLinearColor(1.f, 0.5f, 0.1f) : GateColor, Stone % 2 == 0 ? 0.9f : 1.6f);
+	}
+	UStaticMeshComponent* Veil = AddMesh(CubeMesh, RootComponent, FVector(GateX + 12.f, GateY, GateZ + PillarHeight * 0.5f), FVector(0.04f, GateHalf * 2.f / 100.f, PillarHeight / 100.f));
+	LWNeon::ApplyGlow(Veil, FLinearColor(1.f, 0.85f, 0.55f), 1.5f);
+	UStaticMeshComponent* Dome = AddMesh(CylinderMesh, RootComponent, FVector(GateX + 12.f, GateY, GateZ + PillarHeight), FVector(GateHalf * 2.f / 100.f, GateHalf * 2.f / 100.f, 0.04f), FRotator(90.f, 0.f, 0.f));
+	LWNeon::ApplyGlow(Dome, FLinearColor(1.f, 0.85f, 0.55f), 1.5f);
+	UPointLightComponent* GateLight = NewObject<UPointLightComponent>(this);
+	GateLight->SetupAttachment(RootComponent);
+	GateLight->SetRelativeLocation(FVector(-60.f, GateY, GateZ + 240.f));
+	GateLight->SetIntensityUnits(ELightUnits::Candelas);
+	GateLight->SetIntensity(90.f);
+	GateLight->SetAttenuationRadius(1500.f);
+	GateLight->SetLightColor(GateColor);
+	GateLight->SetCastShadows(false);
+	GateLight->RegisterComponent();
+	Built.Add(GateLight);
+}
+
+void APathCourse::BuildBackdrop()
+{
+	FRandomStream Random(2014);
+
+	// Sky: thin bands from near-black purple down to a magenta glow at the horizon.
+	constexpr int32 Bands = 46;
+	for (int32 Band = 0; Band < Bands; ++Band)
+	{
+		const float T = FMath::Max(0.f, static_cast<float>(Band - 6) / (Bands - 7));  // 0 at and below the horizon, 1 at the top
+		const FLinearColor Colour = FMath::Lerp(FLinearColor(0.13f, 0.014f, 0.095f), FLinearColor(0.003f, 0.001f, 0.012f), FMath::Pow(T, 0.36f));
+		UStaticMeshComponent* Strip = AddMesh(CubeMesh, Sky, FVector(16000.f, 0.f, -3340.f + Band * 340.f), FVector(1.f, 1400.f, 3.5f));
+		LWNeon::ApplyGlow(Strip, Colour, 1.f);
+	}
+
+	UInstancedStaticMeshComponent* Stars = AddInstances(SphereMesh, Sky);
+	for (int32 Index = 0; Index < 260; ++Index)
+	{
+		Stars->AddInstance(FTransform(FRotator::ZeroRotator,
+			FVector(15500.f, Random.FRandRange(-26000.f, 26000.f), Random.FRandRange(2200.f, 11500.f)), FVector(Random.FRandRange(0.12f, 0.4f))));
+	}
+	LWNeon::ApplyGlow(Stars, FLinearColor(0.75f, 0.8f, 1.f), 1.4f);
+
+	// The sun, low and striped like the menu's sunset, rising as the gate gets nearer.
+	UStaticMeshComponent* Disc = AddMesh(SphereMesh, Sun, FVector::ZeroVector, FVector(1.f, 46.f, 46.f));
+	LWNeon::ApplyGlow(Disc, FLinearColor(1.f, 0.13f, 0.1f), 0.8f);
+	for (int32 Stripe = 0; Stripe < 7; ++Stripe)
+	{
+		UStaticMeshComponent* Bar = AddMesh(CubeMesh, Sun, FVector(-150.f, 0.f, -220.f - Stripe * 300.f), FVector(0.2f, 48.f, 0.5f + Stripe * 0.22f));
+		LWNeon::ApplyGlow(Bar, FLinearColor(0.12f, 0.014f, 0.09f), 1.f);
+	}
+
+	// Ridges: three rows of dark peaks, darker as they come nearer. Wide enough for a 32:9 screen at either end.
+	struct FRidge { float X, Base, Low, High, Step; FLinearColor Colour; };
+	const FRidge Ridges[] = {
+		{ 10500.f, -1900.f, 1800.f, 3600.f, 1500.f, FLinearColor(0.075f, 0.012f, 0.075f) },
+		{ 7200.f,  -1900.f, 1300.f, 2700.f, 1150.f, FLinearColor(0.036f, 0.007f, 0.05f) },
+		{ 4200.f,  -1900.f, 900.f,  1900.f, 900.f,  FLinearColor(0.014f, 0.004f, 0.026f) },
+	};
+	for (const FRidge& Ridge : Ridges)
+	{
+		UInstancedStaticMeshComponent* Peaks = AddInstances(ConeMesh, RootComponent);
+		for (float Y = -14000.f; Y < GateY + 16000.f; Y += Ridge.Step * Random.FRandRange(0.6f, 1.1f))
+		{
+			const float Height = Random.FRandRange(Ridge.Low, Ridge.High);
+			const float Width = Height * Random.FRandRange(1.1f, 1.7f);
+			Peaks->AddInstance(FTransform(FRotator(0.f, Random.FRandRange(0.f, 360.f), 0.f),
+				FVector(Ridge.X, Y, Ridge.Base + Height * 0.5f), FVector(Width, Width, Height) / 100.f));
+		}
+		LWNeon::ApplyGlow(Peaks, Ridge.Colour, 1.f);
+	}
+
+	// The abyss: a dark floor with the arena's grid, far below.
+	UStaticMeshComponent* Floor = AddMesh(CubeMesh, RootComponent, FVector(4000.f, GateY * 0.5f, AbyssZ - 60.f), FVector(160.f, (GateY + 40000.f) / 100.f, 1.f));
+	LWNeon::ApplyGlow(Floor, FLinearColor(0.008f, 0.002f, 0.018f), 1.f);
+	UInstancedStaticMeshComponent* Grid = AddInstances(CubeMesh, RootComponent);
+	for (float Y = -14000.f; Y < GateY + 16000.f; Y += 500.f)
+	{
+		Grid->AddInstance(FTransform(FRotator::ZeroRotator, FVector(4000.f, Y, AbyssZ), FVector(140.f, 0.09f, 0.02f)));
+	}
+	for (float X = -1500.f; X < 9000.f; X += 500.f)
+	{
+		Grid->AddInstance(FTransform(FRotator::ZeroRotator, FVector(X, GateY * 0.5f, AbyssZ), FVector(0.09f, (GateY + 30000.f) / 100.f, 0.02f)));
+	}
+	LWNeon::ApplyGlow(Grid, FLinearColor(0.55f, 0.12f, 1.f), 0.3f);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Running
+
+float APathCourse::GetLowestNear(float Y) const
+{
+	float Lowest = TNumericLimits<float>::Max();
+	for (const FPathBlock& Block : Blocks)
+	{
+		if (Block.GetRight() > Y - 1600.f && Block.GetLeft() < Y + 1600.f)
+		{
+			Lowest = FMath::Min(Lowest, Block.Top + FMath::Min(0.f, static_cast<float>(Block.Travel.Y)));
+		}
+	}
+	return Lowest == TNumericLimits<float>::Max() ? 0.f : Lowest;
+}
+
+bool APathCourse::IsSolidAt(float Y, float Z) const
+{
+	for (const FPathBlock& Block : Blocks)
+	{
+		if (Y > Block.GetLeft() && Y < Block.GetRight() && Z < Block.GetTop())
+		{
+			if (Block.Kind == EPathBlock::Ground || (Block.IsSolid() && Z > Block.GetTop() - LedgeThickness))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void APathCourse::LightCheckpoint(int32 Index)
+{
+	if (Lanterns.IsValidIndex(Index))
+	{
+		Lanterns[Index].bLit = true;
+	}
+}
+
+void APathCourse::StandOn(int32 BlockIndex)
+{
+	if (Blocks.IsValidIndex(BlockIndex) && Blocks[BlockIndex].Kind == EPathBlock::Crumbling && Blocks[BlockIndex].CrumbleTime < 0.f)
+	{
+		Blocks[BlockIndex].CrumbleTime = 0.f;
+	}
+}
+
+void APathCourse::ResetCrumbling()
+{
+	for (FPathBlock& Block : Blocks)
+	{
+		Block.CrumbleTime = -1.f;
+	}
+}
+
+void APathCourse::UpdateBlocks(float DeltaSeconds)
+{
+	CourseTime += DeltaSeconds;
+	for (FPathBlock& Block : Blocks)
+	{
+		const FVector2D Before = Block.Offset;
+		FVector Shake = FVector::ZeroVector;
+		float Dim = 1.f;
+		if (Block.Kind == EPathBlock::Moving)
+		{
+			// Eases to a stop at each end.
+			Block.Offset = Block.Travel * (0.5f - 0.5f * FMath::Cos(CourseTime * 2.f * PI / Block.Period));
+		}
+		else if (Block.Kind == EPathBlock::Crumbling && Block.CrumbleTime >= 0.f)
+		{
+			Block.CrumbleTime += DeltaSeconds;
+			if (Block.CrumbleTime < 0.55f)
+			{
+				Shake = FVector(0.f, FMath::Sin(Block.CrumbleTime * 70.f) * 4.f, FMath::Cos(Block.CrumbleTime * 55.f) * 3.f);
+			}
+			else if (Block.CrumbleTime < 3.2f)
+			{
+				const float Fall = Block.CrumbleTime - 0.55f;
+				Shake = FVector(0.f, 0.f, -1400.f * Fall * Fall);
+				Dim = FMath::Max(0.f, 1.f - Fall * 2.f);
+			}
+			else if (Block.CrumbleTime > 3.5f)
+			{
+				Block.CrumbleTime = -1.f;
+			}
+		}
+		Block.FrameMove = Block.Offset - Before;
+
+		FPart& Part = Parts[Block.Part];
+		if (Block.Kind != EPathBlock::Ground)
+		{
+			const FVector Move = FVector(0.f, Block.Offset.X, Block.Offset.Y) + Shake;
+			Part.Body->SetRelativeLocation(Part.BodyStart + Move);
+			Part.Edge->SetRelativeLocation(Part.EdgeStart + Move);
+		}
+
+		// The path shows itself only where the light reaches.
+		const float Y = FMath::Clamp(Target.Y, Block.GetLeft(), Block.GetRight());
+		const float Distance = FMath::Sqrt(FMath::Square(Target.Y - Y) + FMath::Square(0.6f * (Target.Z - Block.GetTop())));
+		const float Seen = 1.f - FMath::SmoothStep(Reach * 0.55f, Reach * 1.5f, static_cast<float>(Distance));
+		if (UMaterialInstanceDynamic* Material = Part.EdgeMaterial.Get())
+		{
+			Material->SetScalarParameterValue(IntensityName, FMath::Lerp(EdgeGlowInDark, EdgeGlow, Seen) * Dim);
+		}
+	}
+
+	for (FSpikeRow& Row : SpikeRows)
+	{
+		const float Seen = 1.f - FMath::SmoothStep(Reach * 0.55f, Reach * 1.5f, static_cast<float>(FMath::Abs(Target.Y - Row.Centre)));
+		if (UMaterialInstanceDynamic* Material = Row.Material.Get())
+		{
+			Material->SetScalarParameterValue(IntensityName, FMath::Lerp(EdgeGlowInDark * 1.5f, 1.5f, Seen));
+		}
+	}
+
+	for (FLantern& Lantern : Lanterns)
+	{
+		Lantern.Blend = FMath::FInterpTo(Lantern.Blend, Lantern.bLit ? 1.f : 0.f, DeltaSeconds, 3.f);
+		const float Flicker = 1.f + 0.08f * FMath::Sin(CourseTime * 11.f) + 0.05f * FMath::Sin(CourseTime * 17.3f);
+		if (UMaterialInstanceDynamic* Flame = Lantern.Flame.Get())
+		{
+			Flame->SetScalarParameterValue(IntensityName, FMath::Lerp(0.15f, 9.f * Flicker, Lantern.Blend));
+		}
+		if (UPointLightComponent* Light = Lantern.Light.Get())
+		{
+			Light->SetIntensity(26.f * Lantern.Blend * Flicker);
+		}
+	}
+}
+
+void APathCourse::Follow(const FVector& Location, float Facing, float LightReach, bool bInstant)
+{
+	Target = Location;
+	TargetFacing = Facing;
+	Reach = LightReach;
+	if (bInstant)
+	{
+		UpdateCamera(0.f, true);
+	}
+}
+
+void APathCourse::UpdateCamera(float DeltaSeconds, bool bInstant)
+{
+	FacingBlend = bInstant ? TargetFacing : FMath::FInterpTo(FacingBlend, TargetFacing, DeltaSeconds, 2.2f);
+	const FVector Wanted(-CameraDistance, Target.Y + LookAhead * FacingBlend, Target.Z + LookUp);
+	if (bInstant)
+	{
+		CameraAt = Wanted;
+	}
+	else
+	{
+		CameraAt.X = Wanted.X;
+		CameraAt.Y = FMath::FInterpTo(CameraAt.Y, Wanted.Y, DeltaSeconds, 9.f);
+		CameraAt.Z = FMath::FInterpTo(CameraAt.Z, Wanted.Z, DeltaSeconds, 4.f);
+	}
+
+	const float Shake = Trauma * Trauma;
+	const FVector ShakeMove = FVector(0.f, FMath::PerlinNoise1D(ShakeTime * 23.f), FMath::PerlinNoise1D(ShakeTime * 23.f + 50.f)) * 22.f * Shake;
+	Camera->SetWorldLocation(CameraAt + ShakeMove);
+	Camera->SetWorldRotation(FRotator(CameraPitch, 0.f, FMath::PerlinNoise1D(ShakeTime * 19.f + 150.f) * 1.1f * Shake));
+
+	// Tuned for 16:9; wider screens keep the height and see further (as AArena does).
+	float Aspect = 16.f / 9.f;
+	if (const UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
+	{
+		FVector2D Size;
+		Viewport->GetViewportSize(Size);
+		Aspect = Size.X > 0.f && Size.Y > 0.f ? Size.X / Size.Y : Aspect;
+	}
+	const float Widen = FMath::Max(1.f, Aspect / (16.f / 9.f));
+	Camera->SetFieldOfView(FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(CameraFieldOfView) * 0.5f) * Widen)));
+
+	// The sky travels with the camera; the sun climbs with progress.
+	const float Progress = FMath::Clamp(Target.Y / FMath::Max(GateY, 1.f), 0.f, 1.f);
+	Sky->SetWorldLocation(FVector(0.f, CameraAt.Y, CameraAt.Z * 0.8f));
+	Sun->SetRelativeLocation(FVector(15000.f, 2600.f, FMath::Lerp(-1700.f, 1700.f, FMath::Pow(Progress, 1.3f))));
+}
+
+void APathCourse::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (Trauma > 0.f)
+	{
+		ShakeTime += DeltaSeconds;
+		Trauma = FMath::Max(0.f, Trauma - 1.6f * DeltaSeconds);
+	}
+	UpdateBlocks(DeltaSeconds);
+	UpdateCamera(DeltaSeconds, false);
+
+	// The dark closes in from the edges and the colour drains away as the light goes.
+	ShownLight = FMath::FInterpTo(ShownLight, LightLevel, DeltaSeconds, 4.f);
+	const float Dark = FMath::Square(1.f - ShownLight);
+	FPostProcessSettings& Settings = PostProcess->Settings;
+	Settings.VignetteIntensity = FMath::Lerp(0.5f, 1.7f, Dark);
+	Settings.AutoExposureBias = FMath::Lerp(0.f, -2.2f, Dark);
+}

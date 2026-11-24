@@ -1,10 +1,9 @@
 #include "Core/LWFeel.h"
 
-#include "Arena/Arena.h"
+#include "Core/LWGameMode.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
-#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/WorldSettings.h"
 #include "HAL/PlatformTime.h"
@@ -55,22 +54,6 @@ void ULWFeelSubsystem::Play(const UObject* WorldContext, ELWFeel Moment)
 	}
 }
 
-AArena* ULWFeelSubsystem::FindArena()
-{
-	if (!Arena.IsValid())
-	{
-		if (UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr)
-		{
-			for (TActorIterator<AArena> It(World); It; ++It)
-			{
-				Arena = *It;
-				break;
-			}
-		}
-	}
-	return Arena.Get();
-}
-
 void ULWFeelSubsystem::PlayMoment(ELWFeel Moment)
 {
 	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
@@ -83,9 +66,9 @@ void ULWFeelSubsystem::PlayMoment(ELWFeel Moment)
 
 	if (Feel.Shake > 0.f && (!Settings || Settings->bScreenShake))
 	{
-		if (AArena* Found = FindArena())
+		if (ALWGameMode* GameMode = World->GetAuthGameMode<ALWGameMode>())
 		{
-			Found->AddTrauma(Feel.Shake);
+			GameMode->AddCameraTrauma(Feel.Shake);
 		}
 	}
 
