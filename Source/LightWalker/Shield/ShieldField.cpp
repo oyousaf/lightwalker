@@ -6,13 +6,12 @@
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
 #include "Enemies/EnemyBase.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "LightWalker.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Shield/ShieldPawn.h"
-#include "UObject/ConstructorHelpers.h"
+#include "UI/LWStyle.h"
 
 namespace
 {
@@ -20,6 +19,8 @@ namespace
 	constexpr float RowHeight = 128.f;
 	constexpr float BlockHeight = 62.f;
 	constexpr int32 WallColumns = 14;
+	constexpr float RimGlow = 0.17f;
+	constexpr float FaceGlow = 1.4f;
 
 	/**
 	 * The walls, top row first, 14 blocks across:
@@ -46,7 +47,7 @@ namespace
 				TEXT("##SS##..##SS##"),
 				TEXT(".##..#VV#..##."),
 			},
-			// The Eye.
+			// The Eye of Horus.
 			{
 				TEXT("...########..."),
 				TEXT(".###SSSSSS###."),
@@ -75,6 +76,26 @@ namespace
 		}
 	}
 
+	bool IsEye(EWallBlock Kind)
+	{
+		return Kind == EWallBlock::Eye || Kind == EWallBlock::GreatEye;
+	}
+
+	const TCHAR* ArtFor(EWallBlock Kind, bool bCracked)
+	{
+		switch (Kind)
+		{
+		case EWallBlock::Hard:     return TEXT("BlockHard");
+		case EWallBlock::Stone:    return TEXT("BlockStone");
+		case EWallBlock::Vessel:   return TEXT("BlockVessel");
+		case EWallBlock::Book:     return TEXT("BlockBook");
+		case EWallBlock::Cage:     return TEXT("BlockCage");
+		case EWallBlock::Eye:      return bCracked ? TEXT("BlockEyeBroken") : TEXT("BlockEye");
+		case EWallBlock::GreatEye: return bCracked ? TEXT("BlockGreatEyeBroken") : TEXT("BlockGreatEye");
+		default:                   return TEXT("BlockShadow");
+		}
+	}
+
 	int32 HitsFor(EWallBlock Kind)
 	{
 		switch (Kind)
@@ -92,11 +113,6 @@ AShieldField::AShieldField()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	CubeMesh = Cube.Object;
-	SphereMesh = Sphere.Object;
 }
 
 int32 AShieldField::GetWallCount()
@@ -114,21 +130,6 @@ void AShieldField::Setup(AShieldPawn* InPlayer, const FBox2D& InBounds, float In
 		// The shield moves first, so the beam always meets it where it's drawn.
 		AddTickPrerequisiteActor(Player);
 	}
-}
-
-UStaticMeshComponent* AShieldField::AddMesh(UStaticMesh* Mesh, const FVector& Location, const FVector& Scale)
-{
-	UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this);
-	Part->SetupAttachment(RootComponent);
-	Part->SetStaticMesh(Mesh);
-	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Part->SetCastShadow(false);
-	Part->bAffectDynamicIndirectLighting = false;
-	Part->bAffectDistanceFieldLighting = false;
-	Part->RegisterComponent();
-	Part->SetWorldLocation(Location);
-	Part->SetWorldScale3D(Scale);
-	return Part;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -153,7 +154,7 @@ void AShieldField::AddBlock(EWallBlock Kind, float Column, float Row, float Acro
 void AShieldField::BuildBlockMeshes(FWallBlock& Block)
 {
 	const FVector Base(Block.Centre.X, Block.Centre.Y, 0.f);
-	const FVector Size(Block.Half.X * 2.f / 100.f, Block.Half.Y * 2.f / 100.f, BlockHeight / 100.f);
+	const FVector Size = FVector(Block.Half.X * 2.f, Block.Half.Y * 2.f, BlockHeight) / 100.f;
 	auto Keep = [&Block](UStaticMeshComponent* Part)
 	{
 		Block.Parts.Add(Part);
@@ -161,59 +162,25 @@ void AShieldField::BuildBlockMeshes(FWallBlock& Block)
 		return Part;
 	};
 
-	// A glowing rim round a dark heart: the rim is a block, and the heart sits a little inside and above it.
-	UStaticMeshComponent* Rim = Keep(AddMesh(CubeMesh, Base + FVector(0.f, 0.f, BlockHeight * 0.5f), Size));
-	Block.Rim = LWNeon::ApplyGlow(Rim, Block.Color, 1.2f);
-	UStaticMeshComponent* Heart = Keep(AddMesh(CubeMesh, Base + FVector(0.f, 0.f, BlockHeight * 0.5f + 3.f), FVector(Size.X - 0.14f, Size.Y - 0.14f, Size.Z)));
-	LWNeon::ApplyGlow(Heart, Block.Color * 0.05f + FLinearColor(0.006f, 0.002f, 0.014f), 1.f);
+	UStaticMeshComponent* Body = Keep(LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, Base + FVector(0.f, 0.f, BlockHeight * 0.5f), Size * 0.98f));
+	Block.Rim = LWNeon::ApplyGlow(Body, Block.Color, RimGlow);
 
-	const FVector Top = Base + FVector(0.f, 0.f, BlockHeight + 2.f);
-	switch (Block.Kind)
+	// The art lies flat on top, the right way up on screen (across is +Y, down is -X).
+	const FRotator Flat(0.f, 90.f, 0.f);
+	const FVector2D FaceSize(Block.Half.Y * 2.f, Block.Half.X * 2.f);
+	if (UStaticMeshComponent* Face = LWNeon::AddCard(this, LWStyle::Art(ArtFor(Block.Kind, false)), RootComponent, Base + FVector(0.f, 0.f, BlockHeight + 1.f), FaceSize, Flat, FaceGlow))
 	{
-	case EWallBlock::Hard:
-	case EWallBlock::Stone:
+		Keep(Face);
+		Block.Face = Cast<UMaterialInstanceDynamic>(Face->GetMaterial(0));
+	}
+	if (IsEye(Block.Kind))
 	{
-		// A bar across for each extra hit.
-		const int32 Bars = Block.Kind == EWallBlock::Stone ? 2 : 1;
-		for (int32 Bar = 0; Bar < Bars; ++Bar)
+		const float Width = Block.Kind == EWallBlock::GreatEye ? 120.f : 50.f;
+		if (UStaticMeshComponent* Iris = LWNeon::AddCard(this, LWStyle::Art(TEXT("BlockIris")), RootComponent, Base + FVector(0.f, 0.f, BlockHeight + 2.f), FVector2D(Width), Flat, FaceGlow))
 		{
-			const float X = Bars == 1 ? 0.f : (Bar == 0 ? -18.f : 18.f);
-			UStaticMeshComponent* Line = Keep(AddMesh(CubeMesh, Top + FVector(X, 0.f, 0.f), FVector(0.06f, Size.Y - 0.5f, 0.04f)));
-			LWNeon::ApplyGlow(Line, Block.Color, 1.1f);
+			Iris->SetTranslucentSortPriority(1);  // in front of the eye
+			Block.Iris = Keep(Iris);
 		}
-		break;
-	}
-	case EWallBlock::Vessel:
-	case EWallBlock::Book:
-	case EWallBlock::Cage:
-	{
-		UStaticMeshComponent* Heartlight = Keep(AddMesh(SphereMesh, Top, FVector(Block.Kind == EWallBlock::Cage ? 0.34f : 0.3f)));
-		LWNeon::ApplyGlow(Heartlight, Block.Color, Block.Kind == EWallBlock::Cage ? 1.4f : 2.6f);
-		if (Block.Kind == EWallBlock::Cage)
-		{
-			for (const float Y : { -40.f, -14.f, 14.f, 40.f })
-			{
-				UStaticMeshComponent* Bar = Keep(AddMesh(CubeMesh, Top + FVector(0.f, Y, 14.f), FVector(Size.X - 0.2f, 0.05f, 0.08f)));
-				LWNeon::ApplyGlow(Bar, FLinearColor(0.02f, 0.004f, 0.01f), 1.f);
-			}
-		}
-		break;
-	}
-	case EWallBlock::Eye:
-	case EWallBlock::GreatEye:
-	{
-		const float Scale = Block.Kind == EWallBlock::GreatEye ? 1.f : 0.42f;
-		UStaticMeshComponent* White = Keep(AddMesh(SphereMesh, Top, FVector(1.5f, 3.1f, 0.5f) * Scale));
-		LWNeon::ApplyGlow(White, FLinearColor(1.f, 0.9f, 0.7f), 0.8f);
-		UStaticMeshComponent* Iris = Keep(AddMesh(SphereMesh, Top + FVector(0.f, 0.f, 16.f * Scale), FVector(1.1f, 1.1f, 0.5f) * Scale));
-		LWNeon::ApplyGlow(Iris, FLinearColor(1.f, 0.45f, 0.06f), 1.6f);
-		UStaticMeshComponent* Pupil = Keep(AddMesh(SphereMesh, Top + FVector(0.f, 0.f, 34.f * Scale), FVector(0.5f, 0.5f, 0.3f) * Scale));
-		LWNeon::ApplyGlow(Pupil, FLinearColor(0.f, 0.f, 0.f), 1.f);
-		Block.Pupil = Pupil;
-		break;
-	}
-	default:
-		break;
 	}
 
 	// They rise into place (UpdateBlocks).
@@ -287,7 +254,7 @@ void AShieldField::DestroyBlock(int32 Index, bool bBurst)
 		Shards.Gravity = 700.f;
 		Shards.Lift = 260.f;
 		Shards.bSpin = true;
-		LWFX::Burst(GetWorld(), LWFX::EShape::Cube, Block.Color, 4.f, { Shards });
+		LWFX::Burst(GetWorld(), ELWShape::Cube, Block.Color, 4.f, { Shards });
 	}
 	for (TWeakObjectPtr<USceneComponent>& Part : Block.Parts)
 	{
@@ -319,7 +286,7 @@ FLightBeam& AShieldField::AddBeam(const FVector2D& Position, const FVector2D& Di
 	Beam.Direction = Direction.GetSafeNormal();
 
 	const FVector At(Position.X, Position.Y, PlaneZ);
-	UStaticMeshComponent* Core = AddMesh(SphereMesh, At, FVector(BeamRadius * 2.f / 100.f));
+	UStaticMeshComponent* Core = LWNeon::AddMesh(this, ELWShape::Sphere, RootComponent, At, FVector(BeamRadius * 2.f / 100.f));
 	LWNeon::ApplyGlow(Core, FLinearColor(1.f, 0.95f, 0.75f), 9.f);
 	Beam.Core = Core;
 
@@ -336,9 +303,8 @@ FLightBeam& AShieldField::AddBeam(const FVector2D& Position, const FVector2D& Di
 
 	ULWParticleComponent* Trail = NewObject<ULWParticleComponent>(this);
 	Trail->SetupAttachment(RootComponent);
-	Trail->SetStaticMesh(SphereMesh);
 	Trail->RegisterComponent();
-	Trail->Setup(SphereMesh, FLinearColor(1.f, 0.75f, 0.3f), 7.f);
+	Trail->Setup(ELWShape::Sphere, FLinearColor(1.f, 0.75f, 0.3f), 7.f);
 	Beam.Trail = Trail;
 	return Beam;
 }
@@ -446,7 +412,7 @@ void AShieldField::HitShield(FLightBeam& Beam)
 	Sparks.Life = FVector2D(0.15f, 0.35f);
 	Sparks.Size = FVector2D(0.03f, 0.06f);
 	Sparks.Drag = 5.f;
-	LWFX::Burst(GetWorld(), LWFX::EShape::Sphere, FLinearColor(0.5f, 0.95f, 1.f), 11.f, { Sparks });
+	LWFX::Burst(GetWorld(), ELWShape::Sphere, FLinearColor(0.5f, 0.95f, 1.f), 11.f, { Sparks });
 	if (OnDeflect)
 	{
 		OnDeflect();
@@ -613,7 +579,7 @@ void AShieldField::UpdateBolts(float DeltaSeconds)
 {
 	for (FWallBlock& Block : Blocks)
 	{
-		if (Block.Kind != EWallBlock::Eye && Block.Kind != EWallBlock::GreatEye)
+		if (!IsEye(Block.Kind))
 		{
 			continue;
 		}
@@ -624,9 +590,9 @@ void AShieldField::UpdateBolts(float DeltaSeconds)
 			FDarkBolt& Bolt = Bolts.AddDefaulted_GetRef();
 			Bolt.Position = Block.Centre - FVector2D(Block.Half.X + 20.f, 0.f);
 			Bolt.Velocity = (FVector2D(Player->GetActorLocation()) - Bolt.Position).GetSafeNormal() * BoltSpeed;
-			UStaticMeshComponent* Halo = AddMesh(SphereMesh, FVector(Bolt.Position.X, Bolt.Position.Y, PlaneZ), FVector(0.78f));
+			UStaticMeshComponent* Halo = LWNeon::AddMesh(this, ELWShape::Sphere, RootComponent, FVector(Bolt.Position.X, Bolt.Position.Y, PlaneZ), FVector(0.78f));
 			LWNeon::ApplyGlow(Halo, FLinearColor(1.f, 0.04f, 0.2f), 2.6f);
-			UStaticMeshComponent* Core = AddMesh(SphereMesh, FVector(Bolt.Position.X, Bolt.Position.Y, PlaneZ), FVector(0.42f));
+			UStaticMeshComponent* Core = LWNeon::AddMesh(this, ELWShape::Sphere, RootComponent, FVector(Bolt.Position.X, Bolt.Position.Y, PlaneZ), FVector(0.42f));
 			LWNeon::ApplyGlow(Core, FLinearColor(0.f, 0.f, 0.f), 1.f);
 			Bolt.Halo = Halo;
 			Bolt.Core = Core;
@@ -702,18 +668,34 @@ void AShieldField::UpdateBlocks(float DeltaSeconds)
 				}
 			}
 		}
-		if (UMaterialInstanceDynamic* Rim = Block.Rim.Get())
+		// Worn blocks burn brighter as they're about to give.
+		const float Worn = 1.f - static_cast<float>(Block.HitsLeft) / HitsFor(Block.Kind);
+		const float Flash = Block.Flash * Block.Flash;
+		if (bFlashing && Block.Rim.IsValid())
 		{
-			// Worn blocks burn brighter as they're about to give.
-			const float Worn = 1.f - static_cast<float>(Block.HitsLeft) / HitsFor(Block.Kind);
-			Rim->SetScalarParameterValue(FName(TEXT("Intensity")), 1.2f + 1.3f * Worn + 8.f * Block.Flash * Block.Flash);
+			Block.Rim->SetScalarParameterValue(LWNeon::IntensityParam, RimGlow + Worn + 6.f * Flash);
 		}
-		if (USceneComponent* Pupil = Block.Pupil.Get())
+		if (bFlashing && Block.Face.IsValid())
 		{
-			// The eye follows Lightwalker.
-			const float Scale = Block.Kind == EWallBlock::GreatEye ? 1.f : 0.42f;
-			const FVector2D To = (FVector2D(Player->GetActorLocation()) - Block.Centre).GetSafeNormal() * 26.f * Scale;
-			Pupil->SetWorldLocation(FVector(Block.Centre.X + To.X, Block.Centre.Y + To.Y, BlockHeight + 2.f + 34.f * Scale));
+			Block.Face->SetScalarParameterValue(LWNeon::IntensityParam, FaceGlow + 0.5f * Worn + 4.f * Flash);
+		}
+
+		if (USceneComponent* Iris = Block.Iris.Get())
+		{
+			// An eye cracks when it's nearly done; until then it follows Lightwalker.
+			if (!Block.bCracked && Worn >= 0.5f)
+			{
+				Block.bCracked = true;
+				Iris->SetVisibility(false);
+				if (Block.Face.IsValid())
+				{
+					Block.Face->SetTextureParameterValue(LWNeon::ArtParam, LWStyle::Art(ArtFor(Block.Kind, true)));
+				}
+			}
+			const float Width = Block.Half.Y * 2.f;
+			const float Look = FMath::Clamp((Player->GetActorLocation().Y - Block.Centre.Y) / 900.f, -1.f, 1.f);
+			// The iris sits a touch right of the art's middle, and a touch above it.
+			Iris->SetWorldLocation(FVector(Block.Centre.X + Block.Half.X * 0.04f, Block.Centre.Y + Width * (0.013f + 0.085f * Look), BlockHeight + 2.f));
 		}
 	}
 }

@@ -43,7 +43,7 @@ AArenaHUD::FBanner AShieldHUD::GetBanner() const
 		}
 		else if (GameMode->IsGreatEye())
 		{
-			Banner.Detail = TEXT("BREAK THE EYE AND THE WALL FALLS");
+			Banner.Detail = TEXT("BREAK THE EYE OF HORUS AND THE WALL FALLS");
 		}
 		break;
 	case EShieldPhase::Playing:
@@ -67,6 +67,7 @@ AArenaHUD::FBanner AShieldHUD::GetBanner() const
 		break;
 	case EShieldPhase::GameOver:
 		Banner.Title = TEXT("GAME OVER");
+		Banner.Backdrop = TEXT("GameOver");
 		Banner.Color = LWStyle::Danger;
 		break;
 	default:

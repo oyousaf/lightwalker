@@ -1,6 +1,6 @@
 """
-Imports the rigged heroes (SourceArt/Hero/Rigging/SK_*.fbx, from Tools/rig_hero.py) as skeletal meshes, reusing each
-static hero's material, so ALightWalkerPawn can pose them in code.
+Imports the rigged heroes (SourceArt/Hero/Rigging/SK_*.fbx, from Tools/rig_hero.py) as skeletal meshes, using the
+materials Tools/import_models.py makes, so ALightWalkerPawn can pose them in code.
 
   /Game/Hero/SK_Lightwalker         (+ SK_Lightwalker_Skeleton)
   /Game/Hero/SK_LightwalkerFemale   (+ SK_LightwalkerFemale_Skeleton)
@@ -47,11 +47,11 @@ for name in ("Lightwalker", "LightwalkerFemale"):
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
 
     mesh = assets.load_asset(f"/Game/Hero/SK_{name}")
-    static = assets.load_asset(f"/Game/Hero/SM_{name}")
+    look = {"Lightwalker": "Lightwalker", "LightwalkerFemale": "Lightwalker_female"}[name]
+    material = assets.load_asset(f"/Game/Hero/{look}/MI_{look}_0")
     if not isinstance(mesh, unreal.SkeletalMesh):
         unreal.log_error(f"[LW] SK_{name} didn't import as a skeletal mesh")
         continue
-    material = static.get_material(0) if static else None
     if material:
         # The glow material was only ever used on static meshes; without this flag a skinned mesh renders grey.
         parent = material

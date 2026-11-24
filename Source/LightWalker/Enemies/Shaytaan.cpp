@@ -1,82 +1,43 @@
 #include "Enemies/Shaytaan.h"
 
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SphereComponent.h"
-#include "Components/StaticMeshComponent.h"
-#include "Engine/StaticMesh.h"
+#include "Core/LWNeon.h"
 #include "Player/LightWalkerPawn.h"
-#include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	constexpr int32 TrailCount = 14;
+
+	/** 1 at the devil, towards 0 at the tip. */
+	float TrailFade(int32 Index)
+	{
+		return 1.f - static_cast<float>(Index) / TrailCount;
+	}
+}
 
 AShaytaan::AShaytaan()
 {
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
-
-	Radius = 50.f;
-
-	// Facing +X. Basic shapes are 100 units across; cones point up their +Z.
-	UStaticMeshComponent* Body = AddShape(TEXT("Body"), SphereMesh.Object, nullptr,
-		FVector::ZeroVector, FRotator::ZeroRotator, FVector(0.7f, 0.7f, 0.62f));
-
-	// Horns sweep forwards and outwards rather than up, so from the top-down camera they break the round outline.
-	auto MakeHorn = [&](FName Name, float Side)
-	{
-		const FVector Base(10.f, 18.f * Side, 18.f);
-		const FVector Direction = FVector(0.55f, 0.7f * Side, 0.45f).GetSafeNormal();
-		constexpr float Length = 48.f;
-		return AddShape(Name, ConeMesh.Object, nullptr, Base + Direction * (Length * 0.5f),
-			FRotationMatrix::MakeFromZ(Direction).Rotator(), FVector(0.2f, 0.2f, Length / 100.f));
-	};
-	UStaticMeshComponent* HornLeft = MakeHorn(TEXT("HornLeft"), -1.f);
-	UStaticMeshComponent* HornRight = MakeHorn(TEXT("HornRight"), 1.f);
-
-	// Angry slanted slits on the upper front of the head, visible from the tilted camera.
-	UStaticMeshComponent* EyeLeft = AddShape(TEXT("EyeLeft"), SphereMesh.Object, nullptr,
-		FVector(25.f, -11.f, 17.f), FRotator(0.f, 0.f, -25.f), FVector(0.07f, 0.15f, 0.06f));
-	UStaticMeshComponent* EyeRight = AddShape(TEXT("EyeRight"), SphereMesh.Object, nullptr,
-		FVector(25.f, 11.f, 17.f), FRotator(0.f, 0.f, 25.f), FVector(0.07f, 0.15f, 0.06f));
-
-	// Fading trail: small wisps placed in world space each frame, each following the one ahead of it.
-	constexpr int32 TrailCount = 14;
-	for (int32 Index = 0; Index < TrailCount; ++Index)
-	{
-		const float Fade = 1.f - static_cast<float>(Index) / TrailCount;
-		UStaticMeshComponent* Segment = AddShape(*FString::Printf(TEXT("Trail%d"), Index), SphereMesh.Object, Collision,
-			FVector::ZeroVector, FRotator::ZeroRotator, FVector(FMath::Lerp(0.03f, 0.17f, Fade)));
-		Segment->SetUsingAbsoluteLocation(true);
-		Segment->SetUsingAbsoluteRotation(true);
-		TrailSegments.Add(Segment);
-		TrailPoints.Add(FVector::ZeroVector);
-		TrailScales.Add(FMath::Lerp(0.03f, 0.17f, Fade));
-		AddGlowPart(Segment, BodyColor, FMath::Lerp(0.1f, 0.9f, Fade * Fade));
-	}
-
 	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_Shaytaan.SM_Shaytaan"));
 	ModelSize = 130.f;
-	for (USceneComponent* Placeholder : { Body, HornLeft, HornRight, EyeLeft, EyeRight })
-	{
-		AddPlaceholder(Placeholder);
-	}
 
-	for (UStaticMeshComponent* Part : { Body, HornLeft, HornRight })
-	{
-		AddGlowPart(Part, BodyColor, 1.3f);
-	}
-	AddGlowPart(EyeLeft, EyeColor, 12.f);
-	AddGlowPart(EyeRight, EyeColor, 12.f);
+	Trail = LWNeon::MakeInstances(this, TEXT("Trail"), ELWShape::Sphere, Collision);
+	LWNeon::SetWorldPlaced(Trail);
+	Trail->NumCustomDataFloats = 1;
 }
 
 void AShaytaan::BeginPlay()
 {
 	Super::BeginPlay();
 
-	for (UStaticMeshComponent* Segment : TrailSegments)
+	TrailPoints.Init(GetActorLocation(), TrailCount);
+	TrailWisps.Init(FTransform(FQuat::Identity, GetActorLocation(), FVector(0.001f)), TrailCount);
+	Trail->AddInstances(TrailWisps, false, true);
+	for (int32 Index = 0; Index < TrailCount; ++Index)
 	{
-		Segment->SetWorldLocation(GetActorLocation());
+		Trail->SetCustomDataValue(Index, 0, FMath::Lerp(0.1f, 0.9f, FMath::Square(TrailFade(Index))));
 	}
-	for (FVector& Point : TrailPoints)
-	{
-		Point = GetActorLocation();
-	}
+	LWNeon::ApplyGlow(Trail, TrailColor, 1.f);
 }
 
 void AShaytaan::UpdateMovement(float DeltaSeconds)
@@ -140,15 +101,16 @@ void AShaytaan::UpdateTrail(float DeltaSeconds)
 
 	// Drawn with a wavering, flickering wobble that grows towards the tip, so it reads as smoke rather than
 	// a neat row of beads.
-	const FVector Back = (TrailPoints.Num() > 0 ? GetActorLocation() - TrailPoints.Last() : FVector::ZeroVector).GetSafeNormal2D();
+	const FVector Back = (GetActorLocation() - TrailPoints.Last()).GetSafeNormal2D();
 	const FVector Side(-Back.Y, Back.X, 0.f);
-	for (int32 Index = 0; Index < TrailSegments.Num(); ++Index)
+	for (int32 Index = 0; Index < TrailCount; ++Index)
 	{
-		const float Along = static_cast<float>(Index) / FMath::Max(1, TrailSegments.Num() - 1);
+		const float Along = static_cast<float>(Index) / (TrailCount - 1);
 		const float Sway = FMath::Sin(LookTime * 9.f + Index * 0.8f) * Along * TrailWobble;
 		const float Rise = FMath::Sin(LookTime * 6.f + Index * 1.3f) * Along * TrailWobble * 0.5f;
-		TrailSegments[Index]->SetWorldLocation(TrailPoints[Index] + Side * Sway + FVector(0.f, 0.f, Rise));
 		const float Flicker = 0.75f + 0.25f * FMath::Sin(LookTime * 23.f + Index * 1.9f);
-		TrailSegments[Index]->SetRelativeScale3D(FVector(TrailScales[Index] * Flicker));
+		TrailWisps[Index].SetLocation(TrailPoints[Index] + Side * Sway + FVector(0.f, 0.f, Rise));
+		TrailWisps[Index].SetScale3D(FVector(FMath::Lerp(0.03f, 0.17f, TrailFade(Index)) * Flicker));
 	}
+	Trail->BatchUpdateInstancesTransforms(0, TrailWisps, true, true, true);
 }

@@ -150,6 +150,10 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<class UMaterialInstanceDynamic>> EdgeMaterials;
 
+	/** The edges' light on the floor, in the same order. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UMaterialInstanceDynamic>> EdgeLightMaterials;
+
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> GridMaterial;
 

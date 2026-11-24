@@ -4,6 +4,8 @@
 #include "Enemies/EnemyBase.h"
 #include "Shaytaan.generated.h"
 
+class UInstancedStaticMeshComponent;
+
 /**
  * Chaser: a little devil that heads straight for Lightwalker, bobbing as it goes and leaving a fading trail.
  * The game mode speeds the pack up as it thins out.
@@ -22,10 +24,7 @@ protected:
 	virtual void UpdateLook(float DeltaSeconds) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	FLinearColor BodyColor = FLinearColor(1.f, 0.03f, 0.1f);
-
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	FLinearColor EyeColor = FLinearColor(1.f, 0.85f, 0.25f);
+	FLinearColor TrailColor = FLinearColor(1.f, 0.03f, 0.1f);
 
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
 	float BobHeight = 6.f;
@@ -33,7 +32,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
 	float BobRate = 7.f;
 
-	/** Side-to-side rock of the imported model's waddle, in degrees each way. */
+	/** Side-to-side rock of the model's waddle, in degrees each way. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
 	float WaddleRock = 9.f;
 
@@ -60,11 +59,11 @@ protected:
 private:
 	void UpdateTrail(float DeltaSeconds);
 
-	/** Blobs that follow each other behind the devil, shrinking and dimming towards the end. */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> TrailSegments;
+	/** Wisps that follow each other behind the devil, shrinking and dimming towards the end (dimmed by per-instance data). */
+	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
+	TObjectPtr<UInstancedStaticMeshComponent> Trail;
 
-	/** The chain the trail follows (before the wobble), and each wisp's base size. */
+	/** The chain the trail follows (before the wobble), and where each wisp is drawn. */
 	TArray<FVector> TrailPoints;
-	TArray<float> TrailScales;
+	TArray<FTransform> TrailWisps;
 };

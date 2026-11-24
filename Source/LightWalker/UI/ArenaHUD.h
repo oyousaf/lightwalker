@@ -42,6 +42,8 @@ protected:
 		FLinearColor Glow = FLinearColor::White;
 		/** How far down the screen, 0-1. */
 		float Height = 0.38f;
+		/** Art that fades in over the game behind it (Victory, GameOver). */
+		const TCHAR* Backdrop = nullptr;
 	};
 
 	// What each mode shows; the rest (score, lives, power-ups, messages) is shared.
@@ -56,6 +58,11 @@ protected:
 		const FLinearColor& Shadow = FLinearColor(0.f, 0.f, 0.f, 0.6f));
 
 	float MeasureWidth(const FString& Text, const FSlateFontInfo& Font) const;
+	/** Art over the whole screen, cropped to cover it. */
+	void DrawCover(UTexture2D* Texture, float Alpha);
 	void DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color);
 	void DrawIcon(UTexture2D* Texture, float X, float Y, float Size, float Alpha = 1.f);
+
+private:
+	float BackdropAlpha = 0.f;
 };

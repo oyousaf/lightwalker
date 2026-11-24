@@ -7,33 +7,13 @@
 
 class ALightWalkerPawn;
 class UMaterialInstanceDynamic;
-class UMeshComponent;
 class USceneComponent;
 class USphereComponent;
 class UStaticMeshComponent;
 
-/** One glowing piece of an enemy's body, coloured when the enemy spawns. */
-USTRUCT()
-struct FEnemyGlowPart
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TObjectPtr<UMeshComponent> Mesh;
-
-	FLinearColor Color = FLinearColor::White;
-	float Intensity = 1.f;
-
-	/** Material slot, for meshes with several sections. */
-	int32 Element = 0;
-
-	/** Unlit black instead of glowing (pupils and other dark details). */
-	bool bDark = false;
-};
-
 /**
- * A creature of darkness. Subclasses build their look from parts on the Visual pivot and decide how they move;
- * the base handles colouring, touching the player and dying.
+ * A creature of darkness. Subclasses pick their model and decide how they move; the base shows the model, and
+ * handles touching the player and dying.
  */
 UCLASS(Abstract)
 class LIGHTWALKER_API AEnemyBase : public AActor
@@ -54,7 +34,7 @@ public:
 	void SetMoveSpeed(float InMoveSpeed) { MoveSpeed = InMoveSpeed; }
 	float GetMoveSpeed() const { return MoveSpeed; }
 
-	/** Changes how brightly the imported model glows (lurkers in the menu are dimmed). */
+	/** Changes how brightly the model glows. */
 	void SetModelGlow(float Glow);
 
 	/** Shot by a laser: flashes and loses a hit point, and dies on the last one. */
@@ -75,19 +55,6 @@ protected:
 
 	ALightWalkerPawn* GetPlayer() const { return Player.Get(); }
 
-	/** Adds an engine basic shape (Sphere, Cube, Cone, Cylinder) to the Visual pivot. Constructor only. */
-	UStaticMeshComponent* AddShape(FName Name, UStaticMesh* Mesh, USceneComponent* Parent,
-		const FVector& Location, const FRotator& Rotation, const FVector& Scale);
-
-	/** Registers a mesh to be coloured in BeginPlay. */
-	void AddGlowPart(UMeshComponent* Mesh, const FLinearColor& InColor, float Intensity, bool bDark = false, int32 Element = 0);
-
-	/** Adds a thin glowing rod from Start to End (relative to Parent). Constructor only. */
-	UStaticMeshComponent* AddRod(FName Name, UStaticMesh* CylinderMesh, USceneComponent* Parent, const FVector& Start, const FVector& End, float Thickness);
-
-	/** Marks a placeholder shape that is hidden once a real model (ModelPath) is in use. */
-	void AddPlaceholder(USceneComponent* Component) { Placeholders.Add(Component); }
-
 	/** Turns the Visual pivot smoothly to face a world direction on the arena plane. */
 	void TurnVisualTowards(const FVector& Direction, float DeltaSeconds, float TurnRate);
 
@@ -98,12 +65,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USceneComponent> Visual;
 
-	UPROPERTY()
-	TArray<FEnemyGlowPart> GlowParts;
-
 	/**
-	 * Optional imported model (see Tools/import_models.py). When the asset exists it replaces the placeholder shapes,
-	 * scaled so its largest side is ModelSize and centred on the Visual pivot; trails and other effects stay.
+	 * The imported model (see Tools/import_models.py), scaled so its largest side is ModelSize and centred on the Visual
+	 * pivot. A plain glowing ball stands in if it's missing.
 	 */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	FSoftObjectPath ModelPath;
@@ -122,22 +86,16 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
 	TObjectPtr<UStaticMeshComponent> Model;
 
-	UPROPERTY()
-	TArray<TObjectPtr<USceneComponent>> Placeholders;
-
 	/** The burst of light when shot dead (a red ember pop by default). */
 	virtual void SpawnDeathEffect();
 
 	/** Played when shot dead (set by each enemy type). */
 	ELWSound DeathSound = ELWSound::ShaytaanDeath;
 
-	/** True once an imported model replaced the placeholders. */
-	bool bUsingModel = false;
-
 	/**
-	 * Leans and squashes the imported model about the middle of its base, for walk cycles on a static mesh.
+	 * Leans and squashes the model about the middle of its base, for walk cycles on a static mesh.
 	 * Tilt is in the enemy's own frame (roll leans sideways, pitch forwards); Squash scales height, and width
-	 * grows to keep the volume. Does nothing while the placeholders are showing.
+	 * grows to keep the volume.
 	 */
 	void PoseModel(const FRotator& Tilt, float Squash = 0.f);
 
@@ -167,7 +125,7 @@ protected:
 
 private:
 	void CheckPlayerContact();
-	void TryUseModel();
+	void ShowModel();
 
 	TWeakObjectPtr<ALightWalkerPawn> Player;
 

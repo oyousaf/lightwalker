@@ -11,12 +11,10 @@
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
 #include "Engine/SkeletalMesh.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/PackageName.h"
 #include "Player/Laser.h"
-#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -50,53 +48,23 @@ ALightWalkerPawn::ALightWalkerPawn()
 	Collision->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	RootComponent = Collision;
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-
 	HeadingPivot = CreateDefaultSubobject<USceneComponent>(TEXT("HeadingPivot"));
 	HeadingPivot->SetupAttachment(Collision);
 
-	auto MakePart = [this](const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent, const FVector& Location,
-		const FRotator& Rotation, const FVector& Scale)
-	{
-		UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(Name);
-		Part->SetupAttachment(Parent);
-		Part->SetStaticMesh(Mesh);
-		Part->SetRelativeLocation(Location);
-		Part->SetRelativeRotation(Rotation);
-		Part->SetRelativeScale3D(Scale);
-		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Part->SetCastShadow(false);
-		return Part;
-	};
-
-	// Basic shapes are 100 units across, centred on their pivot; the cone and cylinder run along +Z.
-	Body = MakePart(TEXT("Body"), ConeMesh.Object, HeadingPivot, FVector(-4.f, 0.f, -8.f), FRotator::ZeroRotator, FVector(0.72f, 0.62f, 0.85f));
-	Head = MakePart(TEXT("Head"), SphereMesh.Object, HeadingPivot, FVector(0.f, 0.f, 42.f), FRotator::ZeroRotator, FVector(0.34f));
-	Staff = MakePart(TEXT("Staff"), CylinderMesh.Object, HeadingPivot, FVector(14.f, 26.f, 10.f), FRotator(-80.f, 0.f, 0.f), FVector(0.05f, 0.05f, 0.85f));
-	Lantern = MakePart(TEXT("Lantern"), SphereMesh.Object, HeadingPivot, LanternOffset, FRotator::ZeroRotator, FVector(0.26f));
-
 	GlideTrail = CreateDefaultSubobject<ULWParticleComponent>(TEXT("GlideTrail"));
 	GlideTrail->SetupAttachment(Collision);
-	GlideTrail->SetStaticMesh(SphereMesh.Object);
 
 	ShieldPivot = CreateDefaultSubobject<USceneComponent>(TEXT("ShieldPivot"));
 	ShieldPivot->SetupAttachment(Collision);
 	for (int32 Index = 0; Index < ShieldMoteCount; ++Index)
 	{
 		const FVector Location = FRotator(0.f, 360.f * Index / ShieldMoteCount, 0.f).RotateVector(FVector(ShieldRadius, 0.f, 10.f));
-		UStaticMeshComponent* Mote = MakePart(*FString::Printf(TEXT("ShieldMote%d"), Index), SphereMesh.Object, ShieldPivot,
-			Location, FRotator::ZeroRotator, FVector(0.11f));
+		UStaticMeshComponent* Mote = LWNeon::MakeMesh(this, *FString::Printf(TEXT("ShieldMote%d"), Index), ELWShape::Sphere, ShieldPivot);
+		Mote->SetRelativeLocation(Location);
+		Mote->SetRelativeScale3D(FVector(0.11f));
 		Mote->SetVisibility(false);
 		ShieldMotes.Add(Mote);
 	}
-
-	Model = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Model"));
-	Model->SetupAttachment(HeadingPivot);
-	Model->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Model->SetCastShadow(false);
-	Model->SetVisibility(false);
 
 	Rig = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("Rig"));
 	Rig->SetupAttachment(HeadingPivot);
@@ -110,7 +78,7 @@ ALightWalkerPawn::ALightWalkerPawn()
 	Glow->SetIntensityUnits(ELightUnits::Candelas);
 	Glow->SetIntensity(30.f);
 	Glow->SetAttenuationRadius(LightRadius);
-	Glow->SetLightColor(Color);
+	Glow->SetLightColor(LanternLightColor);
 	Glow->SetCastShadows(false);
 
 	LaserClass = ALaser::StaticClass();
@@ -121,16 +89,11 @@ void ALightWalkerPawn::BeginPlay()
 {
 	Super::BeginPlay();
 
-	LWNeon::ApplyGlow(Body, Color, GlowIntensity * 0.35f);
-	LWNeon::ApplyGlow(Head, Color, GlowIntensity * 0.6f);
-	LWNeon::ApplyGlow(Staff, FLinearColor(0.75f, 0.9f, 1.f), GlowIntensity * 0.5f);
-	LWNeon::ApplyGlow(Lantern, FLinearColor(0.85f, 1.f, 1.f), GlowIntensity * 3.f);
-	GlideTrail->Setup(GlideTrail->GetStaticMesh(), LWPickups::GetColor(EPickupType::LightOrb), 10.f);
+	GlideTrail->Setup(ELWShape::Sphere, LWPickups::GetColor(EPickupType::LightOrb), 10.f);
 	for (UStaticMeshComponent* Mote : ShieldMotes)
 	{
 		LWNeon::ApplyGlow(Mote, LWPickups::GetColor(EPickupType::Shield), 10.f);
 	}
-	Glow->SetLightColor(Color);
 
 	const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
 	SetHero(Settings ? Settings->HeroIndex : 0);
@@ -138,23 +101,13 @@ void ALightWalkerPawn::BeginPlay()
 
 bool ALightWalkerPawn::HasHeroModel(int32 Index) const
 {
-	for (const FSoftObjectPath* Path : { Index == 1 ? &FemaleRigPath : &RigPath, Index == 1 ? &FemaleModelPath : &ModelPath })
-	{
-		if (!Path->IsNull() && FPackageName::DoesPackageExist(Path->GetLongPackageName()))
-		{
-			return true;
-		}
-	}
-	return false;
+	const FSoftObjectPath& Path = Index == 1 ? FemaleRigPath : RigPath;
+	return !Path.IsNull() && FPackageName::DoesPackageExist(Path.GetLongPackageName());
 }
 
 void ALightWalkerPawn::SetHero(int32 Index)
 {
-	// Fall back to the other hero if this one hasn't been made yet, so there's always a model when one exists.
-	if (!UseModel(Index) && !bUsingModel)
-	{
-		UseModel(1 - Index);
-	}
+	UseModel(HasHeroModel(Index) ? Index : 1 - Index);
 }
 
 void ALightWalkerPawn::SetFrozen(bool bInFrozen)
@@ -170,112 +123,67 @@ void ALightWalkerPawn::SetFrozen(bool bInFrozen)
 	}
 
 	// The menu shows only the sunset art, so the model stays hidden until play.
-	Model->SetHiddenInGame(bFrozen || bUsingRig);
-	Rig->SetHiddenInGame(bFrozen || !bUsingRig);
+	Rig->SetHiddenInGame(bFrozen);
 }
 
-UMeshComponent* ALightWalkerPawn::ActiveModel() const
+void ALightWalkerPawn::UseModel(int32 Index)
 {
-	return bUsingRig ? static_cast<UMeshComponent*>(Rig.Get()) : static_cast<UMeshComponent*>(Model.Get());
-}
-
-bool ALightWalkerPawn::UseModel(int32 Index)
-{
-	auto Load = [](const FSoftObjectPath& Path) -> UObject*
+	USkeletalMesh* Mesh = HasHeroModel(Index) ? Cast<USkeletalMesh>((Index == 1 ? FemaleRigPath : RigPath).TryLoad()) : nullptr;
+	if (!Mesh)
 	{
-		return !Path.IsNull() && FPackageName::DoesPackageExist(Path.GetLongPackageName()) ? Path.TryLoad() : nullptr;
-	};
-
-	// The rigged model when it's been imported, otherwise the static one.
-	USkeletalMesh* RigMesh = Cast<USkeletalMesh>(Load(Index == 1 ? FemaleRigPath : RigPath));
-	UStaticMesh* Mesh = RigMesh ? nullptr : Cast<UStaticMesh>(Load(Index == 1 ? FemaleModelPath : ModelPath));
-	if (!RigMesh && !Mesh)
-	{
-		return false;
+		return;
 	}
-	bUsingRig = RigMesh != nullptr;
-	UMeshComponent* Shown = ActiveModel();
-	UMeshComponent* Unused = bUsingRig ? static_cast<UMeshComponent*>(Model.Get()) : static_cast<UMeshComponent*>(Rig.Get());
-	Unused->SetVisibility(false);
-	Unused->SetHiddenInGame(true);
-	Shown->SetHiddenInGame(bFrozen);
 
 	// Scale by height (the staff can make the model wider than it is tall) and centre it on the pivot.
-	const FBoxSphereBounds Bounds = bUsingRig ? RigMesh->GetBounds() : Mesh->GetBounds();
+	const FBoxSphereBounds Bounds = Mesh->GetBounds();
 	const float Scale = ModelHeight / FMath::Max(Bounds.BoxExtent.Z * 2.f, KINDA_SMALL_NUMBER);
 	const FRotator Rotation(0.f, ModelYaw, 0.f);
 	ModelOffset = -Rotation.RotateVector(Bounds.Origin * Scale) + FVector(0.f, 0.f, ModelHeight * 0.5f - ContactRadius);
 
 	// Drop the previous hero's material instances, or they'd carry its textures onto the new mesh.
-	Shown->EmptyOverrideMaterials();
-	if (bUsingRig)
-	{
-		Rig->SetSkinnedAssetAndUpdate(RigMesh);
+	Rig->EmptyOverrideMaterials();
+	Rig->SetSkinnedAssetAndUpdate(Mesh);
 
-		// Keep the reference pose to build each frame's pose from.
-		const FReferenceSkeleton& Skeleton = RigMesh->GetRefSkeleton();
-		RigRefLocal = Skeleton.GetRefBonePose();
-		RigRefComponent.SetNum(RigRefLocal.Num());
-		for (int32 Bone = 0; Bone < RigRefLocal.Num(); ++Bone)
+	// Keep the reference pose to build each frame's pose from.
+	const FReferenceSkeleton& Skeleton = Mesh->GetRefSkeleton();
+	RigRefLocal = Skeleton.GetRefBonePose();
+	RigRefComponent.SetNum(RigRefLocal.Num());
+	for (int32 Bone = 0; Bone < RigRefLocal.Num(); ++Bone)
+	{
+		const int32 Parent = Skeleton.GetParentIndex(Bone);
+		RigRefComponent[Bone] = (Parent == INDEX_NONE ? FQuat::Identity : RigRefComponent[Parent]) * RigRefLocal[Bone].GetRotation();
+	}
+	Rig->SetRelativeScale3D(FVector(Scale));
+	Rig->SetRelativeRotation(Rotation);
+	Rig->SetRelativeLocation(ModelOffset);
+	for (int32 Slot = 0; Slot < Rig->GetNumMaterials(); ++Slot)
+	{
+		if (UMaterialInstanceDynamic* Material = Rig->CreateDynamicMaterialInstance(Slot))
 		{
-			const int32 Parent = Skeleton.GetParentIndex(Bone);
-			RigRefComponent[Bone] = (Parent == INDEX_NONE ? FQuat::Identity : RigRefComponent[Parent]) * RigRefLocal[Bone].GetRotation();
+			Material->SetScalarParameterValue(LWNeon::GlowParam, ModelGlow);
 		}
 	}
-	else
-	{
-		Model->SetStaticMesh(Mesh);
-	}
-	Shown->SetRelativeScale3D(FVector(Scale));
-	Shown->SetRelativeRotation(Rotation);
-	Shown->SetRelativeLocation(ModelOffset);
-	Shown->SetVisibility(true);
-	for (int32 Slot = 0; Slot < Shown->GetNumMaterials(); ++Slot)
-	{
-		if (UMaterialInstanceDynamic* Material = Shown->CreateDynamicMaterialInstance(Slot))
-		{
-			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
-		}
-	}
-
-	// The model brings its own robe, staff and lantern; the light stays where the placeholder lantern was.
-	// Hidden in game rather than invisible, so the respawn blink (which toggles visibility) leaves them hidden.
-	for (UStaticMeshComponent* Placeholder : { Body.Get(), Head.Get(), Staff.Get(), Lantern.Get() })
-	{
-		Placeholder->SetHiddenInGame(true);
-	}
-	bUsingModel = true;
-
-	// The lantern burns warm white, as in the concept, so the robe keeps its teal and gold instead of turning cyan.
-	Glow->SetLightColor(LanternLightColor);
-	return true;
 }
 
 void ALightWalkerPawn::UpdateModelStride(bool bMoving, float DeltaSeconds)
 {
-	if (!bUsingModel)
-	{
-		return;
-	}
-
 	// The whole model bobs with each stride and leans into the run, easing in and out; the rig also runs (AnimateRig).
 	// While gliding the stride fades out and only a smooth lean is left.
 	StrideBlend = FMath::FInterpTo(StrideBlend, bMoving ? 1.f : 0.f, DeltaSeconds, 8.f);
 	StrideTime += DeltaSeconds * 11.f * StrideBlend * (1.f - GlideBlend);
 	const float Stride = FMath::Sin(StrideTime) * (1.f - GlideBlend);
-	const float LeanDegrees = bUsingRig ? FMath::Lerp(3.f, 9.f, GlideBlend) : FMath::Lerp(7.f, 11.f, GlideBlend);
+	const float LeanDegrees = FMath::Lerp(3.f, 9.f, GlideBlend);
 	const FQuat Lean = FRotator(-LeanDegrees * StrideBlend, 0.f, Stride * 3.f * StrideBlend).Quaternion();
 	const FVector Feet(0.f, 0.f, -ContactRadius);
 
-	UMeshComponent* Shown = ActiveModel();
-	Shown->SetRelativeRotation(Lean * FRotator(0.f, ModelYaw, 0.f).Quaternion());
-	Shown->SetRelativeLocation(Feet + Lean.RotateVector(ModelOffset - Feet) + FVector(0.f, 0.f, FMath::Abs(Stride) * 5.f * StrideBlend));
+	Rig->SetRelativeRotation(Lean * FRotator(0.f, ModelYaw, 0.f).Quaternion());
+	Rig->SetRelativeLocation(Feet + Lean.RotateVector(ModelOffset - Feet) + FVector(0.f, 0.f, FMath::Abs(Stride) * 5.f * StrideBlend));
 	AnimateRig(DeltaSeconds);
 }
 
 void ALightWalkerPawn::AnimateRig(float DeltaSeconds)
 {
-	USkinnedAsset* Asset = bUsingRig ? Rig->GetSkinnedAsset() : nullptr;
+	USkinnedAsset* Asset = Rig->GetSkinnedAsset();
 	if (!Asset || Rig->BoneSpaceTransforms.Num() != RigRefLocal.Num())
 	{
 		return;
@@ -508,7 +416,6 @@ void ALightWalkerPawn::UpdatePowerUps(float DeltaSeconds)
 	const float TargetRadius = LightRadius * RunScale * OrbScale * LightScale;
 	Glow->SetAttenuationRadius(FMath::FInterpTo(Glow->AttenuationRadius, TargetRadius, DeltaSeconds, 4.f));
 	Glow->SetIntensity(30.f * OrbScale * GetLightStrength());
-	Lantern->SetRelativeScale3D(FVector(0.26f * FMath::Sqrt(OrbScale)));
 
 	// The light orb lifts Lightwalker off the ground: rise, hover gently, and settle back when it runs out.
 	GlideBlend = FMath::FInterpTo(GlideBlend, OrbScale > 1.f ? 1.f : 0.f, DeltaSeconds, 3.f);
@@ -550,7 +457,6 @@ void ALightWalkerPawn::Fire(const FVector& Direction)
 	FActorSpawnParameters Params;
 	Params.Owner = this;
 	Params.Instigator = this;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	const bool bOrb = GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f;
 	const bool bPiercing = GetPowerUpTimeLeft(EPickupType::PiercingBeam) > 0.f;

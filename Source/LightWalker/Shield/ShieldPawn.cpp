@@ -5,12 +5,10 @@
 #include "Core/LWFeel.h"
 #include "Core/LWNeon.h"
 #include "Core/LWSound.h"
-#include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Shield/ShieldField.h"
-#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -19,16 +17,9 @@ namespace
 
 AShieldPawn::AShieldPawn()
 {
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	for (int32 Index = 0; Index < SegmentCount; ++Index)
 	{
-		UStaticMeshComponent* Segment = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("ShieldSegment%d"), Index));
-		Segment->SetupAttachment(RootComponent);
-		Segment->SetStaticMesh(CubeMesh.Object);
-		Segment->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Segment->SetCastShadow(false);
-		Segment->bAffectDynamicIndirectLighting = false;
-		Segment->bAffectDistanceFieldLighting = false;
+		UStaticMeshComponent* Segment = LWNeon::MakeMesh(this, *FString::Printf(TEXT("ShieldSegment%d"), Index), ELWShape::Cube, RootComponent);
 		Segments.Add(Segment);
 	}
 }
@@ -149,8 +140,8 @@ void AShieldPawn::UpdateShield(float DeltaSeconds)
 		Segments[Index]->SetWorldScale3D(FVector(0.12f, Length * 1.08f / 100.f, 0.5f));
 		if (SegmentMaterials.IsValidIndex(Index) && SegmentMaterials[Index])
 		{
-			SegmentMaterials[Index]->SetVectorParameterValue(FName(TEXT("Color")), StrainLeft > 0.f ? FLinearColor(1.f, 0.25f, 0.4f) : ShieldColor);
-			SegmentMaterials[Index]->SetScalarParameterValue(FName(TEXT("Intensity")), (1.8f + 7.f * ShieldFlash * ShieldFlash) * Flicker);
+			SegmentMaterials[Index]->SetVectorParameterValue(LWNeon::ColorParam, StrainLeft > 0.f ? FLinearColor(1.f, 0.25f, 0.4f) : ShieldColor);
+			SegmentMaterials[Index]->SetScalarParameterValue(LWNeon::IntensityParam, (1.8f + 7.f * ShieldFlash * ShieldFlash) * Flicker);
 		}
 	}
 }

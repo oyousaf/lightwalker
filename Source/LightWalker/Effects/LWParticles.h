@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Core/LWNeon.h"
 #include "GameFramework/Actor.h"
 #include "LWParticles.generated.h"
 
@@ -46,8 +47,8 @@ class LIGHTWALKER_API ULWParticleComponent : public UInstancedStaticMeshComponen
 public:
 	ULWParticleComponent();
 
-	/** Shape (Sphere or Cube from /Engine/BasicShapes), colour and glow strength. Call before emitting. */
-	void Setup(UStaticMesh* Mesh, const FLinearColor& Color, float Intensity);
+	/** Shape, colour and glow strength. Call before emitting. */
+	void Setup(ELWShape Shape, const FLinearColor& Color, float Intensity);
 
 	void Emit(const FLWEmit& Params);
 
@@ -100,10 +101,8 @@ private:
 /** The game's effects, one call each. */
 namespace LWFX
 {
-	enum class EShape : uint8 { Sphere, Cube };
-
 	/** Spawns a burst actor of the given look and throws one or more batches from it. */
-	LIGHTWALKER_API void Burst(UWorld* World, EShape Shape, const FLinearColor& Color, float Intensity, std::initializer_list<FLWEmit> Batches);
+	LIGHTWALKER_API void Burst(UWorld* World, ELWShape Shape, const FLinearColor& Color, float Intensity, std::initializer_list<FLWEmit> Batches);
 
 	LIGHTWALKER_API void HitSpark(UWorld* World, const FVector& Location, const FVector& ShotDirection);
 	LIGHTWALKER_API void ShaytaanDeath(UWorld* World, const FVector& Location);

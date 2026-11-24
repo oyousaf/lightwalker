@@ -19,19 +19,6 @@
 namespace
 {
 	using LWStyle::WithAlpha;
-
-	const TCHAR* IconName(EPickupType Type)
-	{
-		switch (Type)
-		{
-		case EPickupType::LightOrb:     return TEXT("IconLightOrb");
-		case EPickupType::SpreadShot:   return TEXT("IconSpreadShot");
-		case EPickupType::PiercingBeam: return TEXT("IconPiercingBeam");
-		case EPickupType::Shield:       return TEXT("IconShield");
-		case EPickupType::Book:         return TEXT("IconBook");
-		default:                        return TEXT("");
-		}
-	}
 }
 
 float AArenaHUD::MeasureWidth(const FString& Text, const FSlateFontInfo& Font) const
@@ -79,6 +66,22 @@ void AArenaHUD::DrawIcon(UTexture2D* Texture, float X, float Y, float Size, floa
 	Canvas->DrawItem(Tile);
 }
 
+void AArenaHUD::DrawCover(UTexture2D* Texture, float Alpha)
+{
+	if (!Texture || !Texture->GetResource())
+	{
+		return;
+	}
+	const FVector2D Screen(Canvas->ClipX, Canvas->ClipY);
+	const FIntPoint Art = Texture->GetImportedSize();
+	const double Scale = FMath::Max(Screen.X / FMath::Max(1, Art.X), Screen.Y / FMath::Max(1, Art.Y));
+	const FVector2D Shown = Screen / (FVector2D(Art) * Scale);
+	const FVector2D Start = (FVector2D::UnitVector - Shown) * 0.5f;
+	FCanvasTileItem Tile(FVector2D::ZeroVector, Texture->GetResource(), Screen, Start, Start + Shown, FLinearColor(1.f, 1.f, 1.f, Alpha));
+	Tile.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Tile);
+}
+
 void AArenaHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -89,7 +92,15 @@ void AArenaHUD::DrawHUD()
 		return;
 	}
 
-	// The name entry and leaderboard have the screen to themselves.
+	// The run's last picture, fading in over the game (and staying behind the leaderboard).
+	const FBanner Banner = GetBanner();
+	BackdropAlpha = FMath::FInterpConstantTo(BackdropAlpha, Banner.Backdrop ? 1.f : 0.f, RenderDelta, Banner.Backdrop ? 0.8f : 4.f);
+	if (Banner.Backdrop)
+	{
+		DrawCover(LWStyle::Art(Banner.Backdrop), BackdropAlpha);
+	}
+
+	// The name entry and leaderboard have the rest of the screen to themselves.
 	const ALightWalkerPlayerController* Controller = Cast<ALightWalkerPlayerController>(GetOwningPlayerController());
 	if (Controller && Controller->IsRunEndShown())
 	{
@@ -158,7 +169,7 @@ void AArenaHUD::DrawHUD()
 		{
 			const FLinearColor Color = LWPickups::GetColor(Type);
 			float TextX = SafeLeft;
-			if (UTexture2D* Icon = LWStyle::Art(IconName(Type)))
+			if (UTexture2D* Icon = LWPickups::GetIcon(Type))
 			{
 				DrawIcon(Icon, SafeLeft, Y, IconSize);
 				TextX += IconSize + Px(10.f);
@@ -200,7 +211,6 @@ void AArenaHUD::DrawHUD()
 		return;
 	}
 
-	const FBanner Banner = GetBanner();
 	const float BannerY = Canvas->ClipY * Banner.Height;
 	if (!Banner.Title.IsEmpty())
 	{
@@ -287,6 +297,7 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		break;
 	case EArenaPhase::GameOver:
 		Banner.Title = TEXT("GAME OVER");
+		Banner.Backdrop = TEXT("GameOver");
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
 		break;
@@ -305,6 +316,7 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		break;
 	case EArenaPhase::Victory:
 		Banner.Title = TEXT("THE LIGHT PREVAILS");
+		Banner.Backdrop = TEXT("Victory");
 		Banner.Color = LWStyle::Gold;
 		Banner.Glow = LWStyle::Pink;
 		Banner.Detail = FString::Printf(TEXT("FINAL SCORE %d"), Run->GetScore());

@@ -60,7 +60,7 @@ bool AShieldGameMode::IsBeamHeld() const
 
 FString AShieldGameMode::GetWallName() const
 {
-	static const TCHAR* const Names[] = { TEXT("THE VEIL"), TEXT("THE KEEP"), TEXT("THE EYE") };
+	static const TCHAR* const Names[] = { TEXT("THE VEIL"), TEXT("THE KEEP"), TEXT("THE EYE OF HORUS") };
 	return Names[FMath::Clamp(Wall, 0, static_cast<int32>(UE_ARRAY_COUNT(Names)) - 1)];
 }
 
@@ -126,17 +126,7 @@ void AShieldGameMode::StartPlay()
 		ULWFeelSubsystem::Play(this, ELWFeel::Pickup);
 	};
 	Field->OnBeamsLost = [this]() { LoseLife(true); };
-	Field->OnSaveBeam = [this]()
-	{
-		AShieldPawn* Pawn = GetShieldPawn();
-		if (!Pawn || !Pawn->TryBlockHit())
-		{
-			return false;
-		}
-		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
-		ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
-		return true;
-	};
+	Field->OnSaveBeam = [this]() { return BlockWithShield(GetLightWalker()); };
 	Field->OnBoltBlocked = [this](const FVector& Where)
 	{
 		if (AShieldPawn* Pawn = GetShieldPawn())
@@ -267,9 +257,7 @@ void AShieldGameMode::HandleBlock(const FWallBlock& Block, bool bBroken)
 	}
 	else if (Block.Kind == EWallBlock::Cage)
 	{
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		if (AShaytaan* Shaytaan = GetWorld()->SpawnActor<AShaytaan>(AShaytaan::StaticClass(), FVector(Block.Centre.X, Block.Centre.Y, PlaneHeight), FRotator::ZeroRotator, Params))
+		if (AShaytaan* Shaytaan = GetWorld()->SpawnActor<AShaytaan>(AShaytaan::StaticClass(), FVector(Block.Centre.X, Block.Centre.Y, PlaneHeight), FRotator::ZeroRotator))
 		{
 			Shaytaan->InitEnemy(GetLightWalker(), Arena->GetPlayBounds(50.f), ShaytaanSpeed);
 			Shaytaan->SetActive(true);
@@ -279,11 +267,8 @@ void AShieldGameMode::HandleBlock(const FWallBlock& Block, bool bBroken)
 
 void AShieldGameMode::DropPickup(const FVector2D& Where, bool bBook)
 {
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(APickup::StaticClass(), FVector(Where.X, Where.Y, PlaneHeight), FRotator::ZeroRotator, Params))
+	if (APickup* Pickup = SpawnPickup(bBook ? EPickupType::Book : RandomPowerUp(), FVector(Where.X, Where.Y, PlaneHeight)))
 	{
-		Pickup->InitPickup(bBook ? EPickupType::Book : static_cast<EPickupType>(FMath::RandRange(0, static_cast<int32>(EPickupType::Shield))), GetLightWalker());
 		Pickup->SetDrift(FVector(-PickupFallSpeed, 0.f, 0.f), 165.f);
 	}
 }
@@ -365,11 +350,8 @@ void AShieldGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 	{
 		return;
 	}
-	if (LightWalker->TryBlockHit())
+	if (BlockWithShield(LightWalker))
 	{
-		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
-		ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
-		LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
 		return;
 	}
 	LoseLife(false);

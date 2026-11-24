@@ -155,8 +155,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Path|Camera")
 	float LookUp = 190.f;
 
+	/** Tints the rock. */
 	UPROPERTY(EditAnywhere, Category = "Path|Look")
-	FLinearColor GroundColor = FLinearColor(0.05f, 0.022f, 0.1f);
+	FLinearColor GroundColor = FLinearColor(1.f, 1.f, 1.f);
 
 	/** Edge glow in the light, and the faint trace left in the dark. */
 	UPROPERTY(EditAnywhere, Category = "Path|Look")
@@ -186,8 +187,6 @@ private:
 
 	void BuildMeshes();
 	void BuildBackdrop();
-	UStaticMeshComponent* AddMesh(UStaticMesh* Mesh, USceneComponent* Parent, const FVector& Location, const FVector& Scale, const FRotator& Rotation = FRotator::ZeroRotator);
-	UInstancedStaticMeshComponent* AddInstances(UStaticMesh* Mesh, USceneComponent* Parent);
 	void UpdateBlocks(float DeltaSeconds);
 	void UpdateCamera(float DeltaSeconds, bool bInstant);
 
@@ -214,35 +213,24 @@ private:
 
 	struct FSpikeRow
 	{
-		TWeakObjectPtr<UMaterialInstanceDynamic> Material;
-		float Centre;
-		float Height;
+		TArray<TWeakObjectPtr<UMaterialInstanceDynamic>> Materials;
+		float Centre = 0.f;
 	};
 	TArray<FSpikeRow> SpikeRows;
 
 	struct FLantern
 	{
-		TWeakObjectPtr<UMaterialInstanceDynamic> Flame;
+		/** The post with its lantern out, and the same with it lit, laid over it. */
+		TWeakObjectPtr<UMaterialInstanceDynamic> Post;
+		TWeakObjectPtr<UMaterialInstanceDynamic> Lit;
 		TWeakObjectPtr<class UPointLightComponent> Light;
+		float Y = 0.f;
 		bool bLit = false;
 		float Blend = 0.f;
 	};
 	TArray<FLantern> Lanterns;
 
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<USceneComponent>> Built;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> CubeMesh;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> ConeMesh;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> SphereMesh;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> CylinderMesh;
+	TWeakObjectPtr<UMaterialInstanceDynamic> GateMaterial;
 
 	FVector Target = FVector::ZeroVector;
 	FVector CameraAt = FVector::ZeroVector;

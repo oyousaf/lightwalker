@@ -38,7 +38,7 @@ void ULWNameEntry::Begin(int32 InScore, const FString& Name)
 
 void ULWNameEntry::Build(UCanvasPanel* Root)
 {
-	AddVeil(Root, 0.78f);
+	AddVeil(Root, 0.62f);
 	UVerticalBox* Column = AddPanel(Root, 900.f);
 	Column->AddChildToVerticalBox(MakeTitle(TEXT("HIGH SCORE"), 56));
 	ScoreText = MakeBody(TEXT(""), 44, LWStyle::Gold, 120);
@@ -213,7 +213,7 @@ void ULWLeaderboard::Begin(ERunMode InMode, int32 InHighlight, bool bInRunEnd, i
 
 void ULWLeaderboard::Build(UCanvasPanel* Root)
 {
-	AddVeil(Root, 0.78f);
+	AddVeil(Root, 0.62f);
 	UVerticalBox* Column = AddPanel(Root, 1060.f);
 	if (UBorder* Panel = Cast<UBorder>(Column->GetParent()->GetParent()))
 	{

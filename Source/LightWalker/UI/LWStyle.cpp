@@ -26,7 +26,7 @@ namespace
 			Font = NewObject<UFont>(GetTransientPackage(), NAME_None, RF_Transient);
 			Font->FontCacheType = EFontCacheType::Runtime;
 			Font->LegacyFontSize = 24;
-			Font->CompositeFont.DefaultTypeface.Fonts.Add(FTypefaceEntry(TEXT("Regular"), Path, EFontHinting::Default, EFontLoadingPolicy::LazyLoad));
+			Font->GetMutableInternalCompositeFont().DefaultTypeface.Fonts.Add(FTypefaceEntry(TEXT("Regular"), Path, EFontHinting::Default, EFontLoadingPolicy::LazyLoad));
 			Font->AddToRoot();
 		}
 		Fonts.Add(File, Font);

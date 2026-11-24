@@ -1,17 +1,19 @@
-# Enemy models
+# Models
 
-Drop the generated models here, then run the import (editor closed):
+Drop the generated models here, shrink their textures (`Tools/shrink_glb.py`), then run the import (editor closed):
 
 ```powershell
 & "D:\Games\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "D:\Documents\Unreal Projects\LightWalker\LightWalker.uproject" -run=pythonscript -script="D:\Documents\Unreal Projects\LightWalker\Tools\import_models.py" -unattended -nosplash
 ```
 
-| File | Becomes | Enemy |
+| File | Becomes | What |
 |---|---|---|
 | `shaytaan.glb` | `/Game/Enemies/SM_Shaytaan` | the devil (chaser) |
-| `dajjal.glb` | `/Game/Enemies/SM_Dajjal` | the all-seeing pyramid (wanderer) |
+| `dajjal.glb` | `/Game/Enemies/SM_Dajjal` | the all-seeing pyramid (wanderer), and the boss's guardians |
+| `one_eyed_liar.glb` | `/Game/Enemies/SM_OneEyedLiar` | the boss, built from its picture by `Tools/make_boss_model.py` |
+| `lightwalker.glb`, `lightwalker_female.glb` | materials and textures in `/Game/Hero` | the heroes; their meshes are the rigged ones (`Tools/rig_hero.py`, then `Tools/import_hero_rig.py`) |
 
-`.gltf` and `.fbx` work too. The game scales each model to fit and turns it to face forward; a missing model just keeps that enemy's placeholder shapes.
+`.gltf` and `.fbx` work too. The game scales each model to fit and turns it to face forward; a missing one shows as a plain glowing ball.
 
 Export settings: a single unrigged mesh with PBR textures, around 10–30k triangles, front facing the camera in the generator's default view.
 

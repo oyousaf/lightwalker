@@ -7,6 +7,8 @@
 class AEnemyBase;
 class ALightWalkerPawn;
 class ULightWalkerGameInstance;
+class APickup;
+enum class EPickupType : uint8;
 
 /**
  * What every mode (Arena, The Path, The Shield) has in common, so the pawn, enemies, menus and game feel don't need to
@@ -52,6 +54,13 @@ public:
 protected:
 	ULightWalkerGameInstance* GetRun() const;
 	ALightWalkerPawn* GetLightWalker() const;
+
+	/** Lightwalker's shield takes the hit, if it's up (with its sound and flash). */
+	bool BlockWithShield(ALightWalkerPawn* LightWalker);
+
+	APickup* SpawnPickup(EPickupType Type, const FVector& Where);
+	/** Any power-up (not the book). */
+	static EPickupType RandomPowerUp();
 
 	/** The run is over: after a moment for the banner, the name entry or the leaderboard comes up. */
 	void EndRun(float Delay);

@@ -84,12 +84,9 @@ void APathGameMode::StartPlay()
 void APathGameMode::SpawnField()
 {
 	APathPawn* LightWalker = GetPathPawn();
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
 	for (const FVector2D& Spot : Course->GetOrbSpots())
 	{
-		if (APathOrb* Orb = GetWorld()->SpawnActor<APathOrb>(APathOrb::StaticClass(), FVector(0.f, Spot.X, Spot.Y), FRotator::ZeroRotator, Params))
+		if (APathOrb* Orb = GetWorld()->SpawnActor<APathOrb>(APathOrb::StaticClass(), FVector(0.f, Spot.X, Spot.Y), FRotator::ZeroRotator))
 		{
 			Orb->InitOrb(LightWalker);
 			Orb->OnTaken = [this](APathOrb*, bool bFirst)
@@ -110,7 +107,7 @@ void APathGameMode::SpawnField()
 		AEnemyBase* Enemy = nullptr;
 		if (Spawn.Kind == EPathSpawn::Shaytaan)
 		{
-			APathShaytaan* Shaytaan = GetWorld()->SpawnActor<APathShaytaan>(APathShaytaan::StaticClass(), Location, FRotator::ZeroRotator, Params);
+			APathShaytaan* Shaytaan = GetWorld()->SpawnActor<APathShaytaan>(APathShaytaan::StaticClass(), Location, FRotator::ZeroRotator);
 			if (Shaytaan)
 			{
 				Shaytaan->SetPatrol(Spawn.PatrolLeft, Spawn.PatrolRight);
@@ -119,11 +116,10 @@ void APathGameMode::SpawnField()
 		}
 		else if (Spawn.Kind == EPathSpawn::Dajjal)
 		{
-			Enemy = GetWorld()->SpawnActor<APathDajjal>(APathDajjal::StaticClass(), Location, FRotator::ZeroRotator, Params);
+			Enemy = GetWorld()->SpawnActor<APathDajjal>(APathDajjal::StaticClass(), Location, FRotator::ZeroRotator);
 		}
-		else if (APickup* Book = GetWorld()->SpawnActor<APickup>(APickup::StaticClass(), Location, FRotator::ZeroRotator, Params))
+		else if (APickup* Book = SpawnPickup(EPickupType::Book, Location))
 		{
-			Book->InitPickup(EPickupType::Book, LightWalker);
 			Book->SetPersistent();
 		}
 		if (Enemy)
@@ -187,11 +183,8 @@ void APathGameMode::Tick(float DeltaSeconds)
 		if (Phase == EPathPhase::Running && Hazard != EPathHazard::None)
 		{
 			// The shield saves one fall or one stumble onto spikes, like any other hit.
-			if (LightWalker->TryBlockHit())
+			if (BlockWithShield(LightWalker))
 			{
-				ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
-				ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
-				LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
 				if (Hazard == EPathHazard::Fell)
 				{
 					LightWalker->PlaceAt(Course->GetCheckpoints()[Checkpoint], RespawnGrace);
@@ -263,11 +256,8 @@ void APathGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 	{
 		return;
 	}
-	if (LightWalker->TryBlockHit())
+	if (BlockWithShield(LightWalker))
 	{
-		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
-		ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
-		LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
 		return;
 	}
 	LoseLife(LightWalker->GetActorLocation());

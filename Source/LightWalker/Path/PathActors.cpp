@@ -5,30 +5,17 @@
 #include "Core/LWNeon.h"
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
-#include "Engine/StaticMesh.h"
 #include "Path/PathPawn.h"
-#include "UObject/ConstructorHelpers.h"
 
 APathOrb::APathOrb()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	auto MakeSphere = [this](const TCHAR* Name, float Scale)
-	{
-		UStaticMeshComponent* Mesh = CreateDefaultSubobject<UStaticMeshComponent>(Name);
-		Mesh->SetupAttachment(RootComponent);
-		Mesh->SetStaticMesh(Sphere.Object);
-		Mesh->SetRelativeScale3D(FVector(Scale));
-		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Mesh->SetCastShadow(false);
-		Mesh->bAffectDynamicIndirectLighting = false;
-		Mesh->bAffectDistanceFieldLighting = false;
-		return Mesh;
-	};
-	Shell = MakeSphere(TEXT("Shell"), 0.3f);
-	Core = MakeSphere(TEXT("Core"), 0.13f);
+	Shell = LWNeon::MakeMesh(this, TEXT("Shell"), ELWShape::Sphere, RootComponent);
+	Shell->SetRelativeScale3D(FVector(0.3f));
+	Core = LWNeon::MakeMesh(this, TEXT("Core"), ELWShape::Sphere, RootComponent);
+	Core->SetRelativeScale3D(FVector(0.13f));
 }
 
 void APathOrb::BeginPlay()
@@ -73,7 +60,7 @@ void APathOrb::Tick(float DeltaSeconds)
 		Rise.Size = FVector2D(0.03f, 0.065f);
 		Rise.Drag = 4.f;
 		Rise.Gravity = -220.f;
-		LWFX::Burst(GetWorld(), LWFX::EShape::Sphere, FLinearColor(1.f, 0.85f, 0.45f), 11.f, { Rise });
+		LWFX::Burst(GetWorld(), ELWShape::Sphere, FLinearColor(1.f, 0.85f, 0.45f), 11.f, { Rise });
 		ULWSoundSubsystem::Play(this, ELWSound::Orb);
 		ULWFeelSubsystem::Play(this, ELWFeel::Pickup);
 

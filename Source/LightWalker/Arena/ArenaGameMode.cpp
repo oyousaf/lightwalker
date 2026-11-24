@@ -75,7 +75,6 @@ AArenaGameMode::AArenaGameMode()
 	PrimaryActorTick.bCanEverTick = true;
 	BossClass = AOneEyedLiar::StaticClass();
 	DefaultWaves = MakeDefaultWaves();
-	PickupClass = APickup::StaticClass();
 }
 
 const TArray<FArenaWave>& AArenaGameMode::GetWaves() const
@@ -423,12 +422,11 @@ void AArenaGameMode::BeginBossIntro()
 	BossBonus = 0;
 	Arena->SetMood(1.f);
 
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Boss = GetWorld()->SpawnActor<AOneEyedLiar>(BossClass, Arena->GetCentre() + FVector(520.f, 0.f, PlaneHeight), FRotator(0.f, 0.f, 0.f), Params);
+	Boss = GetWorld()->SpawnActor<AOneEyedLiar>(BossClass, Arena->GetCentre() + FVector(520.f, 0.f, PlaneHeight), FRotator::ZeroRotator);
 	if (!Boss)
 	{
 		SetPhase(EArenaPhase::Victory, 0.f, nullptr);
+		EndRun(4.f);
 		return;
 	}
 	Boss->InitEnemy(GetLightWalker(), Arena->GetPlayBounds(0.f), 0.f);
@@ -444,9 +442,7 @@ void AArenaGameMode::BeginBossIntro()
 	Boss->OnGone = [this]() { HandleBossGone(); };
 	Boss->OnSpawn = [this](TSubclassOf<AEnemyBase> Class, const FVector& Where) -> AEnemyBase*
 	{
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		AEnemyBase* Enemy = GetWorld()->SpawnActor<AEnemyBase>(Class, Where, FRotator::ZeroRotator, SpawnParams);
+		AEnemyBase* Enemy = GetWorld()->SpawnActor<AEnemyBase>(Class, Where, FRotator::ZeroRotator);
 		if (Enemy)
 		{
 			Enemy->InitEnemy(GetLightWalker(), Arena->GetPlayBounds(50.f), 0.f);
@@ -504,19 +500,14 @@ void AArenaGameMode::SummonForBoss(int32 Shaytaan, int32 Dajjal)
 
 void AArenaGameMode::DropBossPickup()
 {
-	if (Phase != EArenaPhase::Fighting || !PickupClass)
+	if (Phase != EArenaPhase::Fighting)
 	{
 		return;
 	}
 	const FBox2D Bounds = Arena->GetPlayBounds(250.f);
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	const FVector Where(FMath::FRandRange(Bounds.Min.X, Bounds.GetCenter().X), FMath::FRandRange(Bounds.Min.Y, Bounds.Max.Y), Arena->GetCentre().Z + PlaneHeight);
-	if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, Where, FRotator::ZeroRotator, Params))
-	{
-		Pickup->InitPickup(static_cast<EPickupType>(FMath::RandRange(0, static_cast<int32>(EPickupType::Shield))), GetLightWalker());
-		LWFX::Respawn(GetWorld(), Where);
-	}
+	SpawnPickup(RandomPowerUp(), Where);
+	LWFX::Respawn(GetWorld(), Where);
 }
 
 void AArenaGameMode::HandleBossStage(int32 Stage)
@@ -610,17 +601,12 @@ void AArenaGameMode::BeginFighting()
 	}
 
 	// Dev only: -LWDrops also lays out one of each pickup around the centre, to check how they look.
-	if (FParse::Param(FCommandLine::Get(), TEXT("LWDrops")) && PickupClass)
+	if (FParse::Param(FCommandLine::Get(), TEXT("LWDrops")))
 	{
 		for (int32 Index = 0; Index < static_cast<int32>(EPickupType::Count); ++Index)
 		{
 			const FVector Offset = FRotator(0.f, 360.f * Index / static_cast<int32>(EPickupType::Count), 0.f).RotateVector(FVector(260.f, 0.f, 0.f));
-			FActorSpawnParameters Params;
-			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, Arena->GetCentre() + Offset + FVector(0.f, 0.f, PlaneHeight), FRotator::ZeroRotator, Params))
-			{
-				Pickup->InitPickup(static_cast<EPickupType>(Index), GetLightWalker());
-			}
+			SpawnPickup(static_cast<EPickupType>(Index), Arena->GetCentre() + Offset + FVector(0.f, 0.f, PlaneHeight));
 		}
 	}
 #endif
@@ -631,9 +617,6 @@ void AArenaGameMode::SpawnWave(const FArenaWave& Wave)
 	UWorld* World = GetWorld();
 	ALightWalkerPawn* LightWalker = GetLightWalker();
 
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
 	auto SpawnEnemies = [&](TSubclassOf<AEnemyBase> Class, int32 Count, float Speed)
 	{
 		if (!Class)
@@ -642,7 +625,7 @@ void AArenaGameMode::SpawnWave(const FArenaWave& Wave)
 		}
 		for (int32 Index = 0; Index < Count; ++Index)
 		{
-			AEnemyBase* Enemy = World->SpawnActor<AEnemyBase>(Class, RandomEnemySpawn(), FRotator::ZeroRotator, Params);
+			AEnemyBase* Enemy = World->SpawnActor<AEnemyBase>(Class, RandomEnemySpawn(), FRotator::ZeroRotator);
 			if (Enemy)
 			{
 				Enemy->InitEnemy(LightWalker, Arena->GetPlayBounds(50.f), Speed);
@@ -740,11 +723,8 @@ void AArenaGameMode::HandlePlayerTouched(ALightWalkerPawn* LightWalker)
 		return;
 	}
 
-	if (LightWalker->TryBlockHit())
+	if (BlockWithShield(LightWalker))
 	{
-		ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
-		ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
-		LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
 		return;
 	}
 
@@ -925,7 +905,7 @@ void AArenaGameMode::ClearField()
 
 void AArenaGameMode::TryDropPickup(const FVector& Location, bool bFromDajjal)
 {
-	if (!PickupClass || Phase != EArenaPhase::Fighting)
+	if (Phase != EArenaPhase::Fighting)
 	{
 		return;
 	}
@@ -952,17 +932,12 @@ void AArenaGameMode::TryDropPickup(const FVector& Location, bool bFromDajjal)
 	}
 	else if (FMath::FRand() < DropChance)
 	{
-		Type = static_cast<EPickupType>(FMath::RandRange(0, static_cast<int32>(EPickupType::Shield)));
+		Type = RandomPowerUp();
 	}
 	else
 	{
 		return;
 	}
 
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	if (APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, FVector(Location.X, Location.Y, Arena->GetCentre().Z + PlaneHeight), FRotator::ZeroRotator, Params))
-	{
-		Pickup->InitPickup(Type, GetLightWalker());
-	}
+	SpawnPickup(Type, FVector(Location.X, Location.Y, Arena->GetCentre().Z + PlaneHeight));
 }

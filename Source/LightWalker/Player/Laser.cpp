@@ -6,8 +6,6 @@
 #include "Core/LWNeon.h"
 #include "Effects/LWParticles.h"
 #include "Enemies/EnemyBase.h"
-#include "Engine/StaticMesh.h"
-#include "UObject/ConstructorHelpers.h"
 
 ALaser::ALaser()
 {
@@ -20,15 +18,10 @@ ALaser::ALaser()
 	Collision->SetGenerateOverlapEvents(true);
 	RootComponent = Collision;
 
-	// The cylinder mesh runs along +Z; pitch it so its length runs along the actor's +X (direction of travel).
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-	Beam = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Beam"));
-	Beam->SetupAttachment(Collision);
-	Beam->SetStaticMesh(CylinderMesh.Object);
+	// The cylinder runs along +Z; pitch it so its length runs along the actor's +X (direction of travel).
+	Beam = LWNeon::MakeMesh(this, TEXT("Beam"), ELWShape::Cylinder, Collision);
 	Beam->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
 	Beam->SetRelativeScale3D(FVector(0.1f, 0.1f, 0.7f));
-	Beam->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Beam->SetCastShadow(false);
 }
 
 void ALaser::BeginPlay()

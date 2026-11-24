@@ -8,7 +8,7 @@ class ALightWalkerPawn;
 class ULWParticleComponent;
 class UPointLightComponent;
 class USceneComponent;
-class UStaticMeshComponent;
+class UTexture2D;
 
 UENUM(BlueprintType)
 enum class EPickupType : uint8
@@ -32,10 +32,12 @@ namespace LWPickups
 	/** Display name, as shown on the HUD. */
 	LIGHTWALKER_API FString GetName(EPickupType Type);
 	LIGHTWALKER_API FLinearColor GetColor(EPickupType Type);
+	/** Its icon, on the HUD and as the pickup itself. Null if the art hasn't been imported. */
+	LIGHTWALKER_API UTexture2D* GetIcon(EPickupType Type);
 }
 
 /**
- * Something dropped by a killed enemy. It floats and spins where it fell, blinks out after a while,
+ * Something dropped by a killed enemy. It floats where it fell, facing the camera, blinks out after a while,
  * and is collected by Lightwalker walking over it.
  */
 UCLASS()
@@ -63,7 +65,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USceneComponent> Root;
 
-	/** Spins and bobs; the shapes hang off this. */
+	/** Bobs, sways and faces the camera; the icon hangs off this. */
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USceneComponent> Visual;
 
@@ -85,28 +87,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
 	float CollectRadius = 80.f;
 
+	/** The icon's width and height. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
-	float SpinRate = 90.f;
+	float IconSize = 125.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "LightWalker")
+	float IconGlow = 2.f;
 
 private:
-	UStaticMeshComponent* AddPart(UStaticMesh* Mesh, const FVector& Location, const FRotator& Rotation, const FVector& Scale,
-		const FLinearColor& Color, float Intensity);
-
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> Parts;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UStaticMesh> SphereMesh;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UStaticMesh> CubeMesh;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UStaticMesh> ConeMesh;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UStaticMesh> CylinderMesh;
-
 	TWeakObjectPtr<ALightWalkerPawn> Player;
 	EPickupType Type = EPickupType::LightOrb;
 	bool bPersistent = false;

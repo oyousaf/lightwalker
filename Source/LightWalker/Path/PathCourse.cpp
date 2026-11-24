@@ -7,11 +7,9 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
-#include "Engine/GameViewportClient.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "UObject/ConstructorHelpers.h"
+#include "UI/LWStyle.h"
 
 namespace
 {
@@ -25,10 +23,7 @@ namespace
 	const FLinearColor LedgeEdge(0.2f, 0.85f, 1.f);
 	const FLinearColor CrumbleEdge(1.f, 0.42f, 0.1f);
 	const FLinearColor MovingEdge(0.75f, 0.2f, 1.f);
-	const FLinearColor SpikeColor(1.f, 0.08f, 0.2f);
 	const FLinearColor GateColor(1.f, 0.8f, 0.35f);
-
-	const FName IntensityName(TEXT("Intensity"));
 
 	FLinearColor EdgeColorFor(EPathBlock Kind)
 	{
@@ -46,15 +41,6 @@ APathCourse::APathCourse()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cone(TEXT("/Engine/BasicShapes/Cone.Cone"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-	CubeMesh = Cube.Object;
-	ConeMesh = Cone.Object;
-	SphereMesh = Sphere.Object;
-	CylinderMesh = Cylinder.Object;
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
@@ -243,38 +229,6 @@ void APathCourse::BuildCourse()
 // ---------------------------------------------------------------------------------------------------------------
 // Meshes
 
-UStaticMeshComponent* APathCourse::AddMesh(UStaticMesh* Mesh, USceneComponent* Parent, const FVector& Location, const FVector& Scale, const FRotator& Rotation)
-{
-	UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this);
-	Part->SetupAttachment(Parent);
-	Part->SetStaticMesh(Mesh);
-	Part->SetRelativeLocation(Location);
-	Part->SetRelativeRotation(Rotation);
-	Part->SetRelativeScale3D(Scale);
-	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Part->SetCastShadow(false);
-	Part->bAffectDynamicIndirectLighting = false;
-	Part->bAffectDistanceFieldLighting = false;
-	Part->RegisterComponent();
-	Built.Add(Part);
-	return Part;
-}
-
-UInstancedStaticMeshComponent* APathCourse::AddInstances(UStaticMesh* Mesh, USceneComponent* Parent)
-{
-	UInstancedStaticMeshComponent* Part = NewObject<UInstancedStaticMeshComponent>(this);
-	Part->SetupAttachment(Parent);
-	Part->SetStaticMesh(Mesh);
-	Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Part->SetCastShadow(false);
-	Part->bAffectDynamicIndirectLighting = false;
-	Part->bAffectDistanceFieldLighting = false;
-	Part->bVisibleInRayTracing = false;
-	Part->RegisterComponent();
-	Built.Add(Part);
-	return Part;
-}
-
 void APathCourse::BeginPlay()
 {
 	Super::BeginPlay();
@@ -292,69 +246,77 @@ void APathCourse::BuildMeshes()
 
 		FPart Part;
 		Part.BodyStart = FVector(0.f, Middle, (Block.Top + Bottom) * 0.5f);
-		UStaticMeshComponent* Body = AddMesh(CubeMesh, RootComponent, Part.BodyStart, FVector(PathDepth * 2.f, Width, Block.Top - Bottom) / 100.f);
-		LWNeon::ApplySurface(Body, GroundColor);
+		UStaticMeshComponent* Body = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, Part.BodyStart, FVector(PathDepth * 2.f, Width, Block.Top - Bottom) / 100.f);
+		LWNeon::ApplyRock(Body, GroundColor);
 
 		// The glowing lip along the front edge.
 		Part.EdgeStart = FVector(-PathDepth - 2.f, Middle, Block.Top - 5.f);
-		UStaticMeshComponent* Edge = AddMesh(CubeMesh, RootComponent, Part.EdgeStart, FVector(0.05f, Width / 100.f, 0.1f));
-		if (Block.Kind == EPathBlock::Ground)
-		{
-			// Faint lines down the rock face, fading into the abyss.
-			for (int32 Line = 0; Line < 5; ++Line)
-			{
-				UStaticMeshComponent* Seam = AddMesh(CubeMesh, RootComponent, FVector(-PathDepth - 1.f, Middle, Block.Top - 70.f - Line * (70.f + Line * 26.f)), FVector(0.03f, Width / 100.f, 0.02f));
-				LWNeon::ApplyGlow(Seam, FLinearColor(0.75f, 0.1f, 0.6f), 0.16f - Line * 0.028f);
-			}
-		}
+		UStaticMeshComponent* Edge = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, Part.EdgeStart, FVector(0.05f, Width / 100.f, 0.1f));
 		Part.Body = Body;
 		Part.Edge = Edge;
 		Part.EdgeMaterial = LWNeon::ApplyGlow(Edge, EdgeColorFor(Block.Kind), EdgeGlowInDark);
 		Block.Part = Parts.Add(Part);
 	}
 
-	for (const FPathSpikes& Row : Spikes)
+	// The camera barely tilts, so upright cards facing down the course read as solid.
+	const FRotator Facing = LWNeon::CardFacing(FRotator::ZeroRotator);
+	auto AddArt = [&](const TCHAR* Name, const FVector& Location, const FVector2D& Size, int32 SortPriority = 0) -> UMaterialInstanceDynamic*
 	{
-		UInstancedStaticMeshComponent* Cones = AddInstances(ConeMesh, RootComponent);
-		const int32 Count = FMath::Max(1, FMath::RoundToInt((Row.Right - Row.Left) / 68.f));
-		const float Step = (Row.Right - Row.Left) / Count;
-		for (int32 Index = 0; Index < Count; ++Index)
+		UStaticMeshComponent* Card = LWNeon::AddCard(this, LWStyle::Art(Name), RootComponent, Location, Size, Facing);
+		if (!Card)
 		{
-			for (const float Depth : { -70.f, 0.f, 70.f })
-			{
-				Cones->AddInstance(FTransform(FRotator::ZeroRotator, FVector(Depth, Row.Left + Step * (Index + 0.5f), Row.Base + 44.f), FVector(0.55f, 0.6f, 0.9f)));
-			}
+			return nullptr;
 		}
-		SpikeRows.Add({ LWNeon::ApplyGlow(Cones, SpikeColor, EdgeGlowInDark), (Row.Left + Row.Right) * 0.5f, Row.Base });
-	}
-
-	// Checkpoint lanterns: a post at the back of the path with a flame that lights as you pass.
-	for (const FVector2D& Spot : Checkpoints)
+		Card->SetTranslucentSortPriority(SortPriority);
+		return Cast<UMaterialInstanceDynamic>(Card->GetMaterial(0));
+	};
+	auto AddLight = [this](const FVector& Location, float Intensity, float Radius, const FLinearColor& Colour)
 	{
-		const FVector Foot(70.f, Spot.X, Spot.Y);
-		UStaticMeshComponent* Post = AddMesh(CylinderMesh, RootComponent, Foot + FVector(0.f, 0.f, 110.f), FVector(0.08f, 0.08f, 2.2f));
-		LWNeon::ApplySurface(Post, FLinearColor(0.12f, 0.07f, 0.16f));
-		UStaticMeshComponent* Arm = AddMesh(CubeMesh, RootComponent, Foot + FVector(-30.f, 0.f, 216.f), FVector(0.7f, 0.06f, 0.06f));
-		LWNeon::ApplySurface(Arm, FLinearColor(0.12f, 0.07f, 0.16f));
-		UStaticMeshComponent* Flame = AddMesh(SphereMesh, RootComponent, Foot + FVector(-58.f, 0.f, 186.f), FVector(0.26f, 0.26f, 0.34f));
-
 		UPointLightComponent* Light = NewObject<UPointLightComponent>(this);
 		Light->SetupAttachment(RootComponent);
-		Light->SetRelativeLocation(Foot + FVector(-90.f, 0.f, 190.f));
+		Light->SetRelativeLocation(Location);
 		Light->SetIntensityUnits(ELightUnits::Candelas);
-		Light->SetIntensity(0.f);
-		Light->SetAttenuationRadius(650.f);
-		Light->SetLightColor(FLinearColor(1.f, 0.75f, 0.4f));
+		Light->SetIntensity(Intensity);
+		Light->SetAttenuationRadius(Radius);
+		Light->SetLightColor(Colour);
 		Light->SetCastShadows(false);
 		Light->RegisterComponent();
-		Built.Add(Light);
+		return Light;
+	};
 
-		FLantern& Lantern = Lanterns.AddDefaulted_GetRef();
-		Lantern.Flame = LWNeon::ApplyGlow(Flame, FLinearColor(1.f, 0.7f, 0.3f), 0.15f);
-		Lantern.Light = Light;
+	// Spikes: clusters of crystal in three rows, the middle one mirrored so they don't line up.
+	constexpr float SpikeHeight = 118.f;
+	constexpr float SpikeAspect = 1024.f / 616.f;
+	for (const FPathSpikes& Row : Spikes)
+	{
+		FSpikeRow& Shown = SpikeRows.AddDefaulted_GetRef();
+		Shown.Centre = (Row.Left + Row.Right) * 0.5f;
+		const int32 Count = FMath::Max(1, FMath::RoundToInt((Row.Right - Row.Left) / (SpikeHeight * SpikeAspect * 0.85f)));
+		const float Step = (Row.Right - Row.Left) / Count;
+		for (const float Depth : { 60.f, 0.f, -60.f })
+		{
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				const float Height = SpikeHeight * (Depth == 0.f ? 0.82f : 1.f);
+				Shown.Materials.Add(AddArt(TEXT("Spikes"), FVector(Depth, Row.Left + Step * (Index + 0.5f), Row.Base + Height * 0.5f - 4.f), FVector2D(Step * 1.08f * (Depth == 0.f ? -1.f : 1.f), Height)));
+			}
+		}
 	}
 
-	// The gate of light, facing the camera from the back of the path: two pillars, an arch of stones and a bright veil.
+	// Checkpoint lanterns: a post at the back of the path, lit as you pass.
+	const FVector2D PostSize = FVector2D(392.f, 1000.f) * 0.3f;
+	const FVector2D Lamp(0.25f, 0.25f);  // where the lantern is on the art, from its middle
+	for (const FVector2D& Spot : Checkpoints)
+	{
+		const FVector Middle(70.f, Spot.X, Spot.Y + PostSize.Y * 0.5f - 4.f);
+		FLantern& Lantern = Lanterns.AddDefaulted_GetRef();
+		Lantern.Y = Spot.X;
+		Lantern.Post = AddArt(TEXT("LanternUnlit"), Middle, PostSize);
+		Lantern.Lit = AddArt(TEXT("LanternLit"), Middle - FVector(1.f, 0.f, 0.f), PostSize, 1);
+		Lantern.Light = AddLight(Middle + FVector(-60.f, PostSize.X * Lamp.X, PostSize.Y * Lamp.Y), 0.f, 650.f, FLinearColor(1.f, 0.75f, 0.4f));
+	}
+
+	// The gate of light, facing the camera from the back of the path.
 	float GateZ = 0.f;
 	for (const FPathBlock& Block : Blocks)
 	{
@@ -363,38 +325,9 @@ void APathCourse::BuildMeshes()
 			GateZ = Block.Top;
 		}
 	}
-	constexpr float GateX = 95.f;
-	constexpr float GateHalf = 130.f;
-	constexpr float PillarHeight = 300.f;
-	for (const float Side : { -1.f, 1.f })
-	{
-		UStaticMeshComponent* Pillar = AddMesh(CubeMesh, RootComponent, FVector(GateX, GateY + Side * GateHalf, GateZ + PillarHeight * 0.5f), FVector(0.5f, 0.42f, PillarHeight / 100.f));
-		LWNeon::ApplyGlow(Pillar, FLinearColor(1.f, 0.5f, 0.1f), 0.9f);
-		UStaticMeshComponent* Cap = AddMesh(CubeMesh, RootComponent, FVector(GateX, GateY + Side * GateHalf, GateZ + PillarHeight), FVector(0.6f, 0.6f, 0.16f));
-		LWNeon::ApplyGlow(Cap, GateColor, 1.6f);
-	}
-	constexpr int32 Stones = 13;
-	for (int32 Stone = 0; Stone < Stones; ++Stone)
-	{
-		const float Angle = PI * Stone / (Stones - 1);
-		UStaticMeshComponent* Part = AddMesh(CubeMesh, RootComponent, FVector(GateX, GateY - FMath::Cos(Angle) * GateHalf, GateZ + PillarHeight + FMath::Sin(Angle) * GateHalf),
-			FVector(0.5f, 0.28f, 0.4f), FRotator(0.f, 0.f, FMath::RadiansToDegrees(Angle) - 90.f));
-		LWNeon::ApplyGlow(Part, Stone % 2 == 0 ? FLinearColor(1.f, 0.5f, 0.1f) : GateColor, Stone % 2 == 0 ? 0.9f : 1.6f);
-	}
-	UStaticMeshComponent* Veil = AddMesh(CubeMesh, RootComponent, FVector(GateX + 12.f, GateY, GateZ + PillarHeight * 0.5f), FVector(0.04f, GateHalf * 2.f / 100.f, PillarHeight / 100.f));
-	LWNeon::ApplyGlow(Veil, FLinearColor(1.f, 0.85f, 0.55f), 1.5f);
-	UStaticMeshComponent* Dome = AddMesh(CylinderMesh, RootComponent, FVector(GateX + 12.f, GateY, GateZ + PillarHeight), FVector(GateHalf * 2.f / 100.f, GateHalf * 2.f / 100.f, 0.04f), FRotator(90.f, 0.f, 0.f));
-	LWNeon::ApplyGlow(Dome, FLinearColor(1.f, 0.85f, 0.55f), 1.5f);
-	UPointLightComponent* GateLight = NewObject<UPointLightComponent>(this);
-	GateLight->SetupAttachment(RootComponent);
-	GateLight->SetRelativeLocation(FVector(-60.f, GateY, GateZ + 240.f));
-	GateLight->SetIntensityUnits(ELightUnits::Candelas);
-	GateLight->SetIntensity(90.f);
-	GateLight->SetAttenuationRadius(1500.f);
-	GateLight->SetLightColor(GateColor);
-	GateLight->SetCastShadows(false);
-	GateLight->RegisterComponent();
-	Built.Add(GateLight);
+	const FVector2D GateSize = FVector2D(1024.f, 1536.f) * 0.29f;
+	GateMaterial = AddArt(TEXT("PathGate"), FVector(95.f, GateY, GateZ + GateSize.Y * 0.5f - 6.f), GateSize);
+	AddLight(FVector(-60.f, GateY, GateZ + 240.f), 90.f, 1500.f, GateColor);
 }
 
 void APathCourse::BuildBackdrop()
@@ -407,11 +340,11 @@ void APathCourse::BuildBackdrop()
 	{
 		const float T = FMath::Max(0.f, static_cast<float>(Band - 6) / (Bands - 7));  // 0 at and below the horizon, 1 at the top
 		const FLinearColor Colour = FMath::Lerp(FLinearColor(0.13f, 0.014f, 0.095f), FLinearColor(0.003f, 0.001f, 0.012f), FMath::Pow(T, 0.36f));
-		UStaticMeshComponent* Strip = AddMesh(CubeMesh, Sky, FVector(16000.f, 0.f, -3340.f + Band * 340.f), FVector(1.f, 1400.f, 3.5f));
+		UStaticMeshComponent* Strip = LWNeon::AddMesh(this, ELWShape::Cube, Sky, FVector(16000.f, 0.f, -3340.f + Band * 340.f), FVector(1.f, 1400.f, 3.5f));
 		LWNeon::ApplyGlow(Strip, Colour, 1.f);
 	}
 
-	UInstancedStaticMeshComponent* Stars = AddInstances(SphereMesh, Sky);
+	UInstancedStaticMeshComponent* Stars = LWNeon::AddInstances(this, ELWShape::Sphere, Sky);
 	for (int32 Index = 0; Index < 260; ++Index)
 	{
 		Stars->AddInstance(FTransform(FRotator::ZeroRotator,
@@ -420,11 +353,11 @@ void APathCourse::BuildBackdrop()
 	LWNeon::ApplyGlow(Stars, FLinearColor(0.75f, 0.8f, 1.f), 1.4f);
 
 	// The sun, low and striped like the menu's sunset, rising as the gate gets nearer.
-	UStaticMeshComponent* Disc = AddMesh(SphereMesh, Sun, FVector::ZeroVector, FVector(1.f, 46.f, 46.f));
+	UStaticMeshComponent* Disc = LWNeon::AddMesh(this, ELWShape::Sphere, Sun, FVector::ZeroVector, FVector(1.f, 46.f, 46.f));
 	LWNeon::ApplyGlow(Disc, FLinearColor(1.f, 0.13f, 0.1f), 0.8f);
 	for (int32 Stripe = 0; Stripe < 7; ++Stripe)
 	{
-		UStaticMeshComponent* Bar = AddMesh(CubeMesh, Sun, FVector(-150.f, 0.f, -220.f - Stripe * 300.f), FVector(0.2f, 48.f, 0.5f + Stripe * 0.22f));
+		UStaticMeshComponent* Bar = LWNeon::AddMesh(this, ELWShape::Cube, Sun, FVector(-150.f, 0.f, -220.f - Stripe * 300.f), FVector(0.2f, 48.f, 0.5f + Stripe * 0.22f));
 		LWNeon::ApplyGlow(Bar, FLinearColor(0.12f, 0.014f, 0.09f), 1.f);
 	}
 
@@ -437,7 +370,7 @@ void APathCourse::BuildBackdrop()
 	};
 	for (const FRidge& Ridge : Ridges)
 	{
-		UInstancedStaticMeshComponent* Peaks = AddInstances(ConeMesh, RootComponent);
+		UInstancedStaticMeshComponent* Peaks = LWNeon::AddInstances(this, ELWShape::Cone, RootComponent);
 		for (float Y = -14000.f; Y < GateY + 16000.f; Y += Ridge.Step * Random.FRandRange(0.6f, 1.1f))
 		{
 			const float Height = Random.FRandRange(Ridge.Low, Ridge.High);
@@ -449,9 +382,9 @@ void APathCourse::BuildBackdrop()
 	}
 
 	// The abyss: a dark floor with the arena's grid, far below.
-	UStaticMeshComponent* Floor = AddMesh(CubeMesh, RootComponent, FVector(4000.f, GateY * 0.5f, AbyssZ - 60.f), FVector(160.f, (GateY + 40000.f) / 100.f, 1.f));
+	UStaticMeshComponent* Floor = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, FVector(4000.f, GateY * 0.5f, AbyssZ - 60.f), FVector(160.f, (GateY + 40000.f) / 100.f, 1.f));
 	LWNeon::ApplyGlow(Floor, FLinearColor(0.008f, 0.002f, 0.018f), 1.f);
-	UInstancedStaticMeshComponent* Grid = AddInstances(CubeMesh, RootComponent);
+	UInstancedStaticMeshComponent* Grid = LWNeon::AddInstances(this, ELWShape::Cube, RootComponent);
 	for (float Y = -14000.f; Y < GateY + 16000.f; Y += 500.f)
 	{
 		Grid->AddInstance(FTransform(FRotator::ZeroRotator, FVector(4000.f, Y, AbyssZ), FVector(140.f, 0.09f, 0.02f)));
@@ -521,6 +454,12 @@ void APathCourse::ResetCrumbling()
 void APathCourse::UpdateBlocks(float DeltaSeconds)
 {
 	CourseTime += DeltaSeconds;
+	// How well a spot along the course shows in Lightwalker's light.
+	auto SeenAt = [this](float Y) { return 1.f - FMath::SmoothStep(Reach * 0.55f, Reach * 1.5f, static_cast<float>(FMath::Abs(Target.Y - Y))); };
+	if (UMaterialInstanceDynamic* Gate = GateMaterial.Get())
+	{
+		Gate->SetScalarParameterValue(LWNeon::IntensityParam, 1.5f + 0.15f * FMath::Sin(CourseTime * 1.7f));
+	}
 	for (FPathBlock& Block : Blocks)
 	{
 		const FVector2D Before = Block.Offset;
@@ -565,16 +504,18 @@ void APathCourse::UpdateBlocks(float DeltaSeconds)
 		const float Seen = 1.f - FMath::SmoothStep(Reach * 0.55f, Reach * 1.5f, static_cast<float>(Distance));
 		if (UMaterialInstanceDynamic* Material = Part.EdgeMaterial.Get())
 		{
-			Material->SetScalarParameterValue(IntensityName, FMath::Lerp(EdgeGlowInDark, EdgeGlow, Seen) * Dim);
+			Material->SetScalarParameterValue(LWNeon::IntensityParam, FMath::Lerp(EdgeGlowInDark, EdgeGlow, Seen) * Dim);
 		}
 	}
 
 	for (FSpikeRow& Row : SpikeRows)
 	{
-		const float Seen = 1.f - FMath::SmoothStep(Reach * 0.55f, Reach * 1.5f, static_cast<float>(FMath::Abs(Target.Y - Row.Centre)));
-		if (UMaterialInstanceDynamic* Material = Row.Material.Get())
+		for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Row.Materials)
 		{
-			Material->SetScalarParameterValue(IntensityName, FMath::Lerp(EdgeGlowInDark * 1.5f, 1.5f, Seen));
+			if (Material.IsValid())
+			{
+				Material->SetScalarParameterValue(LWNeon::IntensityParam, FMath::Lerp(0.05f, 1.4f, SeenAt(Row.Centre)));
+			}
 		}
 	}
 
@@ -582,9 +523,14 @@ void APathCourse::UpdateBlocks(float DeltaSeconds)
 	{
 		Lantern.Blend = FMath::FInterpTo(Lantern.Blend, Lantern.bLit ? 1.f : 0.f, DeltaSeconds, 3.f);
 		const float Flicker = 1.f + 0.08f * FMath::Sin(CourseTime * 11.f) + 0.05f * FMath::Sin(CourseTime * 17.3f);
-		if (UMaterialInstanceDynamic* Flame = Lantern.Flame.Get())
+		if (UMaterialInstanceDynamic* Post = Lantern.Post.Get())
 		{
-			Flame->SetScalarParameterValue(IntensityName, FMath::Lerp(0.15f, 9.f * Flicker, Lantern.Blend));
+			Post->SetScalarParameterValue(LWNeon::IntensityParam, FMath::Lerp(0.06f, 0.8f, SeenAt(Lantern.Y)));
+		}
+		if (UMaterialInstanceDynamic* Lit = Lantern.Lit.Get())
+		{
+			Lit->SetScalarParameterValue(LWNeon::IntensityParam, 1.5f * Flicker);
+			Lit->SetScalarParameterValue(LWNeon::OpacityParam, Lantern.Blend);
 		}
 		if (UPointLightComponent* Light = Lantern.Light.Get())
 		{
@@ -624,16 +570,7 @@ void APathCourse::UpdateCamera(float DeltaSeconds, bool bInstant)
 	Camera->SetWorldLocation(CameraAt + ShakeMove);
 	Camera->SetWorldRotation(FRotator(CameraPitch, 0.f, FMath::PerlinNoise1D(ShakeTime * 19.f + 150.f) * 1.1f * Shake));
 
-	// Tuned for 16:9; wider screens keep the height and see further (as AArena does).
-	float Aspect = 16.f / 9.f;
-	if (const UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
-	{
-		FVector2D Size;
-		Viewport->GetViewportSize(Size);
-		Aspect = Size.X > 0.f && Size.Y > 0.f ? Size.X / Size.Y : Aspect;
-	}
-	const float Widen = FMath::Max(1.f, Aspect / (16.f / 9.f));
-	Camera->SetFieldOfView(FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(CameraFieldOfView) * 0.5f) * Widen)));
+	Camera->SetFieldOfView(LWNeon::WidenFieldOfView(CameraFieldOfView, LWNeon::GetViewAspect(GetWorld())));
 
 	// The sky travels with the camera; the sun climbs with progress.
 	const float Progress = FMath::Clamp(Target.Y / FMath::Max(GateY, 1.f), 0.f, 1.f);

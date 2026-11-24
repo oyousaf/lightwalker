@@ -1,10 +1,8 @@
 #include "Effects/LWParticles.h"
 
 #include "Core/LWNeon.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Scalability.h"
-#include "UObject/ConstructorHelpers.h"
 
 // ---------------------------------------------------------------------------------------------------------------
 // Particle component
@@ -12,26 +10,17 @@
 ULWParticleComponent::ULWParticleComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	SetCastShadow(false);
-	SetGenerateOverlapEvents(false);
-	// Particles only glow (through bloom). Kept out of Lumen and distance-field lighting, which otherwise treat
-	// them as solid objects and leave dark, blotchy ghosts where bursts were.
-	bAffectDynamicIndirectLighting = false;
-	bAffectDistanceFieldLighting = false;
+	// Particles only glow (through bloom): as solid objects in the indirect lighting, bursts left dark, blotchy ghosts.
+	LWNeon::GlowOnly(this);
 	bAffectIndirectLightingWhileHidden = false;
-	bVisibleInRayTracing = false;
 	bCastDynamicShadow = false;
 	// World-space particles: the component stays at the origin whatever its owner does.
-	SetUsingAbsoluteLocation(true);
-	SetUsingAbsoluteRotation(true);
-	SetUsingAbsoluteScale(true);
-	NumCustomDataFloats = 0;
+	LWNeon::SetWorldPlaced(this);
 }
 
-void ULWParticleComponent::Setup(UStaticMesh* Mesh, const FLinearColor& Color, float Intensity)
+void ULWParticleComponent::Setup(ELWShape Shape, const FLinearColor& Color, float Intensity)
 {
-	SetStaticMesh(Mesh);
+	SetStaticMesh(LWNeon::Shape(Shape));
 	SetWorldTransform(FTransform::Identity);
 	LWNeon::ApplyGlow(this, Color, Intensity);
 }
@@ -155,35 +144,18 @@ void ALWBurst::Tick(float DeltaSeconds)
 // ---------------------------------------------------------------------------------------------------------------
 // The game's effects
 
-namespace
-{
-	UStaticMesh* ShapeMesh(LWFX::EShape Shape)
-	{
-		static TWeakObjectPtr<UStaticMesh> Sphere;
-		static TWeakObjectPtr<UStaticMesh> Cube;
-		TWeakObjectPtr<UStaticMesh>& Slot = Shape == LWFX::EShape::Cube ? Cube : Sphere;
-		if (!Slot.IsValid())
-		{
-			Slot = LoadObject<UStaticMesh>(nullptr, Shape == LWFX::EShape::Cube ? TEXT("/Engine/BasicShapes/Cube.Cube") : TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-		}
-		return Slot.Get();
-	}
-}
-
-void LWFX::Burst(UWorld* World, EShape Shape, const FLinearColor& Color, float Intensity, std::initializer_list<FLWEmit> Batches)
+void LWFX::Burst(UWorld* World, ELWShape Shape, const FLinearColor& Color, float Intensity, std::initializer_list<FLWEmit> Batches)
 {
 	if (!World || Batches.size() == 0)
 	{
 		return;
 	}
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	ALWBurst* Burst = World->SpawnActor<ALWBurst>(ALWBurst::StaticClass(), FTransform::Identity, Params);
+	ALWBurst* Burst = World->SpawnActor<ALWBurst>();
 	if (!Burst)
 	{
 		return;
 	}
-	Burst->GetParticles()->Setup(ShapeMesh(Shape), Color, Intensity);
+	Burst->GetParticles()->Setup(Shape, Color, Intensity);
 	for (const FLWEmit& Batch : Batches)
 	{
 		Burst->GetParticles()->Emit(Batch);
@@ -201,7 +173,7 @@ void LWFX::HitSpark(UWorld* World, const FVector& Location, const FVector& ShotD
 	Sparks.Life = FVector2D(0.12f, 0.25f);
 	Sparks.Size = FVector2D(0.035f, 0.06f);
 	Sparks.Drag = 6.f;
-	Burst(World, EShape::Sphere, FLinearColor(0.7f, 0.95f, 1.f), 14.f, { Sparks });
+	Burst(World, ELWShape::Sphere, FLinearColor(0.7f, 0.95f, 1.f), 14.f, { Sparks });
 }
 
 void LWFX::ShaytaanDeath(UWorld* World, const FVector& Location)
@@ -223,7 +195,7 @@ void LWFX::ShaytaanDeath(UWorld* World, const FVector& Location)
 	Embers.Drag = 3.5f;
 	Embers.Gravity = -60.f;  // embers drift up
 
-	Burst(World, EShape::Sphere, FLinearColor(1.f, 0.18f, 0.08f), 10.f, { Flash, Embers });
+	Burst(World, ELWShape::Sphere, FLinearColor(1.f, 0.18f, 0.08f), 10.f, { Flash, Embers });
 }
 
 void LWFX::DajjalHit(UWorld* World, const FVector& Location)
@@ -235,7 +207,7 @@ void LWFX::DajjalHit(UWorld* World, const FVector& Location)
 	Sparks.Life = FVector2D(0.15f, 0.3f);
 	Sparks.Size = FVector2D(0.04f, 0.07f);
 	Sparks.Drag = 5.f;
-	Burst(World, EShape::Sphere, FLinearColor(1.f, 0.8f, 0.3f), 14.f, { Sparks });
+	Burst(World, ELWShape::Sphere, FLinearColor(1.f, 0.8f, 0.3f), 14.f, { Sparks });
 }
 
 void LWFX::DajjalDeath(UWorld* World, const FVector& Location)
@@ -259,8 +231,8 @@ void LWFX::DajjalDeath(UWorld* World, const FVector& Location)
 	Shards.Lift = 250.f;
 	Shards.bSpin = true;
 
-	Burst(World, EShape::Sphere, FLinearColor(1.f, 0.85f, 0.4f), 12.f, { Flash });
-	Burst(World, EShape::Cube, FLinearColor(1.f, 0.72f, 0.2f), 8.f, { Shards });
+	Burst(World, ELWShape::Sphere, FLinearColor(1.f, 0.85f, 0.4f), 12.f, { Flash });
+	Burst(World, ELWShape::Cube, FLinearColor(1.f, 0.72f, 0.2f), 8.f, { Shards });
 }
 
 void LWFX::PickupCollect(UWorld* World, const FVector& Location, const FLinearColor& Color, bool bBook)
@@ -287,10 +259,10 @@ void LWFX::PickupCollect(UWorld* World, const FVector& Location, const FLinearCo
 		Rise.Life = FVector2D(0.8f, 1.4f);
 		Rise.Size = FVector2D(0.04f, 0.08f);
 		Rise.Drag = 0.8f;
-		Burst(World, EShape::Sphere, Color, 14.f, { Ring, Rise });
+		Burst(World, ELWShape::Sphere, Color, 14.f, { Ring, Rise });
 		return;
 	}
-	Burst(World, EShape::Sphere, Color, 12.f, { Ring });
+	Burst(World, ELWShape::Sphere, Color, 12.f, { Ring });
 }
 
 void LWFX::LifeLost(UWorld* World, const FVector& Location)
@@ -311,7 +283,7 @@ void LWFX::LifeLost(UWorld* World, const FVector& Location)
 	Scatter.Size = FVector2D(0.05f, 0.12f);
 	Scatter.Drag = 2.f;
 
-	Burst(World, EShape::Sphere, FLinearColor(0.6f, 0.95f, 1.f), 12.f, { Flash, Scatter });
+	Burst(World, ELWShape::Sphere, FLinearColor(0.6f, 0.95f, 1.f), 12.f, { Flash, Scatter });
 }
 
 void LWFX::Respawn(UWorld* World, const FVector& Location)
@@ -326,7 +298,7 @@ void LWFX::Respawn(UWorld* World, const FVector& Location)
 	Column.Life = FVector2D(0.4f, 0.8f);
 	Column.Size = FVector2D(0.04f, 0.08f);
 	Column.Drag = 1.5f;
-	Burst(World, EShape::Sphere, FLinearColor(0.6f, 0.95f, 1.f), 12.f, { Column });
+	Burst(World, ELWShape::Sphere, FLinearColor(0.6f, 0.95f, 1.f), 12.f, { Column });
 }
 
 void LWFX::ShieldBlock(UWorld* World, const FVector& Location)
@@ -340,5 +312,5 @@ void LWFX::ShieldBlock(UWorld* World, const FVector& Location)
 	Ring.Life = FVector2D(0.25f, 0.4f);
 	Ring.Size = FVector2D(0.06f, 0.1f);
 	Ring.Drag = 3.f;
-	Burst(World, EShape::Sphere, FLinearColor(0.3f, 1.f, 0.45f), 12.f, { Ring });
+	Burst(World, ELWShape::Sphere, FLinearColor(0.3f, 1.f, 0.45f), 12.f, { Ring });
 }

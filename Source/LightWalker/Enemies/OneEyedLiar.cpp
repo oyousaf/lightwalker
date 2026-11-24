@@ -12,7 +12,6 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Player/LightWalkerPawn.h"
-#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -21,35 +20,6 @@ namespace
 	constexpr float BossSize = 560.f;
 	constexpr float BossLift = 150.f;
 	const FTransform HiddenInstance(FQuat::Identity, FVector(0.f, 0.f, -5000.f), FVector(0.001f));
-
-	UStaticMeshComponent* MakePart(AActor* Owner, const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent)
-	{
-		UStaticMeshComponent* Part = Owner->CreateDefaultSubobject<UStaticMeshComponent>(Name);
-		Part->SetupAttachment(Parent);
-		Part->SetStaticMesh(Mesh);
-		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Part->SetCastShadow(false);
-		Part->bAffectDynamicIndirectLighting = false;
-		Part->bAffectDistanceFieldLighting = false;
-		return Part;
-	}
-
-	UInstancedStaticMeshComponent* MakeInstances(AActor* Owner, const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent)
-	{
-		UInstancedStaticMeshComponent* Part = Owner->CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
-		Part->SetupAttachment(Parent);
-		Part->SetStaticMesh(Mesh);
-		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Part->SetCastShadow(false);
-		Part->bAffectDynamicIndirectLighting = false;
-		Part->bAffectDistanceFieldLighting = false;
-		Part->bVisibleInRayTracing = false;
-		// Bolts and beams are placed in the world, not carried by the boss.
-		Part->SetUsingAbsoluteLocation(true);
-		Part->SetUsingAbsoluteRotation(true);
-		Part->SetUsingAbsoluteScale(true);
-		return Part;
-	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -83,26 +53,28 @@ AOneEyedLiar::AOneEyedLiar()
 {
 	Radius = 215.f;
 	ModelSize = BossSize;
-	ModelGlow = 1.1f;
+	ModelGlow = 0.8f;
 	HitSwell = 0.02f;
 	HitGlow = 1.f;
 	HitFlashTime = 0.12f;
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	ModelPath = FSoftObjectPath(TEXT("/Game/Enemies/SM_OneEyedLiar.SM_OneEyedLiar"));
+	ModelYaw = -90.f;
 
-	BoltGlow = MakeInstances(this, TEXT("BoltGlow"), SphereMesh.Object, RootComponent);
-	BoltHeart = MakeInstances(this, TEXT("BoltHeart"), SphereMesh.Object, RootComponent);
-	GuardianRing = MakeInstances(this, TEXT("GuardianRing"), CubeMesh.Object, RootComponent);
-
-	BeamGlow = MakePart(this, TEXT("BeamGlow"), CubeMesh.Object, RootComponent);
-	BeamHeart = MakePart(this, TEXT("BeamHeart"), CubeMesh.Object, RootComponent);
-	Charge = MakePart(this, TEXT("Charge"), SphereMesh.Object, RootComponent);
+	BoltGlow = LWNeon::MakeInstances(this, TEXT("BoltGlow"), ELWShape::Sphere, RootComponent);
+	BoltHeart = LWNeon::MakeInstances(this, TEXT("BoltHeart"), ELWShape::Sphere, RootComponent);
+	GuardianRing = LWNeon::MakeInstances(this, TEXT("GuardianRing"), ELWShape::Cube, RootComponent);
+	BeamGlow = LWNeon::MakeMesh(this, TEXT("BeamGlow"), ELWShape::Cube, RootComponent);
+	BeamHeart = LWNeon::MakeMesh(this, TEXT("BeamHeart"), ELWShape::Cube, RootComponent);
+	Charge = LWNeon::MakeMesh(this, TEXT("Charge"), ELWShape::Sphere, RootComponent);
+	for (UStaticMeshComponent* Part : { static_cast<UStaticMeshComponent*>(BoltGlow), static_cast<UStaticMeshComponent*>(BoltHeart),
+		static_cast<UStaticMeshComponent*>(GuardianRing), BeamGlow.Get(), BeamHeart.Get(), Charge.Get() })
+	{
+		// Placed in the world, not carried by the boss.
+		LWNeon::SetWorldPlaced(Part);
+	}
 	for (UStaticMeshComponent* Part : { BeamGlow.Get(), BeamHeart.Get(), Charge.Get() })
 	{
-		Part->SetUsingAbsoluteLocation(true);
-		Part->SetUsingAbsoluteRotation(true);
-		Part->SetUsingAbsoluteScale(true);
 		Part->SetVisibility(false);
 	}
 
@@ -461,7 +433,7 @@ void AOneEyedLiar::UpdateLook(float DeltaSeconds)
 	}
 
 	GlowPulse = FMath::Max(0.f, GlowPulse - DeltaSeconds * 0.8f);
-	SetModelGlow((Stage == 3 ? 1.35f : 1.1f) * (IsGuarded() ? 0.55f : 1.f) + GlowPulse * 2.f);
+	SetModelGlow((Stage == 3 ? 1.05f : 0.8f) * (IsGuarded() ? 0.55f : 1.f) + GlowPulse * 2.f);
 	Glow->SetLightColor(Stage == 3 ? FLinearColor(1.f, 0.18f, 0.1f) : FLinearColor(1.f, 0.55f, 0.2f));
 
 	// The ring of light that shows it's guarded.
@@ -504,11 +476,14 @@ void AOneEyedLiar::UpdateBolts(float DeltaSeconds, bool bCanHurt)
 
 	const float Throb = 1.f + 0.1f * FMath::Sin(LookTime * 16.f);
 	const float Z = GetActorLocation().Z;
+	// Only the bolts in the air, and those that just went out, need moving.
+	const int32 Count = FMath::Max(Bolts.Num(), BoltsShown);
+	BoltsShown = Bolts.Num();
 	TArray<FTransform> Glows;
 	TArray<FTransform> Hearts;
-	Glows.Reserve(MaxBolts);
-	Hearts.Reserve(MaxBolts);
-	for (int32 Index = 0; Index < MaxBolts; ++Index)
+	Glows.Reserve(Count);
+	Hearts.Reserve(Count);
+	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		if (Bolts.IsValidIndex(Index))
 		{
@@ -523,8 +498,11 @@ void AOneEyedLiar::UpdateBolts(float DeltaSeconds, bool bCanHurt)
 			Hearts.Add(HiddenInstance);
 		}
 	}
-	BoltGlow->BatchUpdateInstancesTransforms(0, Glows, true, true, true);
-	BoltHeart->BatchUpdateInstancesTransforms(0, Hearts, true, true, true);
+	if (Count > 0)
+	{
+		BoltGlow->BatchUpdateInstancesTransforms(0, Glows, true, true, true);
+		BoltHeart->BatchUpdateInstancesTransforms(0, Hearts, true, true, true);
+	}
 
 	if (bHit)
 	{
@@ -600,7 +578,7 @@ void AOneEyedLiar::UpdateDying(float DeltaSeconds)
 	Visual->SetRelativeLocation(FVector(FMath::FRandRange(-Shake, Shake), FMath::FRandRange(-Shake, Shake), BossLift * (1.f - 0.7f * T)));
 	Visual->AddLocalRotation(FRotator(0.f, (60.f + 500.f * T * T) * DeltaSeconds, 0.f));
 	Visual->SetRelativeScale3D(FVector(1.f - 0.35f * T * T));
-	SetModelGlow(1.2f + 9.f * T * T);
+	SetModelGlow(0.9f + 9.f * T * T);
 	Glow->SetIntensity(120.f + 900.f * T * T);
 
 	DyingBurst -= DeltaSeconds;
@@ -631,7 +609,7 @@ void AOneEyedLiar::UpdateDying(float DeltaSeconds)
 	Light.Size = FVector2D(0.06f, 0.2f);
 	Light.Drag = 1.6f;
 	Light.Gravity = -60.f;
-	LWFX::Burst(GetWorld(), LWFX::EShape::Sphere, FLinearColor(1.f, 0.85f, 0.45f), 9.f, { Flash, Light });
+	LWFX::Burst(GetWorld(), ELWShape::Sphere, FLinearColor(1.f, 0.85f, 0.45f), 9.f, { Flash, Light });
 	FLWEmit Shards;
 	Shards.Count = 90;
 	Shards.Origin = Flash.Origin;
@@ -643,7 +621,7 @@ void AOneEyedLiar::UpdateDying(float DeltaSeconds)
 	Shards.Gravity = 900.f;
 	Shards.Lift = 520.f;
 	Shards.bSpin = true;
-	LWFX::Burst(GetWorld(), LWFX::EShape::Cube, FLinearColor(1.f, 0.6f, 0.15f), 5.f, { Shards });
+	LWFX::Burst(GetWorld(), ELWShape::Cube, FLinearColor(1.f, 0.6f, 0.15f), 5.f, { Shards });
 	ULWSoundSubsystem::Play(this, ELWSound::Gate);
 	ULWFeelSubsystem::Play(this, ELWFeel::BossDown);
 	if (OnGone)

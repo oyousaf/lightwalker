@@ -45,8 +45,12 @@ struct FWallBlock
 	float RiseDelay = 0.f;
 	TArray<TWeakObjectPtr<USceneComponent>> Parts;
 	TArray<FVector> PartScales;
+	/** The block itself, which shows as a rim and sides, and the art on its top. */
 	TWeakObjectPtr<UMaterialInstanceDynamic> Rim;
-	TWeakObjectPtr<USceneComponent> Pupil;
+	TWeakObjectPtr<UMaterialInstanceDynamic> Face;
+	/** An eye's iris, which follows Lightwalker until the eye cracks. */
+	TWeakObjectPtr<USceneComponent> Iris;
+	bool bCracked = false;
 	FLinearColor Color;
 };
 
@@ -156,7 +160,6 @@ protected:
 private:
 	void AddBlock(EWallBlock Kind, float Column, float Row, float Columns = 1.f, float Rows = 1.f);
 	void BuildBlockMeshes(FWallBlock& Block);
-	UStaticMeshComponent* AddMesh(UStaticMesh* Mesh, const FVector& Location, const FVector& Scale);
 	void DestroyBlock(int32 Index, bool bBurst);
 	FLightBeam& AddBeam(const FVector2D& Position, const FVector2D& Direction);
 	void DestroyBeam(int32 Index);
@@ -189,10 +192,4 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AShieldPawn> Player;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> CubeMesh;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> SphereMesh;
 };

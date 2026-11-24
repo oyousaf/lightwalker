@@ -141,20 +141,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<USceneComponent> HeadingPivot;
 
-	/** Placeholder hero until the milestone 3 model: a robed figure holding a lantern-staff out in front. */
-	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
-	TObjectPtr<UStaticMeshComponent> Body;
-
-	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
-	TObjectPtr<UStaticMeshComponent> Head;
-
-	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
-	TObjectPtr<UStaticMeshComponent> Staff;
-
-	/** The light weapon: bolts leave from here. */
-	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
-	TObjectPtr<UStaticMeshComponent> Lantern;
-
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker")
 	TObjectPtr<UPointLightComponent> Glow;
 
@@ -170,19 +156,8 @@ protected:
 	TObjectPtr<class ULWParticleComponent> GlideTrail;
 
 	/**
-	 * Optional imported hero model (see Tools/import_models.py). When it exists it replaces the placeholder figure,
-	 * scaled to ModelHeight and turned to face the heading; the lantern light and shield stay.
-	 */
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
-	FSoftObjectPath ModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_Lightwalker.SM_Lightwalker"));
-
-	/** The female hero (SourceArt/Models/lightwalker_female.glb). */
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
-	FSoftObjectPath FemaleModelPath = FSoftObjectPath(TEXT("/Game/Hero/SM_LightwalkerFemale.SM_LightwalkerFemale"));
-
-	/**
-	 * The rigged versions (Tools/rig_hero.py, then Tools/import_hero_rig.py), used instead of the static models when
-	 * they exist. Their bones are posed in code (AnimateRig): a run cycle by speed, idle breathing and the glide.
+	 * The heroes (Tools/rig_hero.py, then Tools/import_hero_rig.py), scaled to ModelHeight. Their bones are posed in code
+	 * (AnimateRig): a run cycle by speed, idle breathing, the glide and the jump.
 	 */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	FSoftObjectPath RigPath = FSoftObjectPath(TEXT("/Game/Hero/SK_Lightwalker.SK_Lightwalker"));
@@ -213,12 +188,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	float ModelGlow = 1.6f;
 
-	/** Light colour once the model is in (the placeholder uses Color). */
+	/** The lantern burns warm white, as in the concept, so the robe keeps its teal and gold. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Model")
 	FLinearColor LanternLightColor = FLinearColor(1.f, 0.9f, 0.72f);
-
-	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
-	TObjectPtr<UStaticMeshComponent> Model;
 
 	UPROPERTY(VisibleAnywhere, Category = "LightWalker|Model")
 	TObjectPtr<UPoseableMeshComponent> Rig;
@@ -241,12 +213,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Laser")
 	TSubclassOf<ALaser> LaserClass;
-
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	FLinearColor Color = FLinearColor(0.1f, 0.85f, 1.f);
-
-	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
-	float GlowIntensity = 6.f;
 
 	/** How fast the pawn blinks while untouchable after a respawn. */
 	UPROPERTY(EditDefaultsOnly, Category = "LightWalker|Look")
@@ -286,18 +252,12 @@ protected:
 private:
 	void Fire(const FVector& Direction);
 	void UpdatePowerUps(float DeltaSeconds);
-	bool UseModel(int32 Index);
+	void UseModel(int32 Index);
 	void AnimateRig(float DeltaSeconds);
 	bool bFrozen = false;
 	void UpdateModelStride(bool bMoving, float DeltaSeconds);
 
 	FVector ModelOffset = FVector::ZeroVector;
-	bool bUsingModel = false;
-
-	/** Whichever of Model and Rig is showing. */
-	UMeshComponent* ActiveModel() const;
-	bool bUsingRig = false;
-
 	/** The rig's reference pose: each bone's local transform and its rotation in component space. */
 	TArray<FTransform> RigRefLocal;
 	TArray<FQuat> RigRefComponent;

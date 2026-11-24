@@ -80,6 +80,7 @@ AArenaHUD::FBanner APathHUD::GetBanner() const
 		break;
 	case EPathPhase::GameOver:
 		Banner.Title = TEXT("GAME OVER");
+		Banner.Backdrop = TEXT("GameOver");
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
 		break;

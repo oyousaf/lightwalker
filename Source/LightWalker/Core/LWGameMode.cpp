@@ -2,13 +2,16 @@
 
 #include "Camera/PlayerCameraManager.h"
 #include "Core/LWFeel.h"
+#include "Core/LWSound.h"
 #include "Core/LightWalkerGameInstance.h"
+#include "Effects/LWParticles.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
+#include "Pickups/Pickup.h"
 #include "Player/LightWalkerPawn.h"
 #include "Player/LightWalkerPlayerController.h"
 #include "TimerManager.h"
@@ -55,6 +58,33 @@ void ALWGameMode::TravelTo(const TCHAR* Map, const TCHAR* GameMode)
 	{
 		UGameplayStatics::OpenLevel(this, FName(*TravelMap), true, TravelOptions);
 	}), TravelFadeTime + 0.05f, false);
+}
+
+bool ALWGameMode::BlockWithShield(ALightWalkerPawn* LightWalker)
+{
+	if (!LightWalker || !LightWalker->TryBlockHit())
+	{
+		return false;
+	}
+	ULWSoundSubsystem::Play(this, ELWSound::ShieldBlock);
+	ULWFeelSubsystem::Play(this, ELWFeel::ShieldBlock);
+	LWFX::ShieldBlock(GetWorld(), LightWalker->GetActorLocation());
+	return true;
+}
+
+APickup* ALWGameMode::SpawnPickup(EPickupType Type, const FVector& Where)
+{
+	APickup* Pickup = GetWorld()->SpawnActor<APickup>(APickup::StaticClass(), Where, FRotator::ZeroRotator);
+	if (Pickup)
+	{
+		Pickup->InitPickup(Type, GetLightWalker());
+	}
+	return Pickup;
+}
+
+EPickupType ALWGameMode::RandomPowerUp()
+{
+	return static_cast<EPickupType>(FMath::RandRange(0, static_cast<int32>(EPickupType::Shield)));
 }
 
 void ALWGameMode::EndRun(float Delay)

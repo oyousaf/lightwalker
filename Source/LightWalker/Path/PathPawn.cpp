@@ -144,7 +144,7 @@ void APathPawn::Jump(bool bSecond)
 	Puff.Life = FVector2D(0.2f, 0.45f);
 	Puff.Size = FVector2D(0.035f, bSecond ? 0.08f : 0.05f);
 	Puff.Drag = 4.f;
-	LWFX::Burst(GetWorld(), LWFX::EShape::Sphere, FLinearColor(1.f, 0.9f, 0.6f), bSecond ? 11.f : 5.f, { Puff });
+	LWFX::Burst(GetWorld(), ELWShape::Sphere, FLinearColor(1.f, 0.9f, 0.6f), bSecond ? 11.f : 5.f, { Puff });
 }
 
 void APathPawn::Land(int32 BlockIndex)
@@ -161,7 +161,7 @@ void APathPawn::Land(int32 BlockIndex)
 		Dust.Life = FVector2D(0.2f, 0.4f);
 		Dust.Size = FVector2D(0.025f, 0.05f);
 		Dust.Drag = 5.f;
-		LWFX::Burst(GetWorld(), LWFX::EShape::Sphere, FLinearColor(0.8f, 0.75f, 1.f), 3.f, { Dust });
+		LWFX::Burst(GetWorld(), ELWShape::Sphere, FLinearColor(0.8f, 0.75f, 1.f), 3.f, { Dust });
 	}
 	bGrounded = true;
 	JumpsUsed = 0;

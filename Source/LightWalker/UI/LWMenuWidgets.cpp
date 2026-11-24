@@ -17,8 +17,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Core/LWNeon.h"
 #include "Core/LWSound.h"
-#include "Engine/GameViewportClient.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Core/LightWalkerUserSettings.h"
@@ -56,7 +56,6 @@ namespace
 	{
 		if (HasButtonArt())
 		{
-			// 9-slice so the slanted ends and corner tab keep their shape at any button width.
 			// Cropped tight to the frame, and drawn whole: buttons are close to the art's own shape. (9-slicing needs ends
 			// no wider than the button in the art's own pixels, and at 1450 px across they overlapped in the middle.)
 			const FVector2D Size(420.f, 81.f);
@@ -196,7 +195,7 @@ UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TF
 	// Content: the label.
 	UOverlay* Content = WidgetTree->ConstructWidget<UOverlay>();
 	Content->SetClipping(EWidgetClipping::ClipToBounds);
-	UTextBlock* Text = MakeText(Label, 22, LWStyle::Muted, 160);
+	UTextBlock* Text = MakeText(Label, 22, LWStyle::Muted, 60);
 	if (bArt)
 	{
 		Text->SetRenderShear(FVector2D(ButtonShear * 0.7f, 0.f));  // italic, to match the slanted art
@@ -351,19 +350,6 @@ void ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
 	AddFullScreen(Veil);
 }
 
-float ULWMenuWidget::GetViewAspect() const
-{
-	FVector2D Size(16.f, 9.f);
-	if (const UWorld* World = GetWorld())
-	{
-		if (const UGameViewportClient* Viewport = World->GetGameViewport())
-		{
-			Viewport->GetViewportSize(Size);
-		}
-	}
-	return Size.Y > 0.f ? Size.X / Size.Y : 16.f / 9.f;
-}
-
 UTexture2D* ULWMenuWidget::PickBackdropArt(float Aspect)
 {
 	// The sunset drawn for the screen's shape: 16:9, plus 21:9 and 32:9 versions if they've been imported.
@@ -400,7 +386,7 @@ void ULWMenuWidget::SetBackdropArt(UTexture2D* Art)
 
 UWidget* ULWMenuWidget::AddBackdrop(UCanvasPanel* Root)
 {
-	UTexture2D* Sunset = PickBackdropArt(GetViewAspect());
+	UTexture2D* Sunset = PickBackdropArt(LWNeon::GetViewAspect(GetWorld()));
 	if (!Sunset)
 	{
 		return nullptr;
@@ -446,7 +432,7 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 	if (BackdropImage.IsValid())
 	{
-		UTexture2D* Art = PickBackdropArt(GetViewAspect());
+		UTexture2D* Art = PickBackdropArt(LWNeon::GetViewAspect(GetWorld()));
 		if (Art && Art != BackdropArt.Get())
 		{
 			SetBackdropArt(Art);

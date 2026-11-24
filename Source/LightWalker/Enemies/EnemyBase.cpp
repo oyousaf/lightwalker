@@ -30,20 +30,15 @@ AEnemyBase::AEnemyBase()
 	Model->SetupAttachment(Visual);
 	Model->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Model->SetCastShadow(false);
-	Model->SetVisibility(false);
 }
 
-void AEnemyBase::TryUseModel()
+void AEnemyBase::ShowModel()
 {
-	if (ModelPath.IsNull() || !FPackageName::DoesPackageExist(ModelPath.GetLongPackageName()))
+	UStaticMesh* Mesh = !ModelPath.IsNull() && FPackageName::DoesPackageExist(ModelPath.GetLongPackageName()) ? Cast<UStaticMesh>(ModelPath.TryLoad()) : nullptr;
+	const bool bImported = Mesh != nullptr;
+	if (!bImported)
 	{
-		return;
-	}
-
-	UStaticMesh* Mesh = Cast<UStaticMesh>(ModelPath.TryLoad());
-	if (!Mesh)
-	{
-		return;
+		Mesh = LWNeon::Shape(ELWShape::Sphere);
 	}
 
 	// Fit the model: largest side = ModelSize, bounds centred on the pivot, front turned to +X.
@@ -60,35 +55,25 @@ void AEnemyBase::TryUseModel()
 	Model->SetRelativeScale3D(FVector(Scale));
 	Model->SetRelativeRotation(Rotation);
 	Model->SetRelativeLocation(ModelOffset);
-	Model->SetVisibility(true);
+	if (!bImported)
+	{
+		LWNeon::ApplyGlow(Model, FLinearColor(1.f, 0.03f, 0.1f), 1.3f);
+		return;
+	}
 
 	// The arena is near black, so the model glows with its own colours (M_ModelGlow, set up by import_models.py).
 	for (int32 Slot = 0; Slot < Model->GetNumMaterials(); ++Slot)
 	{
 		if (UMaterialInstanceDynamic* Material = Model->CreateDynamicMaterialInstance(Slot))
 		{
-			Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+			Material->SetScalarParameterValue(LWNeon::GlowParam, ModelGlow);
 			ModelMaterials.Add(Material);
 		}
 	}
-
-	for (USceneComponent* Placeholder : Placeholders)
-	{
-		if (Placeholder)
-		{
-			Placeholder->SetVisibility(false, true);
-		}
-	}
-	bUsingModel = true;
 }
 
 void AEnemyBase::PoseModel(const FRotator& Tilt, float Squash)
 {
-	if (!bUsingModel)
-	{
-		return;
-	}
-
 	// Squash and tilt about the middle of the base so the feet stay planted.
 	const float Height = FMath::Max(1.f - Squash, 0.1f);
 	const float Width = 1.f / FMath::Sqrt(Height);
@@ -102,57 +87,13 @@ void AEnemyBase::PoseModel(const FRotator& Tilt, float Squash)
 	Model->SetRelativeLocation(Base + TiltQuat.RotateVector(Offset));
 }
 
-UStaticMeshComponent* AEnemyBase::AddShape(FName Name, UStaticMesh* Mesh, USceneComponent* Parent,
-	const FVector& Location, const FRotator& Rotation, const FVector& Scale)
-{
-	UStaticMeshComponent* Shape = CreateDefaultSubobject<UStaticMeshComponent>(Name);
-	Shape->SetupAttachment(Parent ? Parent : Visual.Get());
-	Shape->SetStaticMesh(Mesh);
-	Shape->SetRelativeLocation(Location);
-	Shape->SetRelativeRotation(Rotation);
-	Shape->SetRelativeScale3D(Scale);
-	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Shape->SetCastShadow(false);
-	return Shape;
-}
-
-UStaticMeshComponent* AEnemyBase::AddRod(FName Name, UStaticMesh* CylinderMesh, USceneComponent* Parent, const FVector& Start, const FVector& End, float Thickness)
-{
-	// The cylinder is 100 units tall along +Z, centred on its pivot.
-	const FVector Span = End - Start;
-	return AddShape(Name, CylinderMesh, Parent, (Start + End) * 0.5f, FRotationMatrix::MakeFromZ(Span).Rotator(),
-		FVector(Thickness / 100.f, Thickness / 100.f, Span.Size() / 100.f));
-}
-
-void AEnemyBase::AddGlowPart(UMeshComponent* Mesh, const FLinearColor& InColor, float Intensity, bool bDark, int32 Element)
-{
-	FEnemyGlowPart& Part = GlowParts.AddDefaulted_GetRef();
-	Part.Mesh = Mesh;
-	Part.Color = InColor;
-	Part.Intensity = Intensity;
-	Part.bDark = bDark;
-	Part.Element = Element;
-}
-
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
 
 	Collision->SetSphereRadius(Radius);
 	LookTime = FMath::FRandRange(0.f, 10.f);
-	TryUseModel();
-
-	for (const FEnemyGlowPart& Part : GlowParts)
-	{
-		if (Part.bDark)
-		{
-			LWNeon::ApplyGlow(Part.Mesh, FLinearColor::Black, 0.f, Part.Element);
-		}
-		else
-		{
-			LWNeon::ApplyGlow(Part.Mesh, Part.Color, Part.Intensity, Part.Element);
-		}
-	}
+	ShowModel();
 }
 
 void AEnemyBase::InitEnemy(ALightWalkerPawn* InPlayer, const FBox2D& InBounds, float InMoveSpeed)
@@ -215,7 +156,7 @@ void AEnemyBase::SetModelGlow(float Glow)
 	ModelGlow = Glow;
 	for (UMaterialInstanceDynamic* Material : ModelMaterials)
 	{
-		Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow);
+		Material->SetScalarParameterValue(LWNeon::GlowParam, ModelGlow);
 	}
 }
 
@@ -254,7 +195,7 @@ void AEnemyBase::UpdateHitFlash(float DeltaSeconds)
 	Visual->SetRelativeScale3D(FVector(1.f + HitSwell * HitFlash));
 	for (UMaterialInstanceDynamic* Material : ModelMaterials)
 	{
-		Material->SetScalarParameterValue(FName(TEXT("Glow")), ModelGlow * (1.f + HitGlow * HitFlash));
+		Material->SetScalarParameterValue(LWNeon::GlowParam, ModelGlow * (1.f + HitGlow * HitFlash));
 	}
 }
 

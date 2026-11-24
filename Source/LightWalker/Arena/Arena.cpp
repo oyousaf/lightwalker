@@ -6,24 +6,25 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
-#include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "UObject/ConstructorHelpers.h"
+#include "UI/LWStyle.h"
 
 namespace
 {
 	constexpr float EdgeThickness = 24.f;
 	constexpr float EdgeHeight = 40.f;
+	constexpr float EdgeLightWidth = 420.f;
+	constexpr float EdgeLightIntensity = 0.11f;
 	// The floor runs well past the arena on every side, so even a 32:9 view never sees its edge.
 	constexpr float FloorMargin = 30000.f;
 
-	UStaticMeshComponent* MakeMesh(AActor* Owner, const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent)
+	UStaticMeshComponent* MakeMesh(AActor* Owner, const TCHAR* Name, ELWShape Shape, USceneComponent* Parent)
 	{
 		UStaticMeshComponent* Component = Owner->CreateDefaultSubobject<UStaticMeshComponent>(Name);
 		Component->SetupAttachment(Parent);
-		Component->SetStaticMesh(Mesh);
+		Component->SetStaticMesh(LWNeon::Shape(Shape));
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Component->SetCastShadow(false);
 		return Component;
@@ -36,24 +37,12 @@ AArena::AArena()
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMesh(TEXT("/Engine/BasicShapes/Plane.Plane"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
-
-	Floor = MakeMesh(this, TEXT("Floor"), PlaneMesh.Object, RootComponent);
-
-	Grid = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Grid"));
-	Grid->SetupAttachment(RootComponent);
-	Grid->SetStaticMesh(CubeMesh.Object);
-	Grid->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Grid->SetCastShadow(false);
-	// Glow only: kept out of Lumen and distance-field lighting.
-	Grid->bAffectDynamicIndirectLighting = false;
-	Grid->bAffectDistanceFieldLighting = false;
-	Grid->bVisibleInRayTracing = false;
-	EdgeTop = MakeMesh(this, TEXT("EdgeTop"), CubeMesh.Object, RootComponent);
-	EdgeBottom = MakeMesh(this, TEXT("EdgeBottom"), CubeMesh.Object, RootComponent);
-	EdgeLeft = MakeMesh(this, TEXT("EdgeLeft"), CubeMesh.Object, RootComponent);
-	EdgeRight = MakeMesh(this, TEXT("EdgeRight"), CubeMesh.Object, RootComponent);
+	Floor = MakeMesh(this, TEXT("Floor"), ELWShape::Plane, RootComponent);
+	Grid = LWNeon::MakeInstances(this, TEXT("Grid"), ELWShape::Cube, RootComponent);
+	EdgeTop = MakeMesh(this, TEXT("EdgeTop"), ELWShape::Cube, RootComponent);
+	EdgeBottom = MakeMesh(this, TEXT("EdgeBottom"), ELWShape::Cube, RootComponent);
+	EdgeLeft = MakeMesh(this, TEXT("EdgeLeft"), ELWShape::Cube, RootComponent);
+	EdgeRight = MakeMesh(this, TEXT("EdgeRight"), ELWShape::Cube, RootComponent);
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
@@ -91,6 +80,22 @@ void AArena::BeginPlay()
 	for (UStaticMeshComponent* Edge : { EdgeLeft.Get(), EdgeRight.Get() })
 	{
 		EdgeMaterials.Add(LWNeon::ApplyGlow(Edge, SideEdgeColor, EdgeGlowIntensity));
+	}
+
+	// Light spilling from the edges onto the floor: a soft strip under each, on both sides of it.
+	EdgeLightMaterials.Reset();
+	for (const UStaticMeshComponent* Edge : { EdgeTop.Get(), EdgeBottom.Get(), EdgeLeft.Get(), EdgeRight.Get() })
+	{
+		const bool bAcross = Edge == EdgeTop || Edge == EdgeBottom;
+		const FVector2D Size((bAcross ? HalfExtent.Y : HalfExtent.X) * 2.f + EdgeThickness, EdgeLightWidth);
+		const FVector Where = Edge->GetRelativeLocation() * FVector(1.f, 1.f, 0.f) + FVector(0.f, 0.f, 0.3f);
+		UStaticMeshComponent* Strip = LWNeon::AddCard(this, LWStyle::Art(TEXT("EdgeLight")), RootComponent, Where, Size, FRotator(0.f, bAcross ? 90.f : 0.f, 0.f), EdgeLightIntensity);
+		if (Strip)
+		{
+			Strip->SetVisibility(Edge->IsVisible());
+			Strip->SetTranslucentSortPriority(-1);
+		}
+		EdgeLightMaterials.Add(Strip ? Cast<UMaterialInstanceDynamic>(Strip->GetMaterial(0)) : nullptr);
 	}
 	GridMaterial = LWNeon::ApplyGlow(Grid, GridColor, GridGlowIntensity);
 	ApplyCamera();
@@ -154,24 +159,20 @@ void AArena::ApplyCamera()
 	const FRotator Rotation(Pitch, 0.f, 0.f);
 	Camera->SetRelativeRotation(Rotation + ShakeTurn);
 	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha) + Rotation.RotateVector(ShakeMove));
-	// The field of view is tuned for 16:9. Unreal keeps the horizontal angle fixed, so a wider screen would crop the
-	// arena's top and bottom: widen the angle to keep the 16:9 height in view, and show extra width at the sides.
-	const float BaseFieldOfView = FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha);
-	const float Widen = FMath::Max(1.f, ViewAspect / (16.f / 9.f));
-	const float FieldOfView = FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(BaseFieldOfView) * 0.5f) * Widen));
+	const float FieldOfView = LWNeon::WidenFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha), ViewAspect);
 #if !UE_BUILD_SHIPPING
 	// -LWZoom=N narrows the view N times onto the arena centre, to check the hero's model and animation up close.
 	static const float DevZoom = [] { float Zoom = 1.f; FParse::Value(FCommandLine::Get(), TEXT("LWZoom="), Zoom); return FMath::Max(Zoom, 1.f); }();
-	Camera->SetFieldOfView(FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(FMath::Min(FieldOfView, 170.f)) * 0.5f) / DevZoom)));
+	Camera->SetFieldOfView(FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(FieldOfView) * 0.5f) / DevZoom)));
 #else
-	Camera->SetFieldOfView(FMath::Min(FieldOfView, 170.f));
+	Camera->SetFieldOfView(FieldOfView);
 #endif
 
 	// The menu is lit only by the lantern: moonlight and the arena edges fade almost out, and the grid dims so
 	// it stays a backdrop behind the buttons.
 	if (GridMaterial)
 	{
-		GridMaterial->SetScalarParameterValue(FName(TEXT("Intensity")), FMath::Lerp(GridGlowIntensity, GridGlowIntensity * 0.3f, Alpha));
+		GridMaterial->SetScalarParameterValue(LWNeon::IntensityParam, FMath::Lerp(GridGlowIntensity, GridGlowIntensity * 0.3f, Alpha));
 	}
 	const float Gloom = FMath::Max(0.f, Mood);
 	const float Dawn = FMath::Max(0.f, -Mood);
@@ -179,17 +180,23 @@ void AArena::ApplyCamera()
 	Moonlight->SetLightColor(FMath::Lerp(FMath::Lerp(FLinearColor(0.45f, 0.5f, 1.f), FLinearColor(1.f, 0.2f, 0.15f), Gloom), FLinearColor(1.f, 0.72f, 0.4f), Dawn));
 	if (GridMaterial)
 	{
-		GridMaterial->SetVectorParameterValue(FName(TEXT("Color")), FMath::Lerp(FMath::Lerp(GridColor, FLinearColor(0.9f, 0.06f, 0.12f), Gloom), FLinearColor(1.f, 0.6f, 0.2f), Dawn));
+		GridMaterial->SetVectorParameterValue(LWNeon::ColorParam, FMath::Lerp(FMath::Lerp(GridColor, FLinearColor(0.9f, 0.06f, 0.12f), Gloom), FLinearColor(1.f, 0.6f, 0.2f), Dawn));
 	}
-	for (UMaterialInstanceDynamic* Material : EdgeMaterials)
+	for (int32 Index = 0; Index < EdgeMaterials.Num(); ++Index)
 	{
-		if (Material)
+		// Top and bottom first, then the sides (see BeginPlay).
+		const FLinearColor Usual = Index < 2 ? EdgeColor : SideEdgeColor;
+		const FLinearColor Colour = FMath::Lerp(FMath::Lerp(Usual, FLinearColor(1.f, 0.05f, 0.08f), Gloom), FLinearColor(1.f, 0.65f, 0.2f), Dawn);
+		auto Set = [&](UMaterialInstanceDynamic* Material, float Intensity)
 		{
-			Material->SetScalarParameterValue(FName(TEXT("Intensity")), FMath::Lerp(EdgeGlowIntensity, 0.f, Alpha));
-			// Top and bottom first, then the sides (see BeginPlay).
-			const FLinearColor Usual = EdgeMaterials.IndexOfByKey(Material) < 2 ? EdgeColor : SideEdgeColor;
-			Material->SetVectorParameterValue(FName(TEXT("Color")), FMath::Lerp(FMath::Lerp(Usual, FLinearColor(1.f, 0.05f, 0.08f), Gloom), FLinearColor(1.f, 0.65f, 0.2f), Dawn));
-		}
+			if (Material)
+			{
+				Material->SetScalarParameterValue(LWNeon::IntensityParam, Intensity * (1.f - Alpha));
+				Material->SetVectorParameterValue(LWNeon::ColorParam, Colour);
+			}
+		};
+		Set(EdgeMaterials[Index], EdgeGlowIntensity);
+		Set(EdgeLightMaterials.IsValidIndex(Index) ? EdgeLightMaterials[Index].Get() : nullptr, EdgeLightIntensity);
 	}
 }
 
@@ -216,17 +223,9 @@ void AArena::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	// Follow the window's shape (ultrawide, resizing, a resolution change).
-	bool bAspectChanged = false;
-	if (const UGameViewportClient* Viewport = GetWorld()->GetGameViewport())
-	{
-		FVector2D Size;
-		Viewport->GetViewportSize(Size);
-		if (Size.X > 0.f && Size.Y > 0.f && !FMath::IsNearlyEqual(Size.X / Size.Y, ViewAspect, 0.001f))
-		{
-			ViewAspect = Size.X / Size.Y;
-			bAspectChanged = true;
-		}
-	}
+	const float Aspect = LWNeon::GetViewAspect(GetWorld());
+	const bool bAspectChanged = !FMath::IsNearlyEqual(Aspect, ViewAspect, 0.001f);
+	ViewAspect = Aspect;
 
 	const bool bShaking = Trauma > 0.f;
 	if (bShaking)

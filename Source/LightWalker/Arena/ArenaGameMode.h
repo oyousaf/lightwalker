@@ -106,9 +106,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Waves")
 	TArray<FArenaWave> DefaultWaves;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Arena|Pickups")
-	TSubclassOf<APickup> PickupClass;
-
 	/** Chance a killed dajjal drops a power-up. They take three shots, so they pay out more. */
 	UPROPERTY(EditDefaultsOnly, Category = "Arena|Pickups", meta = (ClampMin = 0, ClampMax = 1))
 	float DajjalDropChance = 0.4f;

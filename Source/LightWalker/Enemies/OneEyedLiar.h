@@ -168,6 +168,8 @@ private:
 	FVector2D GetEye() const;
 
 	TArray<FBossBolt> Bolts;
+	/** How many bolts were drawn last frame. */
+	int32 BoltsShown = 0;
 	FBossBeam Beam;
 
 	UPROPERTY(Transient)

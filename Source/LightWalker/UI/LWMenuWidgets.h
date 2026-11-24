@@ -116,9 +116,6 @@ protected:
 	/** A centred dark glass panel with a neon edge, holding a column (pause, settings). */
 	UVerticalBox* AddPanel(UCanvasPanel* Root, float Width);
 
-	/** The game window's width over height. */
-	float GetViewAspect() const;
-
 	/** Adds a widget covering the whole screen (past the 16:9 area on ultrawide), behind the menu's content. */
 	void AddFullScreen(UWidget* Widget);
 
