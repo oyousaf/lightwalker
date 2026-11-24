@@ -19,6 +19,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Core/LWNeon.h"
 #include "Core/LWSound.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Core/LightWalkerUserSettings.h"
@@ -87,6 +88,21 @@ namespace
 		case 3: return TEXT("EPIC");
 		default: return TEXT("CUSTOM");
 		}
+	}
+
+	FIntPoint ViewSize(const UWorld* World)
+	{
+		FVector2D Size = FVector2D::ZeroVector;
+		if (const UGameViewportClient* Viewport = World ? World->GetGameViewport() : nullptr)
+		{
+			Viewport->GetViewportSize(Size);
+		}
+		const ULightWalkerUserSettings* Settings = ULightWalkerUserSettings::Get();
+		if (Size.X <= 0.f && Settings)
+		{
+			return Settings->GetScreenResolution();  // no view yet
+		}
+		return FIntPoint(FMath::RoundToInt(Size.X), FMath::RoundToInt(Size.Y));
 	}
 
 	FString WindowName(EWindowMode::Type Mode)
@@ -200,11 +216,16 @@ UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TF
 	{
 		Text->SetRenderShear(FVector2D(ButtonShear * 0.7f, 0.f));  // italic, to match the slanted art
 	}
-	if (UOverlaySlot* TextSlot = Content->AddChildToOverlay(Text))
+	// A long label (a 4K resolution) shrinks to stay inside the frame.
+	UScaleBox* Fit = WidgetTree->ConstructWidget<UScaleBox>();
+	Fit->SetStretch(EStretch::ScaleToFitX);
+	Fit->SetStretchDirection(EStretchDirection::DownOnly);
+	Fit->AddChild(Text);
+	if (UOverlaySlot* TextSlot = Content->AddChildToOverlay(Fit))
 	{
-		TextSlot->SetHorizontalAlignment(HAlign_Center);
+		TextSlot->SetHorizontalAlignment(HAlign_Fill);
 		TextSlot->SetVerticalAlignment(VAlign_Center);
-		TextSlot->SetPadding(bArt ? FMargin(48.f, 20.f) : FMargin(28.f, 13.f));
+		TextSlot->SetPadding(bArt ? FMargin(70.f, 20.f) : FMargin(28.f, 13.f));
 	}
 	if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(Button->AddChild(Content)))
 	{
@@ -343,11 +364,23 @@ void ULWMenuWidget::AddFullScreen(UWidget* Widget)
 	}
 }
 
-void ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
+UWidget* ULWMenuWidget::AddVeil(UCanvasPanel* Root, float Opacity)
 {
 	UBorder* Veil = WidgetTree->ConstructWidget<UBorder>();
 	Veil->SetBrushColor(FLinearColor(0.01f, 0.f, 0.04f, Opacity));
 	AddFullScreen(Veil);
+	return Veil;
+}
+
+UWidget* ULWMenuWidget::AddCopyright(UCanvasPanel* Root)
+{
+	UTextBlock* Line = MakeBody(LWStyle::Copyright() + TEXT("     ") + LWStyle::Version(), 14, WithAlpha(LWStyle::Muted, 0.75f), 160);
+	UCanvasPanelSlot* LineSlot = Root->AddChildToCanvas(Line);
+	LineSlot->SetAnchors(FAnchors(0.5f, 1.f));
+	LineSlot->SetAlignment(FVector2D(0.5f, 1.f));
+	LineSlot->SetPosition(FVector2D(0.f, -22.f));
+	LineSlot->SetAutoSize(true);
+	return Line;
 }
 
 UTexture2D* ULWMenuWidget::PickBackdropArt(float Aspect)
@@ -502,8 +535,9 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 namespace
 {
 	// Seconds. The engine credit is Epic's animated logo, played as a startup movie before this (DefaultGame.ini),
-	// so the intro is just the title rising out of black, then the menu takes over.
-	constexpr float TitleIn = 0.3f, TitleHold = 2.6f, TitleOut = 3.4f;
+	// so the intro is the notices, then the title, then the menu takes over.
+	constexpr float NoticeIn = 0.3f, NoticeHold = 5.6f, NoticeOut = 6.2f;
+	constexpr float TitleIn = 6.5f, TitleHold = 8.8f, TitleOut = 9.6f;
 
 	float FadeWindow(float Time, float In, float Hold, float Out, float FadeTime = 0.6f)
 	{
@@ -530,6 +564,30 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 	}
 	AddMotes(Root);
 
+	NoticeVeil = AddVeil(Root, 0.94f);
+
+	UVerticalBox* Notices = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1040.f);
+	Notice = Notices;
+	Notice->SetRenderOpacity(0.f);
+	auto AddNotice = [&](const TCHAR* Text, int32 Size, const FLinearColor& Color, float Below, int32 Spacing)
+	{
+		UTextBlock* Block = MakeBody(Text, Size, Color, Spacing);
+		Block->SetAutoWrapText(true);
+		if (UVerticalBoxSlot* BlockSlot = Notices->AddChildToVerticalBox(Block))
+		{
+			BlockSlot->SetPadding(FMargin(0.f, 0.f, 0.f, Below));
+		}
+	};
+	AddNotice(TEXT("PHOTOSENSITIVITY WARNING"), 30, LWStyle::Gold, 14.f, 260);
+	AddNotice(TEXT("This game contains flashing lights and patterns. A very small number of people may have a seizure when they see them, even with no history of epilepsy. ")
+		TEXT("If you feel unwell, stop playing at once and speak to a doctor. Screen flashes and screen shake can be turned off in Settings."), 22, LWStyle::Text, 56.f, 20);
+	AddNotice(TEXT("LightWalker uses Unreal\u00AE Engine. Unreal\u00AE is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere. ")
+		TEXT("Unreal\u00AE Engine, Copyright 1998 \u2013 2026, Epic Games, Inc. All rights reserved."), 17, LWStyle::Muted, 20.f, 20);
+	AddNotice(TEXT("Audiowide and Rajdhani fonts used under the SIL Open Font License 1.1."), 17, LWStyle::Muted, 20.f, 20);
+	AddNotice(TEXT("All characters and events in this game are fictional. Copying, sharing or selling this game without permission is prohibited."), 17, LWStyle::Muted, 0.f, 20);
+	Legal = AddCopyright(Root);
+	Legal->SetRenderOpacity(0.f);
+
 	UVerticalBox* Centre = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1400.f);
 	Title = MakeLogo(1100.f, 110);
 	Title->SetRenderOpacity(0.f);
@@ -545,7 +603,10 @@ void ULWIntroScreen::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 	Time += InDeltaTime;
 
+	Notice->SetRenderOpacity(FadeWindow(Time, NoticeIn, NoticeHold, NoticeOut));
+	NoticeVeil->SetRenderOpacity(1.f - FMath::Clamp((Time - NoticeHold) / (TitleIn - NoticeHold), 0.f, 1.f));
 	Title->SetRenderOpacity(FadeWindow(Time, TitleIn, TitleHold, TitleOut, 1.f));
+	Legal->SetRenderOpacity(FMath::Clamp((Time - NoticeIn) / 0.6f, 0.f, 1.f));
 	// Over the art, only the logo fades; the sunset stays for the main menu.
 	if (!bArtBackdrop)
 	{
@@ -555,11 +616,23 @@ void ULWIntroScreen::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 	if (Time >= TitleOut)
 	{
-		Skip();
+		Finish();
 	}
 }
 
 void ULWIntroScreen::Skip()
+{
+	if (Time < NoticeHold)
+	{
+		Time = NoticeHold;  // on to the title
+	}
+	else if (Time > TitleIn)
+	{
+		Finish();
+	}
+}
+
+void ULWIntroScreen::Finish()
 {
 	if (!bFinished)
 	{
@@ -617,8 +690,9 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	AddButton(Column, TEXT("QUIT"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->QuitGame(); } });
 	RefreshHeroLabel();
 
-	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -36.f));
+	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -58.f));
 	Footer->AddChildToVerticalBox(MakeBody(TEXT("ENTER / A  SELECT       ESC / B  BACK"), 18, LWStyle::Muted, 300));
+	AddCopyright(Root);
 }
 
 void ULWMainMenu::RefreshHeroLabel()
@@ -677,8 +751,7 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 	{
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
-			const int32 Level = S->GetOverallScalabilityLevel();
-			S->SetOverallScalabilityLevel(Level < 0 || Level >= 3 ? 0 : Level + 1);
+			S->SetGraphicsLevel((FMath::Clamp(S->GetGraphicsLevel(), 0, 3) + 1) % 4);
 			S->ApplyNonResolutionSettings();
 			Refresh();
 		}
@@ -689,6 +762,11 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
 		{
 			const EWindowMode::Type Mode = S->GetFullscreenMode();
+			if (Mode == EWindowMode::WindowedFullscreen)
+			{
+				// On to exclusive fullscreen at the size the display is really showing.
+				S->SetScreenResolution(ViewSize(GetWorld()));
+			}
 			S->SetFullscreenMode(Mode == EWindowMode::Windowed ? EWindowMode::WindowedFullscreen
 				: Mode == EWindowMode::WindowedFullscreen ? EWindowMode::Fullscreen : EWindowMode::Windowed);
 			S->ApplyResolutionSettings(false);
@@ -765,6 +843,15 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
+	FlashButton = AddButton(Right, TEXT("SCREEN FLASHES"), [this]()
+	{
+		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
+		{
+			S->bScreenFlashes = !S->bScreenFlashes;
+			Refresh();
+		}
+	});
+
 	AddButton(Right, TEXT("CONTROLS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->OpenControls(); } });
 
 	AddButton(Column, TEXT("BACK"), [this]()
@@ -782,6 +869,12 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 	Refresh();
 }
 
+void ULWSettingsMenu::NativeConstruct()
+{
+	Super::NativeConstruct();
+	Refresh();  // the screen may have changed since it was last open
+}
+
 void ULWSettingsMenu::Refresh()
 {
 	const ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get();
@@ -789,8 +882,9 @@ void ULWSettingsMenu::Refresh()
 	{
 		return;
 	}
-	const FIntPoint Resolution = S->GetScreenResolution();
-	SetButtonLabel(QualityButton, FString::Printf(TEXT("GRAPHICS: %s"), *QualityName(S->GetOverallScalabilityLevel())));
+	// Borderless always fills the display, whatever resolution is saved.
+	const FIntPoint Resolution = S->GetFullscreenMode() == EWindowMode::WindowedFullscreen ? ViewSize(GetWorld()) : S->GetScreenResolution();
+	SetButtonLabel(QualityButton, FString::Printf(TEXT("GRAPHICS: %s"), *QualityName(S->GetGraphicsLevel())));
 	SetButtonLabel(WindowButton, FString::Printf(TEXT("DISPLAY: %s"), *WindowName(S->GetFullscreenMode())));
 	SetButtonLabel(ResolutionButton, FString::Printf(TEXT("RESOLUTION: %d x %d"), Resolution.X, Resolution.Y));
 	const float FrameRate = S->GetFrameRateLimit();
@@ -799,6 +893,7 @@ void ULWSettingsMenu::Refresh()
 	SetButtonLabel(HDRButton, !S->SupportsHDRDisplayOutput() ? FString(TEXT("HDR: NOT AVAILABLE")) : FString::Printf(TEXT("HDR: %s"), S->IsHDREnabled() ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(VibrationButton, FString::Printf(TEXT("VIBRATION: %s"), S->bVibration ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(ShakeButton, FString::Printf(TEXT("SCREEN SHAKE: %s"), S->bScreenShake ? TEXT("ON") : TEXT("OFF")));
+	SetButtonLabel(FlashButton, FString::Printf(TEXT("SCREEN FLASHES: %s"), S->bScreenFlashes ? TEXT("ON") : TEXT("OFF")));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

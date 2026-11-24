@@ -38,6 +38,10 @@ namespace LWStyle
 	 */
 	LIGHTWALKER_API UTexture2D* Art(const TCHAR* Name);
 
+	/** The copyright line, and the game's version (ProjectVersion in DefaultGame.ini). */
+	LIGHTWALKER_API FString Copyright();
+	LIGHTWALKER_API FString Version();
+
 	/** A brush for a texture drawn at Size; a non-zero Margin makes it a 9-slice box that keeps its corners. */
 	LIGHTWALKER_API FSlateBrush ArtBrush(UTexture2D* Texture, const FVector2D& Size, const FMargin& Margin = FMargin(0.f));
 }

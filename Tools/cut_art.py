@@ -69,7 +69,7 @@ def cover(name, width, height):
 # Menus and HUD
 
 def menus():
-    cover("MenuBackground", 1920, 1080)
+    cover("MenuBackground", 2560, 1440)
     cover("MenuBackground_21x9", 2560, 1096)
     cover("MenuBackground_32x9", 3840, 1080)
     cover("Victory", 2560, 1100)

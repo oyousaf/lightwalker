@@ -33,6 +33,10 @@ public:
 	static ULightWalkerUserSettings* Get();
 
 	/** New players start capped at 60 fps, with V-sync on. */
+	/** 0 Low to 3 Epic, for everything at once. */
+	int32 GetGraphicsLevel() const;
+	void SetGraphicsLevel(int32 Level);
+
 	virtual void SetToDefaults() override;
 	virtual void LoadSettings(bool bForceReload = false) override;
 
@@ -56,6 +60,10 @@ public:
 	/** Camera shake on hits and kills (off for players who find it uncomfortable). */
 	UPROPERTY(Config)
 	bool bScreenShake = true;
+
+	/** The colour flashes over the whole screen on big moments. */
+	UPROPERTY(Config)
+	bool bScreenFlashes = true;
 
 	/** 0 = Lightwalker (male), 1 = Lightwalker (female). */
 	UPROPERTY(Config)

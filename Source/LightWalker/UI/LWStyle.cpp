@@ -2,6 +2,7 @@
 
 #include "Engine/Font.h"
 #include "Engine/Texture2D.h"
+#include "GeneralProjectSettings.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Styling/CoreStyle.h"
@@ -63,6 +64,16 @@ UTexture2D* LWStyle::Art(const TCHAR* Name)
 		}
 	}
 	return Slot.Get();
+}
+
+FString LWStyle::Copyright()
+{
+	return TEXT("COPYRIGHT \u00A9 2026 LIGHTWALKER. ALL RIGHTS RESERVED.");
+}
+
+FString LWStyle::Version()
+{
+	return TEXT("V") + GetDefault<UGeneralProjectSettings>()->ProjectVersion;
 }
 
 FSlateBrush LWStyle::ArtBrush(UTexture2D* Texture, const FVector2D& Size, const FMargin& Margin)

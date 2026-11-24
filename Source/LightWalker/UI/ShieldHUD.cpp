@@ -54,7 +54,7 @@ AArenaHUD::FBanner AShieldHUD::GetBanner() const
 		}
 		break;
 	case EShieldPhase::Down:
-		Banner.Title = GameMode->WasBeamLost() ? TEXT("THE BEAM IS LOST") : TEXT("PACIFIED");
+		Banner.Title = GameMode->WasBeamLost() ? TEXT("THE BEAM IS LOST") : TEXT("THE LIGHT FALTERS");
 		Banner.Color = LWStyle::Danger;
 		break;
 	case EShieldPhase::WallCleared:

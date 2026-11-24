@@ -22,7 +22,7 @@ enum class EArenaPhase : uint8
 	/** Enemies are placed but frozen; the wave banner is up. */
 	WaveIntro,
 	Fighting,
-	/** Lightwalker was pacified and is waiting to respawn. */
+	/** Lightwalker lost a life and is waiting to respawn. */
 	PlayerDown,
 	WaveCleared,
 	/** Fading out to the next mode. */

@@ -89,7 +89,7 @@ void ULWFeelSubsystem::PlayMoment(ELWFeel Moment)
 		UGameplayStatics::SetGlobalTimeDilation(World, HitStopDilation);
 	}
 
-	if (Feel.FlashTime > 0.f && Feel.Flash.A >= FlashColor.A * (1.f - (Now - FlashStart) / FMath::Max(FlashDuration, 0.01f)))
+	if (Feel.FlashTime > 0.f && (!Settings || Settings->bScreenFlashes) && Feel.Flash.A >= FlashColor.A * (1.f - (Now - FlashStart) / FMath::Max(FlashDuration, 0.01f)))
 	{
 		FlashColor = Feel.Flash;
 		FlashStart = Now;

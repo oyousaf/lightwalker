@@ -69,7 +69,7 @@ AArenaHUD::FBanner APathHUD::GetBanner() const
 		}
 		break;
 	case EPathPhase::Down:
-		Banner.Title = GameMode->WentDark() ? TEXT("YOUR LIGHT WENT OUT") : TEXT("PACIFIED");
+		Banner.Title = GameMode->WentDark() ? TEXT("YOUR LIGHT WENT OUT") : TEXT("THE LIGHT FALTERS");
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
 		break;

@@ -6,7 +6,7 @@ pixels, and always fully loaded.
   SourceArt/UI/Sliced/<Name>.png  ->  /Game/UI/T_<Name>
 
 The game looks for these by name (see UI/LWStyle) and falls back to its built-in look for any that are missing.
-Re-running replaces the previous import.
+Re-running replaces the previous import. Set LW_ART to a comma-separated list of names to import only those.
 
 Run headless with the editor closed:
   UnrealEditor-Cmd.exe "<path>/LightWalker.uproject" -run=pythonscript -script="<path>/Tools/import_ui.py"
@@ -27,7 +27,10 @@ TILING = ("PathRock",)
 
 assets = unreal.EditorAssetLibrary
 tasks = []
+wanted = [name for name in os.environ.get("LW_ART", "").split(",") if name]
 for path in sorted(glob.glob(os.path.join(SOURCE, "*.png"))):
+    if wanted and os.path.splitext(os.path.basename(path))[0] not in wanted:
+        continue
     task = unreal.AssetImportTask()
     task.filename = path
     task.destination_path = DESTINATION

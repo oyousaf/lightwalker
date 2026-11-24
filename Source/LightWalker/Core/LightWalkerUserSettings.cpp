@@ -25,14 +25,30 @@ void ULightWalkerUserSettings::SetToDefaults()
 
 void ULightWalkerUserSettings::LoadSettings(bool bForceReload)
 {
+	LightWalkerSettingsVersion = 0;  // unless the saved file says otherwise
 	Super::LoadSettings(bForceReload);
 
-	// Settings saved before the 60 fps default existed were uncapped; bring them in line once.
-	if (LightWalkerSettingsVersion < 1)
+	// First launch (or settings from before these defaults existed): the engine's own defaults, uncapped and without
+	// V-sync, have just been loaded over ours.
+	if (LightWalkerSettingsVersion < CurrentSettingsVersion)
 	{
 		FrameRateLimit = DefaultFrameRateLimit;
+		bUseVSync = true;
 	}
 	LightWalkerSettingsVersion = CurrentSettingsVersion;
+}
+
+int32 ULightWalkerUserSettings::GetGraphicsLevel() const
+{
+	return ScalabilityQuality.GetMinQualityLevel();
+}
+
+void ULightWalkerUserSettings::SetGraphicsLevel(int32 Level)
+{
+	// The engine's own render scale for each level is fixed, so at 4K a lower level could draw more pixels than Epic.
+	// Left to it (0), the scale follows the screen's resolution; Low halves it.
+	SetOverallScalabilityLevel(Level);
+	ScalabilityQuality.ResolutionQuality = Level == 0 ? 50.f : 0.f;
 }
 
 FKey ULightWalkerUserSettings::GetDefaultBinding(ELWBinding Binding, bool bGamepad)

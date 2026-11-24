@@ -278,7 +278,7 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		}
 		break;
 	case EArenaPhase::PlayerDown:
-		Banner.Title = TEXT("PACIFIED");
+		Banner.Title = TEXT("THE LIGHT FALTERS");
 		Banner.Color = LWStyle::Danger;
 		Banner.Glow = LWStyle::Magenta;
 		break;

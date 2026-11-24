@@ -120,7 +120,10 @@ protected:
 	void AddFullScreen(UWidget* Widget);
 
 	/** A full-screen dark veil behind overlay menus (pause, settings). */
-	void AddVeil(UCanvasPanel* Root, float Opacity);
+	UWidget* AddVeil(UCanvasPanel* Root, float Opacity);
+
+	/** The copyright line and version along the bottom of the screen. */
+	UWidget* AddCopyright(UCanvasPanel* Root);
 
 	/** The full-screen neon sunset art; null (and nothing added) if it isn't imported. */
 	UWidget* AddBackdrop(UCanvasPanel* Root);
@@ -162,7 +165,10 @@ private:
 	TArray<TObjectPtr<UObject>> Relays;
 };
 
-/** After Epic's logo movie: the title rises out of black over the arena, then hands over to the main menu. */
+/**
+ * After Epic's logo movie: the notices (flashing lights, trademarks, copyright), then the title, then the main menu. Any
+ * key or click skips to the next of them.
+ */
 UCLASS()
 class LIGHTWALKER_API ULWIntroScreen : public ULWMenuWidget
 {
@@ -173,6 +179,7 @@ public:
 
 	/** Any key or click skips ahead. */
 	void Skip();
+	void Finish();
 
 protected:
 	virtual void Build(UCanvasPanel* Root) override;
@@ -183,6 +190,16 @@ protected:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UWidget> Title;
+
+	/** The notices, the dark behind them, and the copyright line under the title. */
+	UPROPERTY(Transient)
+	TObjectPtr<UWidget> Notice;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UWidget> NoticeVeil;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UWidget> Legal;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UWidget> Backdrop;
@@ -229,6 +246,7 @@ public:
 
 protected:
 	virtual void Build(UCanvasPanel* Root) override;
+	virtual void NativeConstruct() override;
 
 private:
 	void Refresh();
@@ -256,6 +274,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> ShakeButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> FlashButton;
 };
 
 /**
