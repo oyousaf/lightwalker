@@ -211,8 +211,8 @@ float LWNeon::GetViewAspect(const UWorld* World)
 	return Size.X > 0.f && Size.Y > 0.f ? Size.X / Size.Y : DesignAspect;
 }
 
-float LWNeon::WidenFieldOfView(float Degrees, float Aspect)
+float LWNeon::FitFieldOfView(float Degrees, float Aspect)
 {
-	const float Widen = FMath::Max(1.f, Aspect / DesignAspect);
-	return FMath::Min(170.f, FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(Degrees) * 0.5f) * Widen)));
+	const float Taller = FMath::Max(1.f, DesignAspect / Aspect);
+	return FMath::Min(170.f, FMath::RadiansToDegrees(2.f * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(Degrees) * 0.5f) * Taller)));
 }

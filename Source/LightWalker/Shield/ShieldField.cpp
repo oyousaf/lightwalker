@@ -47,7 +47,7 @@ namespace
 				TEXT("##SS##..##SS##"),
 				TEXT(".##..#VV#..##."),
 			},
-			// The Eye of Horus.
+			// Horus.
 			{
 				TEXT("...########..."),
 				TEXT(".###SSSSSS###."),

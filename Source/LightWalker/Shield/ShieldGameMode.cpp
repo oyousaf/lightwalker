@@ -60,7 +60,7 @@ bool AShieldGameMode::IsBeamHeld() const
 
 FString AShieldGameMode::GetWallName() const
 {
-	static const TCHAR* const Names[] = { TEXT("THE VEIL"), TEXT("THE KEEP"), TEXT("THE EYE OF HORUS") };
+	static const TCHAR* const Names[] = { TEXT("THE VEIL"), TEXT("THE KEEP"), TEXT("HORUS") };
 	return Names[FMath::Clamp(Wall, 0, static_cast<int32>(UE_ARRAY_COUNT(Names)) - 1)];
 }
 

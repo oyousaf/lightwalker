@@ -159,7 +159,7 @@ void AArena::ApplyCamera()
 	const FRotator Rotation(Pitch, 0.f, 0.f);
 	Camera->SetRelativeRotation(Rotation + ShakeTurn);
 	Camera->SetRelativeLocation(FMath::Lerp(GameLocation, MenuLocation, Alpha) + Rotation.RotateVector(ShakeMove));
-	const float FieldOfView = LWNeon::WidenFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha), ViewAspect);
+	const float FieldOfView = LWNeon::FitFieldOfView(FMath::Lerp(CameraFieldOfView, MenuCameraFieldOfView, Alpha), ViewAspect);
 #if !UE_BUILD_SHIPPING
 	// -LWZoom=N narrows the view N times onto the arena centre, to check the hero's model and animation up close.
 	static const float DevZoom = [] { float Zoom = 1.f; FParse::Value(FCommandLine::Get(), TEXT("LWZoom="), Zoom); return FMath::Max(Zoom, 1.f); }();

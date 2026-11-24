@@ -43,7 +43,7 @@ AArenaHUD::FBanner AShieldHUD::GetBanner() const
 		}
 		else if (GameMode->IsGreatEye())
 		{
-			Banner.Detail = TEXT("BREAK THE EYE OF HORUS AND THE WALL FALLS");
+			Banner.Detail = TEXT("BREAK HORUS AND THE WALL FALLS");
 		}
 		break;
 	case EShieldPhase::Playing:

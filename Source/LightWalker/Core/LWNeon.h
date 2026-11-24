@@ -72,6 +72,9 @@ namespace LWNeon
 	/** The game view's width over its height (16:9 when there's no view yet). */
 	LIGHTWALKER_API float GetViewAspect(const UWorld* World);
 
-	/** Cameras are tuned for 16:9: on a wider view, the horizontal angle that keeps the same height and sees further sideways. */
-	LIGHTWALKER_API float WidenFieldOfView(float Degrees, float Aspect);
+	/**
+	 * Cameras are tuned for 16:9, and the engine keeps that height on any screen (AspectRatio_MaintainYFOV in DefaultEngine.ini),
+	 * so wider ones simply see further to the sides. On a narrower one, this is the angle that still shows the full width.
+	 */
+	LIGHTWALKER_API float FitFieldOfView(float Degrees, float Aspect);
 }

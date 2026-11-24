@@ -570,7 +570,7 @@ void APathCourse::UpdateCamera(float DeltaSeconds, bool bInstant)
 	Camera->SetWorldLocation(CameraAt + ShakeMove);
 	Camera->SetWorldRotation(FRotator(CameraPitch, 0.f, FMath::PerlinNoise1D(ShakeTime * 19.f + 150.f) * 1.1f * Shake));
 
-	Camera->SetFieldOfView(LWNeon::WidenFieldOfView(CameraFieldOfView, LWNeon::GetViewAspect(GetWorld())));
+	Camera->SetFieldOfView(LWNeon::FitFieldOfView(CameraFieldOfView, LWNeon::GetViewAspect(GetWorld())));
 
 	// The sky travels with the camera; the sun climbs with progress.
 	const float Progress = FMath::Clamp(Target.Y / FMath::Max(GateY, 1.f), 0.f, 1.f);
