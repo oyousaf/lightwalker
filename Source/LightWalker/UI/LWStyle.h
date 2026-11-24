@@ -38,7 +38,7 @@ namespace LWStyle
 	 */
 	LIGHTWALKER_API UTexture2D* Art(const TCHAR* Name);
 
-	/** The copyright line, and the game's version (ProjectVersion in DefaultGame.ini). */
+	/** The copyright line and the game's version (CompanyName and ProjectVersion in DefaultGame.ini). */
 	LIGHTWALKER_API FString Copyright();
 	LIGHTWALKER_API FString Version();
 

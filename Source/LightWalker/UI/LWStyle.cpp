@@ -68,7 +68,8 @@ UTexture2D* LWStyle::Art(const TCHAR* Name)
 
 FString LWStyle::Copyright()
 {
-	return TEXT("COPYRIGHT \u00A9 2026 LIGHTWALKER. ALL RIGHTS RESERVED.");
+	const UGeneralProjectSettings* Project = GetDefault<UGeneralProjectSettings>();
+	return FString::Printf(TEXT("COPYRIGHT © 2026 %s. ALL RIGHTS RESERVED."), *Project->CompanyName.ToUpper());
 }
 
 FString LWStyle::Version()
