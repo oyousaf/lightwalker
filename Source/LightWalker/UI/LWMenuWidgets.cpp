@@ -536,8 +536,8 @@ namespace
 {
 	// Seconds. The engine credit is Epic's animated logo, played as a startup movie before this (DefaultGame.ini),
 	// so the intro is the notices, then the title, then the menu takes over.
-	constexpr float NoticeIn = 0.3f, NoticeHold = 5.6f, NoticeOut = 6.2f;
-	constexpr float TitleIn = 6.5f, TitleHold = 8.8f, TitleOut = 9.6f;
+	constexpr float NoticeIn = 0.3f, NoticeHold = 9.f, NoticeOut = 9.6f;
+	constexpr float TitleIn = 9.9f, TitleHold = 12.2f, TitleOut = 13.f;
 
 	float FadeWindow(float Time, float In, float Hold, float Out, float FadeTime = 0.6f)
 	{
@@ -566,7 +566,7 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 
 	NoticeVeil = AddVeil(Root, 0.94f);
 
-	UVerticalBox* Notices = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1040.f);
+	UVerticalBox* Notices = AddColumn(Root, FVector2D(0.5f, 0.5f), FVector2D(0.5f, 0.5f), 1180.f);
 	Notice = Notices;
 	Notice->SetRenderOpacity(0.f);
 	auto AddNotice = [&](const TCHAR* Text, int32 Size, const FLinearColor& Color, float Below, int32 Spacing)
@@ -578,13 +578,18 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 			BlockSlot->SetPadding(FMargin(0.f, 0.f, 0.f, Below));
 		}
 	};
-	AddNotice(TEXT("PHOTOSENSITIVITY WARNING"), 30, LWStyle::Gold, 14.f, 260);
-	AddNotice(TEXT("This game contains flashing lights and patterns. A very small number of people may have a seizure when they see them, even with no history of epilepsy. ")
-		TEXT("If you feel unwell, stop playing at once and speak to a doctor. Screen flashes and screen shake can be turned off in Settings."), 22, LWStyle::Text, 56.f, 20);
-	AddNotice(TEXT("LightWalker uses Unreal\u00AE Engine. Unreal\u00AE is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere. ")
-		TEXT("Unreal\u00AE Engine, Copyright 1998 \u2013 2026, Epic Games, Inc. All rights reserved."), 17, LWStyle::Muted, 20.f, 20);
-	AddNotice(TEXT("Audiowide and Rajdhani fonts used under the SIL Open Font License 1.1."), 17, LWStyle::Muted, 20.f, 20);
-	AddNotice(TEXT("All characters and events in this game are fictional. Copying, sharing or selling this game without permission is prohibited."), 17, LWStyle::Muted, 0.f, 20);
+	AddNotice(TEXT("PHOTOSENSITIVITY WARNING"), 30, LWStyle::Gold, 18.f, 260);
+	AddNotice(TEXT("This game contains flashing lights and moving patterns. A very small percentage of people may\n")
+		TEXT("experience seizures when exposed to them, even with no history of epilepsy."), 22, LWStyle::Text, 16.f, 20);
+	AddNotice(TEXT("Stop playing immediately and consult a doctor if you experience light-headedness,\naltered vision, twitching, disorientation or any loss of awareness."),
+		22, LWStyle::Text, 16.f, 20);
+	AddNotice(TEXT("Screen flashes and screen shake can be turned off in Settings.\nThis reduces flashing but does not remove it completely."), 22, LWStyle::Text, 52.f, 20);
+	// Broken by hand, so no line is left with a single word on it.
+	AddNotice(TEXT("LightWalker uses Unreal\u00AE Engine. Unreal\u00AE is a trademark or registered trademark of Epic Games, Inc.\nin the United States of America and elsewhere.\n")
+		TEXT("Unreal\u00AE Engine, Copyright 1998\u20132026, Epic Games, Inc. All rights reserved."), 17, LWStyle::Muted, 18.f, 20);
+	AddNotice(TEXT("The Audiowide and Rajdhani fonts are used under the SIL Open Font License, Version 1.1."), 17, LWStyle::Muted, 18.f, 20);
+	AddNotice(TEXT("This game is a work of fiction. Any resemblance to real people or events is coincidental.\nUnauthorised copying, distribution or sale of this game is prohibited."),
+		17, LWStyle::Muted, 0.f, 20);
 	Legal = AddCopyright(Root);
 	Legal->SetRenderOpacity(0.f);
 
