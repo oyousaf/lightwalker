@@ -1217,8 +1217,9 @@ void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
 {
 	// Mostly small warm sparks; a few big, faint, out-of-focus ones nearer the eye.
 	const bool bBokeh = FMath::FRand() < 0.12f;
-	// One thing at a time: snow, petals or leaves coming down, or lights rising (the usual look, Ramadan and Eid).
-	Mote.bFalls = Season == ELWSeason::Winter || Season == ELWSeason::Spring || Season == ELWSeason::Autumn;
+	// In a season everything comes down: snow, petals, leaves, or light in Ramadan and at Eid. In the usual look (and
+	// summer's) the lights rise.
+	Mote.bFalls = Season != ELWSeason::None;
 	Mote.Piece = Mote.bFalls && Pieces.Num() > 0 ? FMath::RandRange(0, Pieces.Num() - 1) : -1;
 	const float Off = FMath::FRandRange(1.02f, 1.1f);
 	Mote.Position = FVector2D(FMath::FRand(), bAnywhere ? FMath::FRandRange(0.05f, 1.05f) : Mote.bFalls ? 1.f - Off : Off);
@@ -1235,7 +1236,7 @@ void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
 	const float Pick = FMath::FRand();
 	if (Season == ELWSeason::Ramadan || Season == ELWSeason::Eid)
 	{
-		// Gold lights, with teal in Ramadan and pink at Eid.
+		// Blessings coming down: gold lights, with teal in Ramadan and pink at Eid.
 		Mote.Color = Pick < 0.75f ? FLinearColor(1.f, 0.78f, 0.38f) : Season == ELWSeason::Ramadan ? FLinearColor(0.3f, 0.95f, 0.85f) : FLinearColor(1.f, 0.4f, 0.72f);
 		return;
 	}

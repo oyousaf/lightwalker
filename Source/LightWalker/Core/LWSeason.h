@@ -27,7 +27,7 @@ struct FLWWeatherLayer
 	float Glow = 1.f;
 	/** Size of the thing in cm, smallest and largest. */
 	FVector2D Size = FVector2D(5.f, 9.f);
-	/** Cm a second downwards (negative rises), slowest and fastest. */
+	/** Cm a second downwards, slowest and fastest. */
 	FVector2D Fall = FVector2D(100.f, 180.f);
 	/** Sideways drift, and how far it sways. */
 	float Wind = 30.f;

@@ -206,10 +206,10 @@ TArray<FLWWeatherLayer> LWSeason::GetWeather()
 		return { { EKind::Streak, 300, FLinearColor(0.5f, 0.6f, 0.85f), 0.35f, FVector2D(2.6f, 3.8f), FVector2D(1500.f, 2000.f), 160.f, 0.f },
 			{ EKind::Scrap, 100, FLinearColor(1.f, 0.36f, 0.06f), 0.7f, FVector2D(22.f, 36.f), FVector2D(90.f, 160.f), 120.f, 60.f } };
 	case ELWSeason::Ramadan:
-		return { { EKind::Ember, 190, FLinearColor(1.f, 0.62f, 0.22f), 0.9f, FVector2D(6.f, 12.f), FVector2D(-70.f, -30.f), 8.f, 24.f } };
+		return { { EKind::Ember, 190, FLinearColor(1.f, 0.62f, 0.22f), 0.9f, FVector2D(6.f, 12.f), FVector2D(30.f, 70.f), 8.f, 24.f } };
 	case ELWSeason::Eid:
-		return { { EKind::Ember, 220, FLinearColor(1.f, 0.62f, 0.22f), 1.1f, FVector2D(7.f, 13.f), FVector2D(-110.f, -50.f), 10.f, 26.f },
-			{ EKind::Ember, 110, FLinearColor(1.f, 0.2f, 0.55f), 1.f, FVector2D(7.f, 12.f), FVector2D(-100.f, -50.f), 10.f, 26.f } };
+		return { { EKind::Ember, 220, FLinearColor(1.f, 0.62f, 0.22f), 1.1f, FVector2D(7.f, 13.f), FVector2D(45.f, 95.f), 10.f, 26.f },
+			{ EKind::Ember, 110, FLinearColor(1.f, 0.2f, 0.55f), 1.f, FVector2D(7.f, 12.f), FVector2D(45.f, 95.f), 10.f, 26.f } };
 	default:
 		return {};
 	}
