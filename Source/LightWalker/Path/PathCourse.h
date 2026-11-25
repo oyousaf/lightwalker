@@ -226,6 +226,7 @@ private:
 		float Y = 0.f;
 	};
 	TArray<FTrimming> Trimmings;
+	bool bMoon = false;
 
 	struct FLantern
 	{

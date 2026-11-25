@@ -153,14 +153,19 @@ def join_ends(image, blend):
     return joined
 
 
+def land(strip):
+    """A strip of mountains that repeats and fades out at its foot."""
+    layer = join_ends(strip, 128)
+    foot = np.clip((layer.shape[0] - np.arange(layer.shape[0])) / (layer.shape[0] * 0.22), 0, 1)
+    layer[..., 3] *= (foot * foot * (3 - 2 * foot))[:, None]
+    return layer
+
+
 def path_backdrop():
     """The sky, mountains and ridges behind The Path: each repeats along it, and the land fades out at its foot."""
     save("PathSky", join_ends(load("PathSky"), 204), opaque=True)
     for name, top in (("PathMountains", 296), ("PathRidges", 300)):
-        layer = join_ends(load(name)[top:724], 128)
-        foot = np.clip((layer.shape[0] - np.arange(layer.shape[0])) / (layer.shape[0] * 0.22), 0, 1)
-        layer[..., 3] *= (foot * foot * (3 - 2 * foot))[:, None]
-        save(name, layer)
+        save(name, land(load(name)[top:724]))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -263,6 +268,18 @@ def seasons():
         lanterns = load("LanternString")[:, 21:2152]
         lanterns[..., 3] = np.clip((lanterns[..., 3] - 0.88) / 0.1, 0, 1)
         save("PathTrim_Ramadan", resize(lanterns, 1024, 348))
+
+    # Fringes hung along the ground of The Path: the rows they fill, and their ends joined.
+    for name, season, top, bottom in (("Icicles", "Winter", 186, 570), ("BlossomGarland", "Spring", 164, 554), ("LeafGarland", "Autumn", 142, 540)):
+        if have(name):
+            save("PathTrim_" + season, resize(join_ends(load(name)[top:bottom], 48), 1024, round((bottom - top) * 1024 / 2124 / 4) * 4))
+
+    # The moon in the sun's place, and snow on the land (the same size as the usual layers).
+    if have("Crescent"):
+        save("PathSun_Ramadan", resize(load("Crescent")[98:1178, 51:1131], 768, 768))
+    for name, top, height in (("PathMountains_Winter", 261, 428), ("PathRidges_Winter", 273, 424)):
+        if have(name):
+            save(name, resize(land(load(name)[top:top + height]), 2044, height))
 
 
 def squeeze():

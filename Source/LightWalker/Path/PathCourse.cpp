@@ -389,10 +389,10 @@ void APathCourse::BuildBackdrop()
 	const FVector2D SkySize = FVector2D(1968.f, 724.f) * 9.6f;
 	AddLayer(TEXT("PathSky"), Sky, 16000.f, -300.f, SkySize, -SkySize.X * 2.5f, SkySize.X * 2.4f, 1.f, -50);
 
-	// The sun, rising as the gate gets nearer.
-	// (In Ramadan and at Eid, a crescent moon.)
+	// The sun, rising as the gate gets nearer. In Ramadan and at Eid, a crescent moon, rising over the mountains.
 	UTexture2D* Moon = LWSeason::OwnArt(TEXT("PathSun"));
-	if (UStaticMeshComponent* Disc = LWNeon::AddCard(this, Moon ? Moon : LWStyle::Art(TEXT("PathSun")), Sun, FVector::ZeroVector, FVector2D(Moon ? 4600.f : 7600.f), Facing, Moon ? 1.4f : 1.1f))
+	bMoon = Moon != nullptr;
+	if (UStaticMeshComponent* Disc = LWNeon::AddCard(this, Moon ? Moon : LWStyle::Art(TEXT("PathSun")), Sun, FVector::ZeroVector, FVector2D(Moon ? 1800.f : 7600.f), Facing, Moon ? 1.4f : 1.1f))
 	{
 		Disc->SetTranslucentSortPriority(-40);
 	}
@@ -401,8 +401,10 @@ void APathCourse::BuildBackdrop()
 	// The mountains' foot is see-through, so the sun needs something to set behind.
 	UStaticMeshComponent* Foot = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, FVector(10000.f, GateY * 0.5f, -1650.f), FVector(1.f, (GateY + 48000.f) / 100.f, 15.f));
 	LWNeon::ApplyGlow(Foot, FLinearColor(0.045f, 0.004f, 0.04f), 1.f);
-	AddLayer(TEXT("PathMountains"), RootComponent, 9800.f, -1750.f, FVector2D(2044.f, 428.f) * 8.4f, -24000.f, GateY + 24000.f, 1.f, -30);
-	AddLayer(TEXT("PathRidges"), RootComponent, 4900.f, -1800.f, FVector2D(2044.f, 424.f) * 4.6f, -16000.f, GateY + 16000.f, 0.65f, -20);
+	// Snow is dimmed, so Lightwalker and the course still stand out against it.
+	const float Snow = LWSeason::Current() == ELWSeason::Winter ? 0.42f : 1.f;
+	AddLayer(TEXT("PathMountains"), RootComponent, 9800.f, -1750.f, FVector2D(2044.f, 428.f) * 8.4f, -24000.f, GateY + 24000.f, Snow, -30);
+	AddLayer(TEXT("PathRidges"), RootComponent, 4900.f, -1800.f, FVector2D(2044.f, 424.f) * 4.6f, -16000.f, GateY + 16000.f, 0.65f * Snow, -20);
 
 	// The abyss: a dark floor with the arena's grid, far below.
 	UStaticMeshComponent* Floor = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, FVector(4000.f, GateY * 0.5f, AbyssZ - 60.f), FVector(160.f, (GateY + 40000.f) / 100.f, 1.f));
@@ -607,7 +609,7 @@ void APathCourse::UpdateCamera(float DeltaSeconds, bool bInstant)
 	// The sky travels with the camera; the sun climbs with progress.
 	const float Progress = FMath::Clamp(Target.Y / FMath::Max(GateY, 1.f), 0.f, 1.f);
 	Sky->SetWorldLocation(FVector(0.f, CameraAt.Y, CameraAt.Z * 0.8f));
-	Sun->SetRelativeLocation(FVector(15000.f, 2600.f, FMath::Lerp(-1700.f, 1700.f, FMath::Pow(Progress, 1.3f))));
+	Sun->SetRelativeLocation(FVector(15000.f, 2600.f, FMath::Lerp(bMoon ? 1100.f : -1700.f, bMoon ? 1900.f : 1700.f, FMath::Pow(Progress, 1.3f))));
 }
 
 void APathCourse::Tick(float DeltaSeconds)
