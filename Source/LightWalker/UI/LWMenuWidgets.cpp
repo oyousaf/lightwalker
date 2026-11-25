@@ -585,7 +585,7 @@ void ULWIntroScreen::Build(UCanvasPanel* Root)
 		22, LWStyle::Text, 16.f, 20);
 	AddNotice(TEXT("Screen flashes and screen shake can be turned off in Settings.\nThis reduces flashing but does not remove it completely."), 22, LWStyle::Text, 52.f, 20);
 	// Broken by hand, so no line is left with a single word on it.
-	AddNotice(TEXT("LightWalker uses Unreal\u00AE Engine. Unreal\u00AE is a trademark or registered trademark of Epic Games, Inc.\nin the United States of America and elsewhere.\n")
+	AddNotice(TEXT("LightWalker uses Unreal\u00AE Engine.\nUnreal\u00AE is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere.\n")
 		TEXT("Unreal\u00AE Engine, Copyright 1998\u20132026, Epic Games, Inc. All rights reserved."), 17, LWStyle::Muted, 18.f, 20);
 	AddNotice(TEXT("The Audiowide and Rajdhani fonts are used under the SIL Open Font License, Version 1.1."), 17, LWStyle::Muted, 18.f, 20);
 	AddNotice(TEXT("This game is a work of fiction. Any resemblance to real people or events is coincidental.\nUnauthorised copying, distribution or sale of this game is prohibited."),
