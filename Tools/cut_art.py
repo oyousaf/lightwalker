@@ -56,13 +56,13 @@ def save(name, image, opaque=False):
     print(f"{name}: {picture.width}x{picture.height}")
 
 
-def cover(name, width, height):
+def cover(name, width, height, called=None):
     """The whole picture scaled to cover, cropped to the middle (a little above it: the horizon sits high)."""
     image = load(name)
     scale = max(width / image.shape[1], height / image.shape[0])
     crop_w, crop_h = round(width / scale), round(height / scale)
     left, top = (image.shape[1] - crop_w) // 2, (image.shape[0] - crop_h) // 2
-    save(name, resize(image[top:top + crop_h, left:left + crop_w], width, height), opaque=True)
+    save(called or name, resize(image[top:top + crop_h, left:left + crop_w], width, height), opaque=True)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -243,6 +243,28 @@ def blocks():
             save(name.replace("Block", "BlockGreat"), reshape(tile, kept_x, kept_y, 0.35, 786 / 242, 832, 256))
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# The seasons (Core/LWSeason finds these as <Name>_<Season>; anything missing keeps the usual look)
+
+def have(name):
+    return os.path.exists(os.path.join(SOURCE, name + ".png"))
+
+
+def seasons():
+    for season in ("Winter", "Spring", "Autumn", "Ramadan", "Eid"):
+        if have(season + "_16x9"):
+            cover(season + "_16x9", 2560, 1440, f"MenuBackground_{season}")
+        if have(season + "_wide"):
+            cover(season + "_wide", 2560, 1096, f"MenuBackground_21x9_{season}")
+            cover(season + "_wide", 3840, 1080, f"MenuBackground_32x9_{season}")
+
+    # A string of lanterns, from the middle of one end ball to the other, so it repeats, without its pale haze.
+    if have("LanternString"):
+        lanterns = load("LanternString")[:, 21:2152]
+        lanterns[..., 3] = np.clip((lanterns[..., 3] - 0.88) / 0.1, 0, 1)
+        save("PathTrim_Ramadan", resize(lanterns, 1024, 348))
+
+
 def squeeze():
     """Every PNG in SourceArt, losslessly: the same pixels, less space."""
     if not oxipng:
@@ -265,4 +287,5 @@ if __name__ == "__main__":
     path()
     path_backdrop()
     blocks()
+    seasons()
     squeeze()

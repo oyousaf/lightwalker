@@ -72,6 +72,7 @@ public:
 	virtual FString GetReached() const override;
 	bool IsEndless() const;
 	virtual void AddCameraTrauma(float Amount) override;
+	virtual void RefreshSeason() override;
 
 	/** The wave just cleared leads into The Path, or The Shield, rather than straight to the next wave. */
 	bool LeadsToPath() const;

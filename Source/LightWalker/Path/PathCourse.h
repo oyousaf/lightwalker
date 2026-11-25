@@ -186,6 +186,7 @@ private:
 	void Checkpoint(float Back);
 
 	void BuildMeshes();
+	void AddTrimmings(const FRotator& Facing);
 	void BuildBackdrop();
 	void UpdateBlocks(float DeltaSeconds);
 	void UpdateCamera(float DeltaSeconds, bool bInstant);
@@ -217,6 +218,14 @@ private:
 		float Centre = 0.f;
 	};
 	TArray<FSpikeRow> SpikeRows;
+
+	/** The season's decorations along the ground. */
+	struct FTrimming
+	{
+		TWeakObjectPtr<UMaterialInstanceDynamic> Material;
+		float Y = 0.f;
+	};
+	TArray<FTrimming> Trimmings;
 
 	struct FLantern
 	{

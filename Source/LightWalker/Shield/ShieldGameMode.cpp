@@ -88,6 +88,7 @@ void AShieldGameMode::StartPlay()
 	}
 	Field = World->SpawnActor<AShieldField>(AShieldField::StaticClass(), FTransform::Identity);
 	Super::StartPlay();
+	SetupWeather(FBox(FVector(-1700.f, -4200.f, 4.f), FVector(1500.f, 4200.f, 560.f)));
 
 	AShieldPawn* LightWalker = GetShieldPawn();
 	ULightWalkerGameInstance* Run = GetRun();

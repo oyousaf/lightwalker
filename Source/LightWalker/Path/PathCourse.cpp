@@ -7,6 +7,8 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
+#include "Core/LWSeason.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UI/LWStyle.h"
@@ -303,6 +305,8 @@ void APathCourse::BuildMeshes()
 		}
 	}
 
+	AddTrimmings(Facing);
+
 	// Checkpoint lanterns: a post at the back of the path, lit as you pass.
 	const FVector2D PostSize = FVector2D(392.f, 1000.f) * 0.3f;
 	const FVector2D Lamp(0.25f, 0.25f);  // where the lantern is on the art, from its middle
@@ -330,6 +334,39 @@ void APathCourse::BuildMeshes()
 	AddLight(FVector(-60.f, GateY, GateZ + 240.f), 90.f, 1500.f, GateColor);
 }
 
+void APathCourse::AddTrimmings(const FRotator& Facing)
+{
+	// The season's icicles, blossom, leaves or string of lanterns, hung along the front lip of the ground.
+	UTexture2D* Hanging = LWSeason::OwnArt(TEXT("PathTrim"));
+	if (!Hanging)
+	{
+		return;
+	}
+	const FIntPoint Art = Hanging->GetImportedSize();
+	const float Aspect = static_cast<float>(Art.X) / FMath::Max(1, Art.Y);
+	// Lanterns need more room than a fringe.
+	const ELWSeason Season = LWSeason::Current();
+	const float Height = Season == ELWSeason::Ramadan || Season == ELWSeason::Eid ? 130.f : 74.f;
+	for (const FPathBlock& Block : Blocks)
+	{
+		const float Width = Block.Right - Block.Left;
+		if (Block.Kind != EPathBlock::Ground || Width < Height * Aspect * 0.6f)
+		{
+			continue;
+		}
+		const int32 Count = FMath::Max(1, FMath::RoundToInt(Width / (Height * Aspect)));
+		const float Step = Width / Count;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const FVector Where(-PathDepth - 4.f, Block.Left + Step * (Index + 0.5f), Block.Top - 10.f - Height * 0.5f);
+			if (UStaticMeshComponent* Card = LWNeon::AddCard(this, Hanging, RootComponent, Where, FVector2D(Step, Height), Facing))
+			{
+				Trimmings.Add({ Cast<UMaterialInstanceDynamic>(Card->GetMaterial(0)), static_cast<float>(Where.Y) });
+			}
+		}
+	}
+}
+
 void APathCourse::BuildBackdrop()
 {
 	// Pictures behind the course, each repeating along it. They're see-through, so they're drawn in this order whatever
@@ -339,7 +376,7 @@ void APathCourse::BuildBackdrop()
 	{
 		for (float Y = From; Y < To; Y += Size.X)
 		{
-			if (UStaticMeshComponent* Card = LWNeon::AddCard(this, LWStyle::Art(Name), Parent, FVector(X, Y + Size.X * 0.5f, Bottom + Size.Y * 0.5f), Size, Facing, Intensity))
+			if (UStaticMeshComponent* Card = LWNeon::AddCard(this, LWSeason::Art(Name), Parent, FVector(X, Y + Size.X * 0.5f, Bottom + Size.Y * 0.5f), Size, Facing, Intensity))
 			{
 				Card->SetTranslucentSortPriority(Order);
 			}
@@ -353,7 +390,9 @@ void APathCourse::BuildBackdrop()
 	AddLayer(TEXT("PathSky"), Sky, 16000.f, -300.f, SkySize, -SkySize.X * 2.5f, SkySize.X * 2.4f, 1.f, -50);
 
 	// The sun, rising as the gate gets nearer.
-	if (UStaticMeshComponent* Disc = LWNeon::AddCard(this, LWStyle::Art(TEXT("PathSun")), Sun, FVector::ZeroVector, FVector2D(7600.f), Facing, 1.1f))
+	// (In Ramadan and at Eid, a crescent moon.)
+	UTexture2D* Moon = LWSeason::OwnArt(TEXT("PathSun"));
+	if (UStaticMeshComponent* Disc = LWNeon::AddCard(this, Moon ? Moon : LWStyle::Art(TEXT("PathSun")), Sun, FVector::ZeroVector, FVector2D(Moon ? 4600.f : 7600.f), Facing, Moon ? 1.4f : 1.1f))
 	{
 		Disc->SetTranslucentSortPriority(-40);
 	}
@@ -500,6 +539,15 @@ void APathCourse::UpdateBlocks(float DeltaSeconds)
 			{
 				Material->SetScalarParameterValue(LWNeon::IntensityParam, FMath::Lerp(0.05f, 1.4f, SeenAt(Row.Centre)));
 			}
+		}
+	}
+
+	for (const FTrimming& Trimming : Trimmings)
+	{
+		// They show only where the light reaches, like the edges, or they'd give the dark away.
+		if (UMaterialInstanceDynamic* Material = Trimming.Material.Get())
+		{
+			Material->SetScalarParameterValue(LWNeon::IntensityParam, FMath::Lerp(0.04f, 1.1f, SeenAt(Trimming.Y)));
 		}
 	}
 

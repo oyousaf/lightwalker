@@ -40,6 +40,9 @@ public:
 	/** Another mode's colours for this arena, and no bottom edge (The Shield). Call before play begins. */
 	void SetLook(const FLinearColor& TopEdge, const FLinearColor& SideEdges, const FLinearColor& GridLines, bool bOpenBottom);
 
+	/** Takes up the season's colours (unless another mode has set its own). */
+	void RefreshSeason();
+
 	/** The arena's mood, eased into: 1 is the boss's gloom (dark and red), -1 the dawn after it, 0 as normal. */
 	void SetMood(float InMood) { MoodTarget = InMood; }
 
@@ -167,6 +170,7 @@ private:
 	/** The game window's width over height; the camera widens past 16:9 so ultrawide screens keep the whole arena. */
 	float ViewAspect = 16.f / 9.f;
 
+	bool bOwnLook = false;
 	float Mood = 0.f;
 	float MoodTarget = 0.f;
 

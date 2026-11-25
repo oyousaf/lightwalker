@@ -6,6 +6,7 @@
 
 class AEnemyBase;
 class ALightWalkerPawn;
+class ALWWeather;
 class ULightWalkerGameInstance;
 class APickup;
 enum class EPickupType : uint8;
@@ -42,6 +43,9 @@ public:
 	/** How far the run has got, for the leaderboard. */
 	virtual FString GetReached() const { return FString(); }
 
+	/** The season changed in Settings. */
+	virtual void RefreshSeason();
+
 	/** Shakes this mode's camera (0-1). */
 	virtual void AddCameraTrauma(float Amount) {}
 
@@ -54,6 +58,9 @@ public:
 protected:
 	ULightWalkerGameInstance* GetRun() const;
 	ALightWalkerPawn* GetLightWalker() const;
+
+	/** Fills a box of air with the season's weather (one that travels with the camera is measured from it). */
+	void SetupWeather(const FBox& Air, bool bFollowCamera = false);
 
 	/** Lightwalker's shield takes the hit, if it's up (with its sound and flash). */
 	bool BlockWithShield(ALightWalkerPawn* LightWalker);
@@ -74,6 +81,9 @@ protected:
 	void FadeIn();
 
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<ALWWeather> Weather;
+
 	FString TravelMap;
 	FString TravelOptions;
 	FTimerHandle TravelTimer;

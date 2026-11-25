@@ -159,6 +159,8 @@ void AArenaGameMode::StartPlay()
 	}
 
 	Super::StartPlay();
+	// Over the arena and well past its sides, for the widest screens; low, so it's near the action without hiding it.
+	SetupWeather(FBox(FVector(-1700.f, -4200.f, 4.f), FVector(1500.f, 4200.f, 560.f)));
 
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
@@ -257,6 +259,15 @@ void AArenaGameMode::StartPlay()
 		}
 	}
 
+}
+
+void AArenaGameMode::RefreshSeason()
+{
+	Super::RefreshSeason();
+	if (Arena)
+	{
+		Arena->RefreshSeason();
+	}
 }
 
 void AArenaGameMode::AddCameraTrauma(float Amount)

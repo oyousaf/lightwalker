@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Core/LWSeason.h"
 #include "LWMenuWidgets.generated.h"
 
 class ALightWalkerPlayerController;
@@ -38,7 +39,7 @@ public:
 	void HandleValueChanged(float Value) { if (Callback) { Callback(Value); } }
 };
 
-/** Soft motes of light drifting up the screen like embers, drawn behind the menus' buttons. */
+/** Soft motes of light drifting up the screen like embers, or the season's snow, petals or leaves coming down it, behind the menus' buttons. */
 UCLASS()
 class LIGHTWALKER_API ULWMoteField : public UUserWidget
 {
@@ -63,15 +64,22 @@ private:
 		float SwayRate = 0.f;
 		float Twinkle = 0.f;
 		float Phase = 0.f;
+		float Spin = 0.f;
+		/** Comes down rather than rising, and which picture it is (-1 for a soft glow). */
+		bool bFalls = false;
+		int32 Piece = -1;
 		FLinearColor Color = FLinearColor::White;
 	};
 
-	/** A new mote just below the bottom (or anywhere, when the field first fills). */
-	static void Respawn(FMote& Mote, bool bAnywhere);
+	/** A new mote just off the screen (or anywhere, when the field first fills). */
+	void Respawn(FMote& Mote, bool bAnywhere);
+	void Fill();
 
 	static constexpr int32 MoteCount = 90;
 	TArray<FMote> Motes;
 	FSlateBrush Brush;
+	TArray<FSlateBrush> Pieces;
+	ELWSeason Season = ELWSeason::None;
 	float Time = 0.f;
 };
 
@@ -299,6 +307,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> FlashButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> SeasonButton;
 };
 
 /**

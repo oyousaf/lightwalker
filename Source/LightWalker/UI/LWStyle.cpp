@@ -47,10 +47,15 @@ UTexture2D* LWStyle::Art(const TCHAR* Name)
 {
 	static TMap<FString, TWeakObjectPtr<UTexture2D>> Cache;
 	TWeakObjectPtr<UTexture2D>& Slot = Cache.FindOrAdd(Name);
-	if (!Slot.IsValid())
+	static TSet<FString> Missing;
+	if (!Slot.IsValid() && !Missing.Contains(Name))
 	{
 		const FString Package = FString::Printf(TEXT("/Game/UI/T_%s"), Name);
-		if (FPackageName::DoesPackageExist(Package))
+		if (!FPackageName::DoesPackageExist(Package))
+		{
+			Missing.Add(Name);
+		}
+		else
 		{
 			Slot = LoadObject<UTexture2D>(nullptr, *FString::Printf(TEXT("%s.T_%s"), *Package, Name));
 #if WITH_EDITOR

@@ -6,6 +6,7 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LWNeon.h"
+#include "Core/LWSeason.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -71,6 +72,7 @@ void AArena::BeginPlay()
 {
 	Super::BeginPlay();
 
+	RefreshSeason();
 	LWNeon::ApplySurface(Floor, FloorColor);
 	EdgeMaterials.Reset();
 	for (UStaticMeshComponent* Edge : { EdgeTop.Get(), EdgeBottom.Get() })
@@ -200,8 +202,26 @@ void AArena::ApplyCamera()
 	}
 }
 
+void AArena::RefreshSeason()
+{
+	if (bOwnLook)
+	{
+		return;
+	}
+	const AArena* Usual = GetDefault<AArena>();
+	EdgeColor = Usual->EdgeColor;
+	SideEdgeColor = Usual->SideEdgeColor;
+	GridColor = Usual->GridColor;
+	LWSeason::GetArenaColors(EdgeColor, SideEdgeColor, GridColor);
+	if (HasActorBegunPlay())
+	{
+		ApplyCamera();  // which sets the colours
+	}
+}
+
 void AArena::SetLook(const FLinearColor& TopEdge, const FLinearColor& SideEdges, const FLinearColor& GridLines, bool bOpenBottom)
 {
+	bOwnLook = true;
 	EdgeColor = TopEdge;
 	SideEdgeColor = SideEdges;
 	GridColor = GridLines;

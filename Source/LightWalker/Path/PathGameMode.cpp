@@ -43,6 +43,8 @@ void APathGameMode::StartPlay()
 {
 	Course = GetWorld()->SpawnActor<APathCourse>(APathCourse::StaticClass(), FTransform::Identity);
 	Super::StartPlay();
+	// Behind the course only (which is 130 either side of X 0), so it never crosses the action.
+	SetupWeather(FBox(FVector(200.f, -3600.f, -1300.f), FVector(2200.f, 3600.f, 1300.f)), true);
 
 	APathPawn* LightWalker = GetPathPawn();
 	ULightWalkerGameInstance* Run = GetRun();

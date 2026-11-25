@@ -17,6 +17,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Core/LWGameMode.h"
 #include "Core/LWNeon.h"
 #include "Core/LWScoreboard.h"
 #include "Core/LWSound.h"
@@ -454,16 +455,24 @@ UTexture2D* ULWMenuWidget::PickBackdropArt(float Aspect)
 		{ TEXT("MenuBackground_21x9"), 21.f / 9.f },
 		{ TEXT("MenuBackground_32x9"), 32.f / 9.f },
 	};
+	// The season's own versions if there are any, otherwise the usual ones.
 	UTexture2D* Best = nullptr;
-	float BestGap = TNumericLimits<float>::Max();
-	for (const FVersion& Version : Versions)
+	for (const bool bSeason : { true, false })
 	{
-		UTexture2D* Art = LWStyle::Art(Version.Name);
-		const float Gap = FMath::Abs(FMath::Loge(Aspect / Version.Aspect));
-		if (Art && Gap < BestGap)
+		float BestGap = TNumericLimits<float>::Max();
+		for (const FVersion& Version : Versions)
 		{
-			Best = Art;
-			BestGap = Gap;
+			UTexture2D* Art = bSeason ? LWSeason::OwnArt(Version.Name) : LWStyle::Art(Version.Name);
+			const float Gap = FMath::Abs(FMath::Loge(Aspect / Version.Aspect));
+			if (Art && Gap < BestGap)
+			{
+				Best = Art;
+				BestGap = Gap;
+			}
+		}
+		if (Best)
+		{
+			break;
 		}
 	}
 	return Best;
@@ -955,6 +964,20 @@ void ULWSettingsMenu::Build(UCanvasPanel* Root)
 		}
 	});
 
+	SeasonButton = AddButton(Right, TEXT("SEASON"), [this]()
+	{
+		if (ULightWalkerUserSettings* S = ULightWalkerUserSettings::Get())
+		{
+			// Auto, off, then each season.
+			S->SeasonChoice = S->SeasonChoice + 1 >= static_cast<int32>(ELWSeason::Count) ? ULightWalkerUserSettings::SeasonAuto : S->SeasonChoice + 1;
+			if (ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>())
+			{
+				GameMode->RefreshSeason();
+			}
+			Refresh();
+		}
+	});
+
 	AddButton(Right, TEXT("CONTROLS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->OpenControls(); } });
 
 	AddButton(Column, TEXT("BACK"), [this]()
@@ -997,6 +1020,7 @@ void ULWSettingsMenu::Refresh()
 	SetButtonLabel(VibrationButton, FString::Printf(TEXT("VIBRATION: %s"), S->bVibration ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(ShakeButton, FString::Printf(TEXT("SCREEN SHAKE: %s"), S->bScreenShake ? TEXT("ON") : TEXT("OFF")));
 	SetButtonLabel(FlashButton, FString::Printf(TEXT("SCREEN FLASHES: %s"), S->bScreenFlashes ? TEXT("ON") : TEXT("OFF")));
+	SetButtonLabel(SeasonButton, S->SeasonChoice < 0 ? FString(TEXT("SEASON: AUTO")) : TEXT("SEASON: ") + LWSeason::GetName(static_cast<ELWSeason>(S->SeasonChoice)));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1164,13 +1188,26 @@ void ULWMoteField::NativeConstruct()
 	{
 		Brush = LWStyle::ArtBrush(Glow, FVector2D(64.f, 64.f));
 	}
-	if (Motes.Num() == 0)
+	Fill();
+}
+
+void ULWMoteField::Fill()
+{
+	// The season's pictures: T_Flake1-4, T_Petal1-4 or T_Leaf1-4, if they've been imported.
+	Season = LWSeason::Current();
+	const TCHAR* Kind = Season == ELWSeason::Winter ? TEXT("Flake") : Season == ELWSeason::Spring ? TEXT("Petal") : Season == ELWSeason::Autumn ? TEXT("Leaf") : nullptr;
+	Pieces.Reset();
+	for (int32 Number = 1; Kind && Number <= 4; ++Number)
 	{
-		Motes.SetNum(MoteCount);
-		for (FMote& Mote : Motes)
+		if (UTexture2D* Piece = LWStyle::Art(*FString::Printf(TEXT("%s%d"), Kind, Number)))
 		{
-			Respawn(Mote, true);
+			Pieces.Add(LWStyle::ArtBrush(Piece, FVector2D(64.f, 64.f)));
 		}
+	}
+	Motes.SetNum(MoteCount);
+	for (FMote& Mote : Motes)
+	{
+		Respawn(Mote, true);
 	}
 }
 
@@ -1178,18 +1215,44 @@ void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
 {
 	// Mostly small warm sparks; a few big, faint, out-of-focus ones nearer the eye.
 	const bool bBokeh = FMath::FRand() < 0.12f;
-	Mote.Position = FVector2D(FMath::FRand(), bAnywhere ? FMath::FRandRange(0.05f, 1.05f) : FMath::FRandRange(1.02f, 1.1f));
+	// Two in three fall when the season has something to fall; the rest are lights rising as ever.
+	const bool bWeather = Season == ELWSeason::Winter || Season == ELWSeason::Spring || Season == ELWSeason::Autumn;
+	Mote.bFalls = bWeather && FMath::FRand() < 0.66f;
+	Mote.Piece = Mote.bFalls && Pieces.Num() > 0 ? FMath::RandRange(0, Pieces.Num() - 1) : -1;
+	const float Off = FMath::FRandRange(1.02f, 1.1f);
+	Mote.Position = FVector2D(FMath::FRand(), bAnywhere ? FMath::FRandRange(0.05f, 1.05f) : Mote.bFalls ? 1.f - Off : Off);
 	Mote.Size = bBokeh ? FMath::FRandRange(110.f, 180.f) : FMath::FRandRange(26.f, 64.f);
 	Mote.Brightness = bBokeh ? FMath::FRandRange(0.12f, 0.22f) : FMath::FRandRange(0.6f, 1.f);
-	// Nearer (bigger) motes rise faster.
+	// Nearer (bigger) motes move faster.
 	Mote.Speed = bBokeh ? FMath::FRandRange(0.05f, 0.08f) : FMath::FRandRange(0.018f, 0.055f);
 	Mote.SwayAmount = FMath::FRandRange(6.f, 22.f);
 	Mote.SwayRate = FMath::FRandRange(0.35f, 1.1f);
 	Mote.Twinkle = FMath::FRandRange(1.5f, 4.f);
 	Mote.Phase = FMath::FRand() * UE_TWO_PI;
+	Mote.Spin = FMath::FRandRange(-0.6f, 0.6f);
 
-	// The sunset's palette: lantern gold, with some pink and a little cyan.
 	const float Pick = FMath::FRand();
+	if (Mote.bFalls)
+	{
+		Mote.Speed *= Season == ELWSeason::Autumn ? 2.2f : 1.5f;
+		Mote.SwayAmount *= 1.8f;
+		if (Mote.Piece >= 0)
+		{
+			Mote.Size = bBokeh ? FMath::FRandRange(54.f, 80.f) : FMath::FRandRange(16.f, 36.f);
+			Mote.Brightness = bBokeh ? 0.3f : FMath::FRandRange(0.55f, 0.9f);
+			Mote.Color = FLinearColor::White;
+			return;
+		}
+		Mote.Color = Season == ELWSeason::Winter ? FLinearColor(0.75f, 0.88f, 1.f) : Season == ELWSeason::Spring ? FLinearColor(1.f, 0.55f, 0.75f) : FLinearColor(1.f, 0.5f, 0.15f);
+		return;
+	}
+	if (Season == ELWSeason::Ramadan || Season == ELWSeason::Eid)
+	{
+		// Gold, with teal in Ramadan and pink at Eid.
+		Mote.Color = Pick < 0.75f ? FLinearColor(1.f, 0.78f, 0.38f) : Season == ELWSeason::Ramadan ? FLinearColor(0.3f, 0.95f, 0.85f) : FLinearColor(1.f, 0.4f, 0.72f);
+		return;
+	}
+	// The sunset's palette: lantern gold, with some pink and a little cyan.
 	Mote.Color = Pick < 0.6f ? FLinearColor(1.f, 0.78f, 0.45f) : Pick < 0.85f ? FLinearColor(1.f, 0.4f, 0.72f) : FLinearColor(0.4f, 0.9f, 1.f);
 }
 
@@ -1198,10 +1261,14 @@ void ULWMoteField::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
 	Time += InDeltaTime;
+	if (Season != LWSeason::Current())
+	{
+		Fill();  // changed in Settings
+	}
 	for (FMote& Mote : Motes)
 	{
-		Mote.Position.Y -= Mote.Speed * InDeltaTime;
-		if (Mote.Position.Y < -0.05f)
+		Mote.Position.Y += Mote.Speed * InDeltaTime * (Mote.bFalls ? 1.f : -1.f);
+		if (Mote.bFalls ? Mote.Position.Y > 1.05f : Mote.Position.Y < -0.05f)
 		{
 			Respawn(Mote, false);
 		}
@@ -1223,8 +1290,9 @@ int32 ULWMoteField::NativePaint(const FPaintArgs& Args, const FGeometry& Allotte
 	{
 		// Fades in as it leaves the floor and dies away towards the top, twinkling on the way.
 		const float Y = Mote.Position.Y;
-		const float Fade = FMath::Clamp((1.05f - Y) / 0.15f, 0.f, 1.f) * FMath::Clamp((Y + 0.02f) / 0.45f, 0.f, 1.f);
-		const float Twinkle = 0.7f + 0.3f * FMath::Sin(Time * Mote.Twinkle + Mote.Phase);
+		// (What falls is seen all the way down.)
+		const float Fade = Mote.bFalls ? FMath::Clamp((1.05f - Y) / 0.2f, 0.f, 1.f) : FMath::Clamp((1.05f - Y) / 0.15f, 0.f, 1.f) * FMath::Clamp((Y + 0.02f) / 0.45f, 0.f, 1.f);
+		const float Twinkle = Mote.bFalls ? 0.85f : 0.7f + 0.3f * FMath::Sin(Time * Mote.Twinkle + Mote.Phase);
 		const float Alpha = Mote.Brightness * Fade * Twinkle;
 		if (Alpha < 0.01f)
 		{
@@ -1237,8 +1305,16 @@ int32 ULWMoteField::NativePaint(const FPaintArgs& Args, const FGeometry& Allotte
 			Y * Area.Y);
 		FLinearColor Color = Mote.Color * Tint;
 		Color.A = Alpha * Tint.A;
-		FSlateDrawElement::MakeBox(OutDrawElements, Layer,
-			AllottedGeometry.ToPaintGeometry(Size, FSlateLayoutTransform(Centre - Size * 0.5f)), &Brush, ESlateDrawEffect::None, Color);
+		const FPaintGeometry Where = AllottedGeometry.ToPaintGeometry(Size, FSlateLayoutTransform(Centre - Size * 0.5f));
+		if (Pieces.IsValidIndex(Mote.Piece))
+		{
+			FSlateDrawElement::MakeRotatedBox(OutDrawElements, Layer, Where, &Pieces[Mote.Piece], ESlateDrawEffect::None, Mote.Phase + Time * Mote.Spin,
+				TOptional<FVector2f>(), FSlateDrawElement::RelativeToElement, Color);
+		}
+		else
+		{
+			FSlateDrawElement::MakeBox(OutDrawElements, Layer, Where, &Brush, ESlateDrawEffect::None, Color);
+		}
 	}
 	return Layer;
 }

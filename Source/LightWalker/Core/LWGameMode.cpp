@@ -5,6 +5,7 @@
 #include "Core/LWSound.h"
 #include "Core/LightWalkerGameInstance.h"
 #include "Effects/LWParticles.h"
+#include "Effects/LWWeather.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -58,6 +59,23 @@ void ALWGameMode::TravelTo(const TCHAR* Map, const TCHAR* GameMode)
 	{
 		UGameplayStatics::OpenLevel(this, FName(*TravelMap), true, TravelOptions);
 	}), TravelFadeTime + 0.05f, false);
+}
+
+void ALWGameMode::SetupWeather(const FBox& Air, bool bFollowCamera)
+{
+	Weather = GetWorld()->SpawnActor<ALWWeather>();
+	if (Weather)
+	{
+		Weather->Setup(Air, bFollowCamera);
+	}
+}
+
+void ALWGameMode::RefreshSeason()
+{
+	if (Weather)
+	{
+		Weather->Refresh();
+	}
 }
 
 bool ALWGameMode::BlockWithShield(ALightWalkerPawn* LightWalker)
