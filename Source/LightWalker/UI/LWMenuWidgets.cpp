@@ -508,9 +508,10 @@ UWidget* ULWMenuWidget::AddBackdrop(UCanvasPanel* Root)
 	return Cover;
 }
 
-void ULWMenuWidget::AddMotes(UCanvasPanel* Root)
+void ULWMenuWidget::AddMotes(UCanvasPanel* Root, bool bClearOfButtons)
 {
 	ULWMoteField* Motes = WidgetTree->ConstructWidget<ULWMoteField>();
+	Motes->bClearOfButtons = bClearOfButtons;
 	Motes->SetVisibility(ESlateVisibility::HitTestInvisible);
 	AddFullScreen(Motes);
 }
@@ -737,9 +738,9 @@ FReply ULWIntroScreen::NativeOnMouseButtonDown(const FGeometry& InGeometry, cons
 
 void ULWMainMenu::Build(UCanvasPanel* Root)
 {
-	// The neon sunset with motes of light rising through it (over the arena if the art isn't imported).
+	// The neon sunset with motes of light rising through it, or the season's (over the arena if the art isn't imported).
 	AddBackdrop(Root);
-	AddMotes(Root);
+	AddMotes(Root, true);
 
 	// The logo, top centre.
 	UWidget* Logo = MakeLogo(640.f, 96);
@@ -1204,7 +1205,8 @@ void ULWMoteField::Fill()
 			Pieces.Add(LWStyle::ArtBrush(Piece, FVector2D(64.f, 64.f)));
 		}
 	}
-	Motes.SetNum(MoteCount);
+	// Pictures are busier than soft lights, so there are fewer.
+	Motes.SetNum(Pieces.Num() > 0 ? MoteCount * 2 / 3 : MoteCount);
 	for (FMote& Mote : Motes)
 	{
 		Respawn(Mote, true);
@@ -1215,9 +1217,8 @@ void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
 {
 	// Mostly small warm sparks; a few big, faint, out-of-focus ones nearer the eye.
 	const bool bBokeh = FMath::FRand() < 0.12f;
-	// Two in three fall when the season has something to fall; the rest are lights rising as ever.
-	const bool bWeather = Season == ELWSeason::Winter || Season == ELWSeason::Spring || Season == ELWSeason::Autumn;
-	Mote.bFalls = bWeather && FMath::FRand() < 0.66f;
+	// One thing at a time: snow, petals or leaves coming down, or lights rising (the usual look, Ramadan and Eid).
+	Mote.bFalls = Season == ELWSeason::Winter || Season == ELWSeason::Spring || Season == ELWSeason::Autumn;
 	Mote.Piece = Mote.bFalls && Pieces.Num() > 0 ? FMath::RandRange(0, Pieces.Num() - 1) : -1;
 	const float Off = FMath::FRandRange(1.02f, 1.1f);
 	Mote.Position = FVector2D(FMath::FRand(), bAnywhere ? FMath::FRandRange(0.05f, 1.05f) : Mote.bFalls ? 1.f - Off : Off);
@@ -1232,6 +1233,12 @@ void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
 	Mote.Spin = FMath::FRandRange(-0.6f, 0.6f);
 
 	const float Pick = FMath::FRand();
+	if (Season == ELWSeason::Ramadan || Season == ELWSeason::Eid)
+	{
+		// Gold lights, with teal in Ramadan and pink at Eid.
+		Mote.Color = Pick < 0.75f ? FLinearColor(1.f, 0.78f, 0.38f) : Season == ELWSeason::Ramadan ? FLinearColor(0.3f, 0.95f, 0.85f) : FLinearColor(1.f, 0.4f, 0.72f);
+		return;
+	}
 	if (Mote.bFalls)
 	{
 		Mote.Speed *= Season == ELWSeason::Autumn ? 2.2f : 1.5f;
@@ -1244,12 +1251,6 @@ void ULWMoteField::Respawn(FMote& Mote, bool bAnywhere)
 			return;
 		}
 		Mote.Color = Season == ELWSeason::Winter ? FLinearColor(0.75f, 0.88f, 1.f) : Season == ELWSeason::Spring ? FLinearColor(1.f, 0.55f, 0.75f) : FLinearColor(1.f, 0.5f, 0.15f);
-		return;
-	}
-	if (Season == ELWSeason::Ramadan || Season == ELWSeason::Eid)
-	{
-		// Gold, with teal in Ramadan and pink at Eid.
-		Mote.Color = Pick < 0.75f ? FLinearColor(1.f, 0.78f, 0.38f) : Season == ELWSeason::Ramadan ? FLinearColor(0.3f, 0.95f, 0.85f) : FLinearColor(1.f, 0.4f, 0.72f);
 		return;
 	}
 	// The sunset's palette: lantern gold, with some pink and a little cyan.
@@ -1292,8 +1293,15 @@ int32 ULWMoteField::NativePaint(const FPaintArgs& Args, const FGeometry& Allotte
 		const float Y = Mote.Position.Y;
 		// (What falls is seen all the way down.)
 		const float Fade = Mote.bFalls ? FMath::Clamp((1.05f - Y) / 0.2f, 0.f, 1.f) : FMath::Clamp((1.05f - Y) / 0.15f, 0.f, 1.f) * FMath::Clamp((Y + 0.02f) / 0.45f, 0.f, 1.f);
-		const float Twinkle = Mote.bFalls ? 0.85f : 0.7f + 0.3f * FMath::Sin(Time * Mote.Twinkle + Mote.Phase);
-		const float Alpha = Mote.Brightness * Fade * Twinkle;
+		const float Twinkle = Mote.Piece >= 0 ? 0.85f : 0.7f + 0.3f * FMath::Sin(Time * Mote.Twinkle + Mote.Phase);
+		float Alpha = Mote.Brightness * Fade * Twinkle;
+		if (bClearOfButtons && Mote.Piece >= 0)
+		{
+			// The main menu's buttons are see-through, so pictures fade away behind the column (in the centred 16:9 area).
+			const float X = (Mote.Position.X - 0.5f) * Area.X / FMath::Max(1.f, static_cast<float>(FMath::Min(Area.X, Area.Y * 16.0 / 9.0))) + 0.5f;
+			const float Outside = FMath::Max(FMath::Abs(X - 0.18f) - 0.12f, FMath::Abs(Y - 0.55f) - 0.27f);
+			Alpha *= FMath::SmoothStep(-0.02f, 0.05f, Outside);
+		}
 		if (Alpha < 0.01f)
 		{
 			continue;

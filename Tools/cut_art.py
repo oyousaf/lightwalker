@@ -274,6 +274,17 @@ def seasons():
         if have(name):
             save("PathTrim_" + season, resize(join_ends(load(name)[top:bottom], 48), 1024, round((bottom - top) * 1024 / 2124 / 4) * 4))
 
+    # What falls behind the menus: a sheet of three rows of four.
+    if have("Falling"):
+        sheet = load("Falling")
+        labels, _ = ndimage.label(ndimage.binary_dilation(sheet[..., 3] > 0.5, iterations=5))
+        for rows, columns in (box for box in ndimage.find_objects(labels) if box[0].stop - box[0].start > 100):
+            x, y = (columns.start + columns.stop) // 2, (rows.start + rows.stop) // 2
+            kind = ("Flake", "Petal", "Leaf")[y * 3 // sheet.shape[0]]
+            half = max(columns.stop - columns.start, rows.stop - rows.start) // 2 + 12
+            piece = np.pad(sheet, ((half, half), (half, half), (0, 0)))[y:y + half * 2, x:x + half * 2]
+            save(f"{kind}{x * 4 // sheet.shape[1] + 1}", resize(piece, 128, 128))
+
     # The moon in the sun's place, and snow on the land (the same size as the usual layers).
     if have("Crescent"):
         save("PathSun_Ramadan", resize(load("Crescent")[98:1178, 51:1131], 768, 768))

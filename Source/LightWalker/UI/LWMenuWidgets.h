@@ -45,6 +45,10 @@ class LIGHTWALKER_API ULWMoteField : public UUserWidget
 {
 	GENERATED_BODY()
 
+public:
+	/** Keeps the season's pictures from showing through the main menu's buttons. */
+	bool bClearOfButtons = false;
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -142,7 +146,7 @@ protected:
 	UWidget* AddBackdrop(UCanvasPanel* Root);
 
 	/** Motes of light rising across the whole screen. */
-	void AddMotes(UCanvasPanel* Root);
+	void AddMotes(UCanvasPanel* Root, bool bClearOfButtons = false);
 
 	/** Makes a widget slide in and fade up with the menu. */
 	void AddSlideIn(UWidget* Widget) { SlideIns.Add(Widget); }
