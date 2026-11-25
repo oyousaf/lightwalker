@@ -23,7 +23,7 @@ DESTINATION = "/Game/UI"
 
 # Full-screen pictures are drawn at about their own size, so they need no mipmaps.
 FULL_SCREEN = ("MenuBackground", "Victory", "GameOver")
-TILING = ("PathRock",)
+TILING = ("PathRock", "PathSky", "PathMountains", "PathRidges")
 
 assets = unreal.EditorAssetLibrary
 tasks = []

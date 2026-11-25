@@ -332,54 +332,38 @@ void APathCourse::BuildMeshes()
 
 void APathCourse::BuildBackdrop()
 {
-	FRandomStream Random(2014);
-
-	// Sky: thin bands from near-black purple down to a magenta glow at the horizon.
-	constexpr int32 Bands = 46;
-	for (int32 Band = 0; Band < Bands; ++Band)
+	// Pictures behind the course, each repeating along it. They're see-through, so they're drawn in this order whatever
+	// the distances.
+	const FRotator Facing = LWNeon::CardFacing(FRotator::ZeroRotator);
+	auto AddLayer = [&](const TCHAR* Name, USceneComponent* Parent, float X, float Bottom, const FVector2D& Size, float From, float To, float Intensity, int32 Order)
 	{
-		const float T = FMath::Max(0.f, static_cast<float>(Band - 6) / (Bands - 7));  // 0 at and below the horizon, 1 at the top
-		const FLinearColor Colour = FMath::Lerp(FLinearColor(0.13f, 0.014f, 0.095f), FLinearColor(0.003f, 0.001f, 0.012f), FMath::Pow(T, 0.36f));
-		UStaticMeshComponent* Strip = LWNeon::AddMesh(this, ELWShape::Cube, Sky, FVector(16000.f, 0.f, -3340.f + Band * 340.f), FVector(1.f, 1400.f, 3.5f));
-		LWNeon::ApplyGlow(Strip, Colour, 1.f);
-	}
-
-	UInstancedStaticMeshComponent* Stars = LWNeon::AddInstances(this, ELWShape::Sphere, Sky);
-	for (int32 Index = 0; Index < 260; ++Index)
-	{
-		Stars->AddInstance(FTransform(FRotator::ZeroRotator,
-			FVector(15500.f, Random.FRandRange(-26000.f, 26000.f), Random.FRandRange(2200.f, 11500.f)), FVector(Random.FRandRange(0.12f, 0.4f))));
-	}
-	LWNeon::ApplyGlow(Stars, FLinearColor(0.75f, 0.8f, 1.f), 1.4f);
-
-	// The sun, low and striped like the menu's sunset, rising as the gate gets nearer.
-	UStaticMeshComponent* Disc = LWNeon::AddMesh(this, ELWShape::Sphere, Sun, FVector::ZeroVector, FVector(1.f, 46.f, 46.f));
-	LWNeon::ApplyGlow(Disc, FLinearColor(1.f, 0.13f, 0.1f), 0.8f);
-	for (int32 Stripe = 0; Stripe < 7; ++Stripe)
-	{
-		UStaticMeshComponent* Bar = LWNeon::AddMesh(this, ELWShape::Cube, Sun, FVector(-150.f, 0.f, -220.f - Stripe * 300.f), FVector(0.2f, 48.f, 0.5f + Stripe * 0.22f));
-		LWNeon::ApplyGlow(Bar, FLinearColor(0.12f, 0.014f, 0.09f), 1.f);
-	}
-
-	// Ridges: three rows of dark peaks, darker as they come nearer. Wide enough for a 32:9 screen at either end.
-	struct FRidge { float X, Base, Low, High, Step; FLinearColor Colour; };
-	const FRidge Ridges[] = {
-		{ 10500.f, -1900.f, 1800.f, 3600.f, 1500.f, FLinearColor(0.075f, 0.012f, 0.075f) },
-		{ 7200.f,  -1900.f, 1300.f, 2700.f, 1150.f, FLinearColor(0.036f, 0.007f, 0.05f) },
-		{ 4200.f,  -1900.f, 900.f,  1900.f, 900.f,  FLinearColor(0.014f, 0.004f, 0.026f) },
-	};
-	for (const FRidge& Ridge : Ridges)
-	{
-		UInstancedStaticMeshComponent* Peaks = LWNeon::AddInstances(this, ELWShape::Cone, RootComponent);
-		for (float Y = -14000.f; Y < GateY + 16000.f; Y += Ridge.Step * Random.FRandRange(0.6f, 1.1f))
+		for (float Y = From; Y < To; Y += Size.X)
 		{
-			const float Height = Random.FRandRange(Ridge.Low, Ridge.High);
-			const float Width = Height * Random.FRandRange(1.1f, 1.7f);
-			Peaks->AddInstance(FTransform(FRotator(0.f, Random.FRandRange(0.f, 360.f), 0.f),
-				FVector(Ridge.X, Y, Ridge.Base + Height * 0.5f), FVector(Width, Width, Height) / 100.f));
+			if (UStaticMeshComponent* Card = LWNeon::AddCard(this, LWStyle::Art(Name), Parent, FVector(X, Y + Size.X * 0.5f, Bottom + Size.Y * 0.5f), Size, Facing, Intensity))
+			{
+				Card->SetTranslucentSortPriority(Order);
+			}
 		}
-		LWNeon::ApplyGlow(Peaks, Ridge.Colour, 1.f);
+	};
+
+	// The sky travels with the camera, with plain dark behind it in case a jump sees past its top.
+	UStaticMeshComponent* Night = LWNeon::AddMesh(this, ELWShape::Cube, Sky, FVector(17500.f, 0.f, 0.f), FVector(1.f, 1600.f, 500.f));
+	LWNeon::ApplyGlow(Night, FLinearColor(0.004f, 0.001f, 0.012f), 1.f);
+	const FVector2D SkySize = FVector2D(1968.f, 724.f) * 9.6f;
+	AddLayer(TEXT("PathSky"), Sky, 16000.f, -300.f, SkySize, -SkySize.X * 2.5f, SkySize.X * 2.4f, 1.f, -50);
+
+	// The sun, rising as the gate gets nearer.
+	if (UStaticMeshComponent* Disc = LWNeon::AddCard(this, LWStyle::Art(TEXT("PathSun")), Sun, FVector::ZeroVector, FVector2D(7600.f), Facing, 1.1f))
+	{
+		Disc->SetTranslucentSortPriority(-40);
 	}
+
+	// Far mountains and nearer ridges, which the camera passes at their own pace. Wide enough for a 32:9 screen at either end.
+	// The mountains' foot is see-through, so the sun needs something to set behind.
+	UStaticMeshComponent* Foot = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, FVector(10000.f, GateY * 0.5f, -1650.f), FVector(1.f, (GateY + 48000.f) / 100.f, 15.f));
+	LWNeon::ApplyGlow(Foot, FLinearColor(0.045f, 0.004f, 0.04f), 1.f);
+	AddLayer(TEXT("PathMountains"), RootComponent, 9800.f, -1750.f, FVector2D(2044.f, 428.f) * 8.4f, -24000.f, GateY + 24000.f, 1.f, -30);
+	AddLayer(TEXT("PathRidges"), RootComponent, 4900.f, -1800.f, FVector2D(2044.f, 424.f) * 4.6f, -16000.f, GateY + 16000.f, 0.65f, -20);
 
 	// The abyss: a dark floor with the arena's grid, far below.
 	UStaticMeshComponent* Floor = LWNeon::AddMesh(this, ELWShape::Cube, RootComponent, FVector(4000.f, GateY * 0.5f, AbyssZ - 60.f), FVector(160.f, (GateY + 40000.f) / 100.f, 1.f));

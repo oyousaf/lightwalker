@@ -139,6 +139,30 @@ def path():
     save("PathRock", resize(np.dstack([rock, np.ones(rock.shape[:2], np.float32)]), 1024, 1024), opaque=True)
 
 
+def join_ends(image, blend):
+    """Makes a strip repeat: its right end is faded into its left, on premultiplied colour."""
+    planes = image.copy()
+    planes[..., :3] *= planes[..., 3:]
+    length = planes.shape[1] - blend
+    ramp = np.linspace(0, 1, blend)[None, :, None]
+    ramp = ramp * ramp * (3 - 2 * ramp)
+    joined = planes[:, :length].copy()
+    joined[:, :blend] = planes[:, :blend] * ramp + planes[:, length:] * (1 - ramp)
+    alpha = joined[..., 3:]
+    joined[..., :3] = np.where(alpha > 1 / 512, joined[..., :3] / np.maximum(alpha, 1 / 512), 0)
+    return joined
+
+
+def path_backdrop():
+    """The sky, mountains and ridges behind The Path: each repeats along it, and the land fades out at its foot."""
+    save("PathSky", join_ends(load("PathSky"), 204), opaque=True)
+    for name, top in (("PathMountains", 296), ("PathRidges", 300)):
+        layer = join_ends(load(name)[top:724], 128)
+        foot = np.clip((layer.shape[0] - np.arange(layer.shape[0])) / (layer.shape[0] * 0.22), 0, 1)
+        layer[..., 3] *= (foot * foot * (3 - 2 * foot))[:, None]
+        save(name, layer)
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # The Shield's wall
 
@@ -239,5 +263,6 @@ if __name__ == "__main__":
     menus()
     icons()
     path()
+    path_backdrop()
     blocks()
     squeeze()
