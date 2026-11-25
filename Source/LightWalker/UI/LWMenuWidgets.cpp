@@ -18,6 +18,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Core/LWNeon.h"
+#include "Core/LWScoreboard.h"
 #include "Core/LWSound.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -235,8 +236,14 @@ UButton* ULWMenuWidget::AddButton(UPanelWidget* Parent, const FString& Label, TF
 	}
 
 	ULWClickRelay* Relay = NewObject<ULWClickRelay>(this);
-	Relay->Callback = [this, Click = MoveTemp(OnClick)]()
+	Relay->Callback = [this, Button, Click = MoveTemp(OnClick)]()
 	{
+		if (IsButtonLocked(Button))
+		{
+			ULWSoundSubsystem::Play(this, ELWSound::WallHit);
+			OnLockedPressed(Button);
+			return;
+		}
 		ULWSoundSubsystem::Play(this, ELWSound::UISelect);
 		Click();
 	};
@@ -306,6 +313,61 @@ void ULWMenuWidget::SetButtonLabel(UButton* Button, const FString& Label)
 			Item.Label->SetText(FText::FromString(Label));
 		}
 	}
+}
+
+void ULWMenuWidget::SetButtonLocked(UButton* Button, bool bLocked)
+{
+	for (FFocusable& Item : Focusables)
+	{
+		UOverlay* Content = Item.Button.Get() == Button ? Cast<UOverlay>(Button->GetContent()) : nullptr;
+		if (!Content)
+		{
+			continue;
+		}
+		Item.bLocked = bLocked;
+		Content->SetRenderOpacity(bLocked ? 0.55f : 1.f);
+		if (bLocked && !Item.Padlock.IsValid())
+		{
+			// A padlock: a hoop behind a solid body.
+			UOverlay* Padlock = WidgetTree->ConstructWidget<UOverlay>();
+			auto AddPart = [&](const FSlateBrush& Brush, float Width, float Height, EVerticalAlignment Align)
+			{
+				USizeBox* Box = WidgetTree->ConstructWidget<USizeBox>();
+				Box->SetWidthOverride(Width);
+				Box->SetHeightOverride(Height);
+				UImage* Part = WidgetTree->ConstructWidget<UImage>();
+				Part->SetBrush(Brush);
+				Box->AddChild(Part);
+				if (UOverlaySlot* PartSlot = Padlock->AddChildToOverlay(Box))
+				{
+					PartSlot->SetHorizontalAlignment(HAlign_Center);
+					PartSlot->SetVerticalAlignment(Align);
+				}
+			};
+			AddPart(NeonBox(FLinearColor::Transparent, LWStyle::Text, 2.5f, 6.f), 14.f, 20.f, VAlign_Top);
+			AddPart(NeonBox(LWStyle::Text, LWStyle::Text, 0.f, 3.f), 20.f, 15.f, VAlign_Bottom);
+			USizeBox* Frame = WidgetTree->ConstructWidget<USizeBox>();
+			Frame->SetWidthOverride(22.f);
+			Frame->SetHeightOverride(26.f);
+			Frame->AddChild(Padlock);
+			if (UOverlaySlot* FrameSlot = Content->AddChildToOverlay(Frame))
+			{
+				FrameSlot->SetHorizontalAlignment(HAlign_Left);
+				FrameSlot->SetVerticalAlignment(VAlign_Center);
+				FrameSlot->SetPadding(FMargin(78.f, 0.f, 0.f, 4.f));
+			}
+			Item.Padlock = Frame;
+		}
+		if (UWidget* Padlock = Item.Padlock.Get())
+		{
+			Padlock->SetVisibility(bLocked ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+bool ULWMenuWidget::IsButtonLocked(const UButton* Button) const
+{
+	return Focusables.ContainsByPredicate([Button](const FFocusable& Item) { return Item.bLocked && Item.Button.Get() == Button; });
 }
 
 UVerticalBox* ULWMenuWidget::AddColumn(UCanvasPanel* Root, const FVector2D& Anchor, const FVector2D& Alignment, float Width, const FVector2D& Offset)
@@ -510,7 +572,7 @@ void ULWMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 			{
 				Button->SetStyle(MakeButtonStyle(bActive));
 			}
-			Button->SetBackgroundColor(bActive ? FLinearColor(Pulse, Pulse, Pulse, 1.f) : FLinearColor::White);
+			Button->SetBackgroundColor(WithAlpha(bActive ? FLinearColor(Pulse, Pulse, Pulse) : FLinearColor::White, Item.bLocked ? (bActive ? 0.6f : 0.4f) : 1.f));
 		}
 		if (UTextBlock* Label = Item.Label.Get())
 		{
@@ -681,7 +743,7 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 
 	UVerticalBox* Column = AddColumn(Root, FVector2D(0.07f, 0.55f), FVector2D(0.f, 0.5f), 420.f);
 	AddButton(Column, TEXT("PLAY"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(ERunMode::Story); } });
-	AddButton(Column, TEXT("ENDLESS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(ERunMode::Endless); } });
+	EndlessButton = AddButton(Column, TEXT("ENDLESS"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->StartGameFromMenu(ERunMode::Endless); } });
 	HeroButton = AddButton(Column, TEXT("HERO"), [this]()
 	{
 		if (ALightWalkerPlayerController* Controller = GetLWController())
@@ -695,9 +757,45 @@ void ULWMainMenu::Build(UCanvasPanel* Root)
 	AddButton(Column, TEXT("QUIT"), [this]() { if (ALightWalkerPlayerController* Controller = GetLWController()) { Controller->QuitGame(); } });
 	RefreshHeroLabel();
 
+	// Beside the endless button while it's locked (NativeTick).
+	Canvas = Root;
+	Hint = MakeBody(TEXT("DEFEAT THE ONE-EYED LIAR TO UNLOCK"), 22, LWStyle::Gold, 120);
+	Hint->SetRenderOpacity(0.f);
+	Hint->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UCanvasPanelSlot* HintSlot = Root->AddChildToCanvas(Hint);
+	HintSlot->SetAlignment(FVector2D(0.f, 0.5f));
+	HintSlot->SetAutoSize(true);
+
 	UVerticalBox* Footer = AddColumn(Root, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), 1400.f, FVector2D(0.f, -58.f));
 	Footer->AddChildToVerticalBox(MakeBody(TEXT("ENTER / A  SELECT       ESC / B  BACK"), 18, LWStyle::Muted, 300));
 	AddCopyright(Root);
+}
+
+void ULWMainMenu::NativeConstruct()
+{
+	Super::NativeConstruct();
+	ULWScoreboard* Scores = ULWScoreboard::Get(this);
+	SetButtonLocked(EndlessButton, Scores && !Scores->IsEndlessUnlocked());
+	HintKnock = 0.f;
+}
+
+void ULWMainMenu::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	const bool bShown = IsButtonLocked(EndlessButton) && (EndlessButton->HasKeyboardFocus() || EndlessButton->HasAnyUserFocus());
+	Hint->SetRenderOpacity(FMath::FInterpTo(Hint->GetRenderOpacity(), bShown ? 1.f : 0.f, InDeltaTime, 12.f));
+	// Selecting it knocks: the hint flares and shudders.
+	HintKnock = FMath::Max(0.f, HintKnock - InDeltaTime * 2.5f);
+	Hint->SetColorAndOpacity(FSlateColor(FMath::Lerp(LWStyle::Gold, LWStyle::Pink, HintKnock)));
+	Hint->SetRenderTranslation(FVector2D(FMath::Sin(HintKnock * 30.f) * 8.f * HintKnock, 0.f));
+
+	const FGeometry& At = EndlessButton->GetCachedGeometry();
+	const FVector2D Beside = Canvas->GetCachedGeometry().AbsoluteToLocal(At.LocalToAbsolute(FVector2D(At.GetLocalSize()) * FVector2D(1.f, 0.5f)));
+	if (UCanvasPanelSlot* HintSlot = Cast<UCanvasPanelSlot>(Hint->Slot))
+	{
+		HintSlot->SetPosition(Beside + FVector2D(26.f, 0.f));
+	}
 }
 
 void ULWMainMenu::RefreshHeroLabel()

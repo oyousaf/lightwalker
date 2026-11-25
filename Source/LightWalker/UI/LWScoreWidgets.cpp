@@ -298,7 +298,11 @@ void ULWLeaderboard::Refresh()
 
 	const bool bEndless = Mode == ERunMode::Endless;
 	FString Title = bEndless ? TEXT("ENDLESS") : TEXT("STORY");
-	if (bRunEnd)
+	if (bEndless && !Scores->IsEndlessUnlocked())
+	{
+		Title += TEXT("     DEFEAT THE ONE-EYED LIAR TO UNLOCK");
+	}
+	else if (bRunEnd)
 	{
 		Title += FString::Printf(TEXT("     YOUR SCORE  %06d"), RunScore);
 	}

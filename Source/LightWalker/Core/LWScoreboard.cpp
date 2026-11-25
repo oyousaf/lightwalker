@@ -111,11 +111,33 @@ int32 ULWScoreboard::Add(ERunMode Mode, const FString& Name, int32 Score, const 
 	{
 		List.SetNum(Size);
 	}
+	WriteSave();
+	return Place < Size ? Place : -1;
+}
+
+void ULWScoreboard::WriteSave()
+{
 	if (!UGameplayStatics::SaveGameToSlot(&GetSave(), GetSlot(), 0))
 	{
 		UE_LOG(LogLightWalker, Warning, TEXT("The leaderboard couldn't be saved."));
 	}
-	return Place < Size ? Place : -1;
+}
+
+bool ULWScoreboard::IsEndlessUnlocked()
+{
+	// A win on the board counts too: it may be from before this was kept.
+	return GetSave().bEndlessUnlocked || GetSave().Story.ContainsByPredicate([](const FLWScore& Score) { return Score.Reached == TEXT("WON"); });
+}
+
+bool ULWScoreboard::UnlockEndless()
+{
+	if (IsEndlessUnlocked() || (IsTestRun() && !IsTestBoard()))
+	{
+		return false;
+	}
+	GetSave().bEndlessUnlocked = true;
+	WriteSave();
+	return true;
 }
 
 FString ULWScoreboard::GetLastName()

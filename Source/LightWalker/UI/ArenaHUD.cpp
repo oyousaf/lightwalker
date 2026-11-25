@@ -220,6 +220,10 @@ void AArenaHUD::DrawHUD()
 	{
 		DrawLine(Banner.Detail, LWStyle::Body(Size(22), true, 200), LWStyle::Muted, CentreX, BannerY + Px(110.f), EAlign::Centre);
 	}
+	if (!Banner.Note.IsEmpty())
+	{
+		DrawLine(Banner.Note, LWStyle::Display(Size(34), 160), LWStyle::Gold, CentreX, BannerY + Px(160.f), EAlign::Centre, WithAlpha(LWStyle::Orange, 0.7f));
+	}
 }
 
 bool AArenaHUD::IsShown() const
@@ -320,6 +324,10 @@ AArenaHUD::FBanner AArenaHUD::GetBanner() const
 		Banner.Color = LWStyle::Gold;
 		Banner.Glow = LWStyle::Pink;
 		Banner.Detail = FString::Printf(TEXT("FINAL SCORE %d"), Run->GetScore());
+		if (GameMode->HasUnlockedEndless())
+		{
+			Banner.Note = TEXT("ENDLESS UNLOCKED");
+		}
 		break;
 	default:
 		break;

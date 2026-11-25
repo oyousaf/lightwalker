@@ -110,6 +110,11 @@ protected:
 	void AddSlider(UPanelWidget* Parent, const FString& Label, float Value, TFunction<void(float)> OnChange);
 	void SetButtonLabel(UButton* Button, const FString& Label);
 
+	/** Dims a button and puts a padlock on it. Selecting it then only knocks (see OnLockedPressed). */
+	void SetButtonLocked(UButton* Button, bool bLocked);
+	bool IsButtonLocked(const UButton* Button) const;
+	virtual void OnLockedPressed(UButton* Button) {}
+
 	/** A centred column of the given width, for the menu's title and buttons. */
 	UVerticalBox* AddColumn(UCanvasPanel* Root, const FVector2D& Anchor, const FVector2D& Alignment, float Width, const FVector2D& Offset = FVector2D::ZeroVector);
 
@@ -141,6 +146,8 @@ private:
 		TWeakObjectPtr<UWidget> Widget;
 		TWeakObjectPtr<UButton> Button;
 		TWeakObjectPtr<UTextBlock> Label;
+		TWeakObjectPtr<UWidget> Padlock;
+		bool bLocked = false;
 		bool bWasActive = false;
 	};
 	TArray<FFocusable> Focusables;
@@ -218,12 +225,27 @@ class LIGHTWALKER_API ULWMainMenu : public ULWMenuWidget
 
 protected:
 	virtual void Build(UCanvasPanel* Root) override;
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void OnLockedPressed(UButton* Button) override { HintKnock = 1.f; }
 
 private:
 	void RefreshHeroLabel();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UButton> HeroButton;
+
+	/** Locked until the boss is beaten; the hint beside it says so while it's picked out. */
+	UPROPERTY(Transient)
+	TObjectPtr<UButton> EndlessButton;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> Hint;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCanvasPanel> Canvas;
+
+	float HintKnock = 0.f;
 };
 
 UCLASS()

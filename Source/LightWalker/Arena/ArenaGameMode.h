@@ -86,6 +86,8 @@ public:
 
 	/** Null except during the boss fight. */
 	AOneEyedLiar* GetBoss() const { return Boss; }
+	/** This win opened the endless arena. */
+	bool HasUnlockedEndless() const { return bEndlessUnlocked; }
 	int32 GetBossBonus() const { return BossBonus; }
 
 protected:
@@ -244,6 +246,7 @@ private:
 	TObjectPtr<AOneEyedLiar> Boss;
 
 	FTimerHandle BossPickupTimer;
+	bool bEndlessUnlocked = false;
 	int32 BossBonus = 0;
 
 	EArenaPhase Phase = EArenaPhase::Menu;

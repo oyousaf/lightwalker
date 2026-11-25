@@ -38,6 +38,8 @@ protected:
 	{
 		FString Title;
 		FString Detail;
+		/** Good news, in gold under the detail. */
+		FString Note;
 		FLinearColor Color = FLinearColor::White;
 		FLinearColor Glow = FLinearColor::White;
 		/** How far down the screen, 0-1. */

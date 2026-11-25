@@ -431,13 +431,17 @@ void ALightWalkerPlayerController::ShowIntro()
 	IntroScreen->SetUserFocus(this);
 }
 
-void ALightWalkerPlayerController::ShowMainMenu()
+void ALightWalkerPlayerController::ShowMainMenu(int32 Focus)
 {
 	if (!MainMenu)
 	{
 		MainMenu = CreateWidget<ULWMainMenu>(this, ULWMainMenu::StaticClass());
 	}
 	ShowMenu(MainMenu);
+	if (Focus > 0)
+	{
+		MainMenu->FocusButton(Focus);
+	}
 }
 
 void ALightWalkerPlayerController::StartGameFromMenu(ERunMode Mode)
@@ -461,7 +465,8 @@ void ALightWalkerPlayerController::OpenLeaderboard()
 		Leaderboard = CreateWidget<ULWLeaderboard>(this, ULWLeaderboard::StaticClass());
 	}
 	Leaderboard->OnBack = [this]() { CloseLeaderboard(); };
-	Leaderboard->Begin(ERunMode::Endless, -1, false, 0);
+	ULWScoreboard* Scores = ULWScoreboard::Get(this);
+	Leaderboard->Begin(Scores && Scores->IsEndlessUnlocked() ? ERunMode::Endless : ERunMode::Story, -1, false, 0);
 	ShowMenu(Leaderboard);
 	Leaderboard->FocusButton(2);
 }

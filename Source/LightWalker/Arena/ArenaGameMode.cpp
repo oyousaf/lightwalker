@@ -3,6 +3,7 @@
 #include "Arena/Arena.h"
 #include "Core/LWMusicSubsystem.h"
 #include "Core/LWFeel.h"
+#include "Core/LWScoreboard.h"
 #include "Core/LWSound.h"
 #include "Effects/LWParticles.h"
 #include "Core/LightWalkerGameInstance.h"
@@ -223,7 +224,11 @@ void AArenaGameMode::StartPlay()
 				FString Page;
 				if (FParse::Value(FCommandLine::Get(), TEXT("LWPage="), Page))
 				{
-					if (Page == TEXT("leaderboard"))
+					if (Page == TEXT("endless"))
+					{
+						Controller->ShowMainMenu(1);
+					}
+					else if (Page == TEXT("leaderboard"))
 					{
 						Controller->OpenLeaderboard();
 					}
@@ -303,6 +308,7 @@ void AArenaGameMode::StartRun()
 {
 	CancelRunEnd();
 	ClearField();
+	bEndlessUnlocked = false;
 	Arena->SetMood(0.f);
 	GetRun()->StartRun(StartingLives);
 	Arena->SetMenuView(false);
@@ -524,6 +530,12 @@ void AArenaGameMode::HandleBossDefeated()
 	BossBonus = PointsForBoss + PointsPerLife * GetRun()->GetLives();
 	GetRun()->AddScore(BossBonus);
 	UE_LOG(LogLightWalker, Log, TEXT("[Boss] Defeated with %d lives, score %d"), GetRun()->GetLives(), GetRun()->GetScore());
+
+	// Straight away, so leaving before the end of the celebrations doesn't lose it.
+	if (ULWScoreboard* Scores = IsEndless() ? nullptr : ULWScoreboard::Get(this))
+	{
+		bEndlessUnlocked = Scores->UnlockEndless();
+	}
 
 	// Everything it called goes with it.
 	const TArray<TObjectPtr<AEnemyBase>> All = Enemies;

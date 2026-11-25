@@ -35,7 +35,8 @@ public:
 
 	/** Launch: the intro screen, then the main menu. */
 	void ShowIntro();
-	void ShowMainMenu();
+	/** Focus: which button to start on. */
+	void ShowMainMenu(int32 Focus = 0);
 
 	/** Menu actions (called by the menu widgets). */
 	void StartGameFromMenu(ERunMode Mode);
