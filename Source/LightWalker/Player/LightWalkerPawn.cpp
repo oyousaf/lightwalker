@@ -5,6 +5,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/LightWalkerGameInstance.h"
+#include "Core/LWGameMode.h"
 #include "Core/LightWalkerUserSettings.h"
 #include "Core/LWNeon.h"
 #include "Core/LWFeel.h"
@@ -330,7 +331,8 @@ void ALightWalkerPawn::Tick(float DeltaSeconds)
 	if (!FireDirection.IsNearlyZero())
 	{
 		FaceDirection(FireDirection);
-		if (FireCooldown <= 0.f && ShootsBolts())
+		const ALWGameMode* GameMode = GetWorld()->GetAuthGameMode<ALWGameMode>();
+		if (FireCooldown <= 0.f && ShootsBolts() && (!GameMode || GameMode->CanFire()))
 		{
 			Fire(FireDirection);
 			const float Rate = Upgrades.FireRate * (GetPowerUpTimeLeft(EPickupType::LightOrb) > 0.f ? LightOrbFireRate : 1.f);

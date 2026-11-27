@@ -52,6 +52,9 @@ public:
 	/** True when a bolt at this point has hit something solid. */
 	virtual bool BlocksShot(const FVector& Location) const { return false; }
 
+	/** Whether Lightwalker's bolts can be fired now (not while a wave or stage is still being introduced). */
+	virtual bool CanFire() const { return true; }
+
 	/** Whether the jump control does anything here (The Path). */
 	virtual bool UsesJump() const { return false; }
 

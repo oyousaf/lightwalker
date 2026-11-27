@@ -69,6 +69,7 @@ public:
 	virtual void RestartRun() override { StartRun(); }
 
 	virtual bool IsInMenu() const override { return Phase == EArenaPhase::Menu; }
+	virtual bool CanFire() const override { return Phase == EArenaPhase::Fighting; }
 	virtual FString GetReached() const override;
 	bool IsEndless() const;
 	virtual void AddCameraTrauma(float Amount) override;

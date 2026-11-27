@@ -49,6 +49,7 @@ public:
 	virtual FString GetReached() const override { return TEXT("THE PATH"); }
 	virtual void AddCameraTrauma(float Amount) override;
 	virtual bool BlocksShot(const FVector& Location) const override;
+	virtual bool CanFire() const override { return Phase == EPathPhase::Running; }
 	virtual bool UsesJump() const override { return true; }
 
 	EPathPhase GetPhase() const { return Phase; }
